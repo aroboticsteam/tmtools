@@ -19,9 +19,68 @@ services:
       - ".:/srv/vtmt"
     restart: unless-stopped
 
+  # ─────────────────────────────────────────────────────────────────────
+  # TMTools (new FastAPI/Postgres/Redis stack) — local dev infra only.
+  # Container names + host ports are distinct from the legacy app above so
+  # both can run side-by-side. Bring up with:
+  #   docker compose up -d postgres redis minio
+  # ─────────────────────────────────────────────────────────────────────
+  postgres:
+    container_name: tmtools-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tmtools
+      POSTGRES_PASSWORD: tmtools
+      POSTGRES_DB: tmtools
+    ports:
+      - "5433:5432"
+    volumes:
+      - tmtools_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tmtools -d tmtools"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    container_name: tmtools-redis
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    container_name: tmtools-minio
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - tmtools_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
 networks:
   cf:
     name: 'cf'
     ipam:
      config:
        - subnet: 10.65.1.0/24
+
+volumes:
+  tmtools_postgres_data:
+  tmtools_minio_data:
