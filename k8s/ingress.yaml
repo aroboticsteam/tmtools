@@ -11,7 +11,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`tmtools.<tld>`)
+    - match: Host(`vex.example.net`)
       kind: Rule
       services:
         - name: tmtools
