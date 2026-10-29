@@ -42,6 +42,7 @@ Roles page, `/api/v1/users/roles`):
 - `tmtools-video`
 - `tmtools-emcee`
 - `tmtools-viewer`
+- `tmtools-staff` (event staff who only need push alerts and room info)
 
 Assign each event-day operator to the appropriate group(s) before the
 event. Group membership is only re-evaluated at the next login (plan
