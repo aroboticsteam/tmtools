@@ -81,7 +81,8 @@ def _settings(tmp_path: Path, **kw) -> "agent_mod.Settings":
     import shlex
 
     return agent_mod.Settings(
-        server="http://test", key="qec_x", input_args=shlex.split(SOURCE), work_dir=tmp_path, video_bitrate="1M", **kw
+        server="http://test", key="qec_x", input_args=shlex.split(SOURCE), work_dir=tmp_path, video_bitrate="1M",
+        **{"keep_local": True, **kw},  # the e2e test compares the local files with the uploaded objects
     )
 
 
