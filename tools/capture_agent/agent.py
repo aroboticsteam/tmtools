@@ -50,10 +50,11 @@ class Settings:
     ffmpeg: str = "ffmpeg"
     reencode: bool = True
     video_bitrate: str = "15M"
+    keep_local: bool = False  # keep recordings on disk after upload (default: delete once uploaded)
     agent_id: str = field(default_factory=lambda: f"agent-{uuid.uuid4().hex[:6]}")
 
     def as_report(self) -> dict[str, Any]:
-        return {"reencode": self.reencode, "video_bitrate": self.video_bitrate}
+        return {"reencode": self.reencode, "video_bitrate": self.video_bitrate, "keep_local": self.keep_local}
 
 
 def _encode_args(settings: Settings) -> list[str]:
@@ -113,6 +114,11 @@ class Recorder:
         out = self.dir / "match.mp4"
         await _run([self.settings.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(self.master),
                     "-c", "copy", "-movflags", "+faststart", str(out)])
+        if not self.settings.keep_local:
+            # The MP4 is a stream copy of the master, so the master is now a duplicate. Marks can no
+            # longer cut from it (the recorder is gone), and a failed remux raised above, keeping it.
+            with contextlib.suppress(OSError):
+                self.master.unlink()
         return out
 
     async def cut(self, moment_id: str, length_s: float, end_ms: int) -> Path:
@@ -167,8 +173,10 @@ class UploadQueue:
     """Persisted upload queue with a dedicated worker per lane, so clips never
     wait behind a match file. Failed jobs retry with backoff and survive restarts."""
 
-    def __init__(self, work_dir: Path, client: httpx.AsyncClient, retry_delays: tuple[float, ...] = RETRY_DELAYS) -> None:
+    def __init__(self, work_dir: Path, client: httpx.AsyncClient, retry_delays: tuple[float, ...] = RETRY_DELAYS,
+                 keep_local: bool = False) -> None:
         self.file = work_dir / "queue.json"
+        self.keep_local = keep_local
         self.client = client
         self.retry_delays = retry_delays
         self.jobs: dict[str, UploadJob] = {}
@@ -256,6 +264,12 @@ class UploadQueue:
             complete["ready_ms"] = max(0, int((time.time() - job.ready_from) * 1000))
         (await self.client.post(f"/api/v1/capture/uploads/{grant['upload_id']}/complete", json=complete)).raise_for_status()
         log.info("uploaded %s (%s)", job.key, grant.get("object_key"))
+        if not self.keep_local:
+            # Only reached once the object store has the file and the server confirmed it.
+            with contextlib.suppress(OSError):
+                path.unlink()
+            with contextlib.suppress(OSError):
+                path.parent.rmdir()  # the recording folder, once its last file is gone (fails harmlessly if not empty)
 
 
 # ── the agent ───────────────────────────────────────────────────────────
@@ -267,7 +281,7 @@ class CaptureAgent:
         self.client = client or httpx.AsyncClient(
             base_url=settings.server.rstrip("/"), headers={"Authorization": f"Bearer {settings.key}"}, timeout=60
         )
-        self.queue = UploadQueue(settings.work_dir, self.client)
+        self.queue = UploadQueue(settings.work_dir, self.client, keep_local=settings.keep_local)
         self.recorder: Recorder | None = None
         self.send: Callable[[dict[str, Any]], Any] = self._drop
         self._tasks: set[asyncio.Task[None]] = set()
@@ -393,6 +407,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     p.add_argument("--ffmpeg", default=os.environ.get("FFMPEG", "ffmpeg"))
     p.add_argument("--reencode", action=argparse.BooleanOptionalAction, default=True, help="re-encode match video to H.264 (default) or stream-copy")
     p.add_argument("--video-bitrate", default="15M")
+    p.add_argument("--keep-local", action="store_true", default=os.environ.get("CAPTURE_KEEP_LOCAL") == "1",
+                   help="keep recordings on disk after they are uploaded (default: delete them once the server has confirmed the upload)")
     p.add_argument("--agent-id", default=os.environ.get("CAPTURE_AGENT_ID"))
     a = p.parse_args(argv)
     missing = [n for n in ("server", "key", "input") if not getattr(a, n)]
@@ -401,7 +417,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     kwargs: dict[str, Any] = {}
     if a.agent_id:
         kwargs["agent_id"] = a.agent_id
-    return Settings(a.server, a.key, shlex.split(a.input), Path(a.work_dir), a.ffmpeg, a.reencode, a.video_bitrate, **kwargs)
+    return Settings(a.server, a.key, shlex.split(a.input), Path(a.work_dir), a.ffmpeg, a.reencode, a.video_bitrate, a.keep_local, **kwargs)
 
 
 async def _main(settings: Settings) -> None:
