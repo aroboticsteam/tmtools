@@ -28,8 +28,9 @@ from backend.core.db import async_session_factory
 from backend.core.dependencies import CurrentPrincipal, get_db, get_redis, require_permission
 from backend.models.comms import ROLE_EMCEE, AgendaItem, CommsPreset, Station, StationMessage
 from backend.models.team import TeamProfile
+from backend.models.timer import TimerInstance
 from backend.modules.comms import access, presence
-from backend.modules.comms import timer as ctimer
+from backend.modules.comms import station_timer
 from backend.modules.comms.next_match import find_next_match
 from backend.modules.notifications import delivery
 from backend.modules.notifications.logic import parse_schedule
@@ -56,9 +57,8 @@ from backend.schemas.comms import (
     StationCreate,
     StationMessageRead,
     StationRead,
+    StationTimer,
     StationUpdate,
-    TimerRequest,
-    TimerState,
     UnlockRequest,
     UnlockResult,
 )
@@ -71,7 +71,7 @@ router = APIRouter(tags=["comms"])
 SCHEDULE_KEY_PATTERN = "qecomp:tm:*:schedule"
 SCREEN_KEY = "qecomp:station:{slug}:screen"
 LAST_KEY = "qecomp:station:{slug}:last"
-TIMER_KEY = "qecomp:station:{slug}:timer"
+TIMER_KEY = station_timer.STATION_TIMER_KEY
 PIN_FAIL_KEY = "qecomp:station:{slug}:pinfail"
 MAX_PIN_FAILURES = 10
 PIN_LOCK_SECONDS = 600
@@ -513,85 +513,41 @@ async def push_screen(
     allowed = [slug for slug in targets if body.screen in screens_for(roles[slug])]
     if not allowed:
         raise HTTPException(status_code=422, detail=f"Screen {body.screen!r} is not available to those stations")
+    instance: TimerInstance | None = None
+    if body.screen == "timer":
+        instance = (
+            await db.execute(select(TimerInstance).where(TimerInstance.entity_id == body.timer))
+        ).scalar_one_or_none()
+        if instance is None:
+            raise HTTPException(status_code=422, detail=f"Unknown timer {body.timer!r}")
     for slug in allowed:
         try:
             await redis.set(SCREEN_KEY.format(slug=slug), body.screen, ex=24 * 3600)
+            if instance is not None:
+                await redis.set(TIMER_KEY.format(slug=slug), instance.entity_id, ex=station_timer.BINDING_TTL_SECONDS)
         except Exception:
             logger.warning("Could not persist screen for station %s", slug, exc_info=True)
     await _publish(redis, SCREEN_EVENT, {"stations": allowed, "screen": body.screen})
-    await log_action(db, principal.subject, "screen", "comms", ",".join(allowed), changes={"screen": body.screen})
+    if instance is not None:
+        shown = await _timer_for_station(redis, instance)
+        await _publish(redis, TIMER_EVENT, {"stations": allowed, "timer": shown, "server_time": time.time()})
+    await log_action(
+        db, principal.subject, "screen", "comms", ",".join(allowed),
+        changes={"screen": body.screen, **({"timer": instance.entity_id} if instance is not None else {})},
+    )
     return SendResult(stations=allowed)
 
 
-async def _read_timer(redis: Any, slug: str) -> dict[str, Any] | None:
+async def _timer_for_station(redis: Any, instance: TimerInstance) -> dict[str, Any]:
     try:
-        raw = await redis.get(TIMER_KEY.format(slug=slug))
-        return json.loads(raw) if raw else None
+        return await station_timer.snapshot(
+            redis, instance.entity_id, label=instance.display_name, default_duration=instance.duration_s
+        )
     except Exception:
-        logger.warning("Timer state unavailable for station %s", slug, exc_info=True)
-        return None
-
-
-@router.post("/api/v1/comms/timer", response_model=SendResult)
-async def control_timer(
-    body: TimerRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    redis: Annotated[Any, Depends(get_redis)],
-    principal: Annotated[CurrentPrincipal, Depends(require_permission("comms:send"))],
-) -> SendResult:
-    """Starts / pauses / resumes / adjusts / stops a stagetimer-style cue on
-    stations. The timer lives in Redis as 'run started at' + 'elapsed before',
-    so every pod and every iPad derives the same display from the clock."""
-    targets = await _resolve_targets(db, body.stations, body.roles)
-    if not targets:
-        raise HTTPException(status_code=422, detail="No matching stations")
-    now = time.time()
-    affected: list[str] = []
-    for slug in targets:
-        current = await _read_timer(redis, slug)
-        if body.action == "start":
-            state = ctimer.start(
-                mode=body.mode,
-                duration=body.duration_seconds,
-                label=body.label,
-                warn=body.warn_seconds,
-                critical=body.critical_seconds,
-                now=now,
-            )
-        elif body.action == "stop":
-            state = None
-        elif current is None:
-            continue
-        elif body.action == "pause":
-            state = ctimer.pause(current, now)
-        elif body.action == "resume":
-            state = ctimer.resume(current, now)
-        else:
-            state = ctimer.adjust(current, body.adjust_seconds or 0)
-        if body.action == "stop" and current is None:
-            continue
-        try:
-            if state is None:
-                await redis.delete(TIMER_KEY.format(slug=slug))
-                if await redis.get(SCREEN_KEY.format(slug=slug)) == "timer":
-                    await redis.set(SCREEN_KEY.format(slug=slug), DEFAULT_SCREEN, ex=24 * 3600)
-            else:
-                await redis.set(TIMER_KEY.format(slug=slug), json.dumps(state), ex=24 * 3600)
-                if body.action == "start":
-                    await redis.set(SCREEN_KEY.format(slug=slug), "timer", ex=24 * 3600)
-        except Exception:
-            logger.warning("Could not persist timer for station %s", slug, exc_info=True)
-        await _publish(redis, TIMER_EVENT, {"stations": [slug], "timer": state, "server_time": now})
-        if body.action == "start":
-            await _publish(redis, SCREEN_EVENT, {"stations": [slug], "screen": "timer"})
-        affected.append(slug)
-    if not affected:
-        raise HTTPException(status_code=409, detail="No running timer on those stations")
-    await log_action(
-        db, principal.subject, f"timer_{body.action}", "comms", ",".join(affected),
-        changes={"mode": body.mode, "duration": body.duration_seconds, "label": body.label},
-    )
-    return SendResult(stations=affected)
+        logger.warning("Timer state unavailable for %s", instance.entity_id, exc_info=True)
+        return station_timer.display_state(
+            {}, entity_id=instance.entity_id, label=instance.display_name, default_duration=instance.duration_s
+        )
 
 
 # ── stations -> desk ─────────────────────────────────────────────────
@@ -700,13 +656,19 @@ async def unlock_station(
 
 
 @router.get("/api/v1/public/stations/{slug}", response_model=PublicStation)
-async def public_station(station: StationAccess, redis: Annotated[Any, Depends(get_redis)]) -> PublicStation:
+async def public_station(
+    station: StationAccess, redis: Annotated[Any, Depends(get_redis)], db: Annotated[AsyncSession, Depends(get_db)]
+) -> PublicStation:
     slug = station.slug
-    screen, last = DEFAULT_SCREEN, None
-    timer_state = await _read_timer(redis, slug)
+    screen, last, timer = DEFAULT_SCREEN, None, None
     try:
+        bound = await redis.get(TIMER_KEY.format(slug=slug))
+        if bound:
+            instance = (await db.execute(select(TimerInstance).where(TimerInstance.entity_id == bound))).scalar_one_or_none()
+            if instance is not None:
+                timer = StationTimer(**await _timer_for_station(redis, instance))
         stored = await redis.get(SCREEN_KEY.format(slug=slug))
-        if stored in screens_for(station.role) and (stored != "timer" or timer_state is not None):
+        if stored in screens_for(station.role) and (stored != "timer" or timer is not None):
             screen = stored
         raw = await redis.get(LAST_KEY.format(slug=slug))
         last = json.loads(raw) if raw else None
@@ -719,7 +681,7 @@ async def public_station(station: StationAccess, redis: Annotated[Any, Depends(g
         screens=screens_for(station.role),
         screen=screen,
         last_message=last,
-        timer=TimerState(**timer_state) if timer_state else None,
+        timer=timer,
         server_time=time.time(),
     )
 

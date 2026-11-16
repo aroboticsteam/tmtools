@@ -35,7 +35,7 @@ import { Toggle } from '../components/ui/Toggle';
 import { CopyButton } from '../components/ui/CopyButton';
 import { CuesPanel } from '../components/timers/CuesPanel';
 import { TimerEditorModal } from '../components/timers/TimerEditorModal';
-import { TimerCard } from '../components/comms/TimerCard';
+import { StationTimerCard } from '../components/comms/StationTimerCard';
 import { moveItem } from '../lib/actionBuilder';
 import type { AgendaItem, CommsPreset, CommsScreen, Station, StationRole, TimerInstance } from '../types/api';
 
@@ -110,7 +110,7 @@ function MessagingSections() {
             <div>
               <Label>Show screen</Label>
               <div className="flex flex-wrap gap-1.5">
-                {(Object.keys(SCREEN_LABEL) as CommsScreen[]).map((s) => (
+                {(Object.keys(SCREEN_LABEL) as CommsScreen[]).filter((s) => s !== 'timer').map((s) => (
                   <Button
                     key={s}
                     variant="secondary"
@@ -153,7 +153,7 @@ function MessagingSections() {
         </Card>
       )}
 
-      {canSend && <TimerCard audience={audience} />}
+      {canSend && <StationTimerCard audience={audience} />}
 
       <Card className="mb-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Messages from stations</h2>

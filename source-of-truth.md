@@ -1,6 +1,6 @@
 # TMTools (QEComp) — Source of Truth
 
-**Last verified against the codebase:** 2026-11-16 (Timer-Teleprompter merged into Comms, legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + qerobotics.co.uk stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
+**Last verified against the codebase:** 2026-11-16 (station timer screen now shows real timer instances, Timer-Teleprompter merged into Comms, legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + qerobotics.co.uk stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
 
 This is the single authoritative description of what is in this repository: architecture, decisions, data model, API surface, RBAC, frontend, deployment and tests. It replaces `tm_update_plan.md` (the original v3.0 rewrite plan). Where the old plan and the code disagreed, **the code wins** and this document records the code.
 
@@ -89,7 +89,7 @@ It is a full rewrite of the original single-instance Flask/JSON-file tool into a
 │   │   ├── predictor/           OPR regression + high-potential flag
 │   │   ├── media/               ffmpeg processor, S3 helpers, image helpers
 │   │   ├── notifications/       logic (pure), service (leader loop), delivery (Web Push)
-│   │   ├── comms/               station access/PIN, presence, timer, next-match
+│   │   ├── comms/               station access/PIN, presence, station timer (display state of a timer instance), next-match
 │   │   ├── site/leaderboards.py Public-site leaderboards/highlights (pure)
 │   │   └── integrations/        base.py + one folder per domain (see §8)
 │   ├── static/                  overlay.html, prompter.html, room.html, station.html,
@@ -412,7 +412,7 @@ Every integration, timer and overlay instance has a system-wide unique `entity_i
 ### 10.6 Comms (desk ↔ iPad) (`modules/comms/`, `routers/comms.py`; see `docs/COMMS.md`)
 
 - **Stations** (one per iPad) have a role (`emcee`, `floor_manager`, `camera`), page `/station/<slug>`. Stations can be **secured**: an `access_key` in the link (rotate to revoke) plus an optional PIN (scrypt-hashed; unlock yields a 12h token). Presence is tracked (green dot / last seen).
-- Desk operators send **messages** (everyone / role / station; **Flash** until acknowledged), **presets**, switch the iPads' **screen**, run shared **timers** (countdown green→amber→red→flashing overtime, or count-up; pause/resume/±1 min), and manage **day/finals agendas** (drag reorder, bulk import `HH:MM-HH:MM Title | details`). iPads can type replies to the desk (inbox; staff push on arrival). Emcee stations also show the next-match countdown with upcoming teams/stats (earliest unscored match from the schedule cache).
+- Desk operators send **messages** (everyone / role / station; **Flash** until acknowledged), **presets**, switch the iPads' **screen**, show a **timer** instance (the Timer-Teleprompter timers) on the iPads' timer screen (`POST /api/v1/comms/screen` with `timer`; the station is bound in Redis `qecomp:station:<slug>:timer`, reads the instance's state from `qecomp:timer:<id>:state`, and follows it live through `timer` messages that `ConnectionManager._forward_timer_to_stations` sends; countdown goes green→amber (≤120 s)→red (≤30 s), then match running / complete), and manage **day/finals agendas** (drag reorder, bulk import `HH:MM-HH:MM Title | details`). iPads can type replies to the desk (inbox; staff push on arrival). Emcee stations also show the next-match countdown with upcoming teams/stats (earliest unscored match from the schedule cache).
 - Voice is plain **Mumble** (`k8s/mumble.yaml`, 64738 tcp+udp, not behind HTTP ingress); TMTools does not proxy voice. The Mumble manifest is untested in a real cluster.
 
 ### 10.7 Button pages
@@ -547,13 +547,13 @@ Generated reference: [`docs/API.md`](docs/API.md) and the live `/docs` (Swagger)
 | POST | `/api/v1/notifications/team-alert` | `notifications:broadcast` — alert specific teams (`pit_admin`/`lost_and_found`/`custom`); modal notice in each room containing them + push to subscribers following them (ignores category opt-outs); returns `{rooms, pushed, unreached_teams}`; audited as `team_alert` |
 | POST | `/api/v1/notifications/test`; GET `/api/v1/notifications/stats` | `notifications:manage` |
 
-**Comms** (`comms:read` = list/inbox view; `comms:manage` = stations, presets, agenda CRUD, links/PIN; `comms:send` = send/screen/timer/ack/clear inbox)
+**Comms** (`comms:read` = list/inbox view; `comms:manage` = stations, presets, agenda CRUD, links/PIN; `comms:send` = send/screen (incl. showing a timer)/ack/clear inbox)
 
 | Path | Notes |
 |---|---|
 | `/api/v1/comms/stations` (+ `/{slug}`, `/{slug}/link`, `/{slug}/rotate-link`, `/{slug}/pin`) | station CRUD and secure link/PIN |
 | `/api/v1/comms/presets`, `/api/v1/comms/agenda` (+ `/order`, `/import`, `/{id}`) | presets and agenda |
-| POST `/api/v1/comms/send`, `/screen`, `/timer` | push to stations |
+| POST `/api/v1/comms/send`, `/screen` | push to stations (`/screen` with `screen: "timer"` + `timer: <entity_id>` binds a timer instance to the station) |
 | GET `/api/v1/comms/inbox`; POST `/inbox/{message_id}/ack`; DELETE `/inbox` | replies from stations |
 | **public:** POST `/api/v1/public/stations/{slug}/unlock`; GET `…/{slug}`, `…/{slug}/agenda`, `…/{slug}/next-match`; POST `…/{slug}/audience-display` (emcee role only, 403 otherwise; whitelisted `display`; 503 no TM running, 502 TM refused; rate-limited); POST `…/{slug}/messages` | iPad station pages (slug/access-key/PIN-token credentialed) |
 
@@ -841,3 +841,4 @@ Build order for the replay chain: #45 → #42 → #38 → #41. Not planned: Shea
 - **2026-11-16 (test):** `test_agent_connects_receives_commands_and_reports_back` polls for presence cleanup instead of a fixed 0.3 s sleep (flaked on loaded runners).
 - **2026-11-16 (redundancy):** HAProxy runs as two copies (`haproxy-1`/`haproxy-2`, `stack/core.yml`); `stack/config/haproxy.cfg` answers `/_haproxy` itself (`monitor-uri`); Traefik's `app` service lists both with a 2 s health check and the `app-retry` middleware (3 attempts) is on every router that uses it. Killing a copy under 12 concurrent clients: ~70 of 38,700 requests failed (those in flight at the SIGKILL), none afterwards; without the retry ~360 per kill.
 - **2026-11-16 (Comms merge):** the Timer-Teleprompter page (`/timers`, `pages/Timers.tsx`) and the Comms page are one page, `/comms` (`pages/Comms.tsx`): the timer/teleprompter section (all of the old page: instance CRUD, prompter links and tokens, cues, start/stop/reset, New Timer) comes first, followed by the station desk (send, screens, station timer, inbox, stations, presets, agenda). `pages/Timers.tsx` and the Timers nav entry are gone; `/timers` redirects to `/comms`. Backend routes and permissions are unchanged. Tests: `frontend/src/pages/Comms.test.tsx`.
+- **2026-11-16 (station timers = timer instances):** the Comms ad-hoc Stagetimer-style timer (`POST /api/v1/comms/timer`, `backend/modules/comms/timer.py`, `TimerRequest`/`TimerState`, `TimerCard`) is removed. The stations' `timer` screen now shows a Timer-Teleprompter timer instance chosen on the desk (`POST /api/v1/comms/screen` `{screen: "timer", timer: <entity_id>}`, 422 for an unknown timer). The binding lives in `qecomp:station:<slug>:timer`; `modules/comms/station_timer.py` derives the display state from the instance's Redis hash, the WS manager forwards `timer_*` events to bound stations, and `station.html` renders phase + colour cues (resyncing every 5 s because a reset publishes no event). Desk UI: `StationTimerCard` (pick a timer, Show on stations). Dropped by design: count-up, pause/resume, ±1 min and per-send amber/red thresholds (fixed at 120 s / 30 s). Tests: `backend/tests/test_comms/test_secure_timer.py`, `frontend/src/components/comms/StationTimerCard.test.tsx`, `frontend/e2e/comms.spec.ts`.
