@@ -578,20 +578,6 @@ export interface StationLink {
   path: string;
 }
 
-export type TimerAction = 'start' | 'pause' | 'resume' | 'stop' | 'adjust';
-
-export interface TimerRequest {
-  stations?: string[];
-  roles?: StationRole[];
-  action: TimerAction;
-  mode?: 'countdown' | 'countup';
-  duration_seconds?: number;
-  label?: string;
-  warn_seconds?: number;
-  critical_seconds?: number;
-  adjust_seconds?: number;
-}
-
 export interface AgendaImportResult {
   created: number;
   errors: { line: number; error: string }[];
