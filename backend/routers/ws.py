@@ -27,6 +27,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from backend import loader
+from backend.core import overlay_state
 from backend.core.db import async_session_factory
 from backend.core.dependencies import ALL_PERMISSIONS, _principal_from_api_key
 from backend.core.redis import redis_client
@@ -239,15 +240,14 @@ class ConnectionManager:
         """Operator chose a single team to feature on an overlay (finals
         "team spotlight" mode); `team: null` returns it to the match view."""
         team = (data.get("payload") or {}).get("team")
-        await self.broadcast(
-            entity_id,
-            {
-                "entity_id": entity_id,
-                "type": "show_team",
-                "timestamp": data.get("timestamp", time.time()),
-                "payload": {"team": team if isinstance(team, str) and team else None},
-            },
-        )
+        message = {
+            "entity_id": entity_id,
+            "type": "show_team",
+            "timestamp": data.get("timestamp", time.time()),
+            "payload": {"team": team if isinstance(team, str) and team else None},
+        }
+        await self.broadcast(entity_id, message)
+        await overlay_state.save(self._redis, entity_id, "team", message)
 
     async def _dispatch_room_notice(self, data: dict[str, Any]) -> None:
         """Forwards a `room_notice` (published by `modules/notifications`) to
@@ -366,19 +366,21 @@ class ConnectionManager:
             )
 
         if field_set_id is not None:
+            # The event's own timestamp, not this node's clock: every node derives the same ordering key,
+            # which the saved state (and the overlay page) use to ignore anything older.
+            stamp = data.get("timestamp") or time.time()
             for row in overlay_rows:
                 if row.field_set_id != field_set_id:
                     continue
-                await self.broadcast(
-                    row.entity_id,
-                    {
-                        "entity_id": row.entity_id,
-                        "entity_tags": list(row.tags or []),
-                        "type": "upcoming_match",
-                        "timestamp": time.time(),
-                        "payload": upcoming_match,
-                    },
-                )
+                message = {
+                    "entity_id": row.entity_id,
+                    "entity_tags": list(row.tags or []),
+                    "type": "upcoming_match",
+                    "timestamp": stamp,
+                    "payload": upcoming_match,
+                }
+                await self.broadcast(row.entity_id, message)
+                await overlay_state.save(self._redis, row.entity_id, "match", message)
 
     def _resolve_field_set_id(self, tm_entity_id: str | None) -> int | None:
         """Best-effort lookup of the firing `vex_tm` instance's
@@ -704,6 +706,13 @@ async def ws_overlay(websocket: WebSocket, entity_id: str) -> None:
     bound field set — see `ConnectionManager._dispatch_upcoming_match`."""
     await manager.connect(entity_id, websocket)
     try:
+        # A reloaded or reconnecting overlay (OBS browser source) gets what it was last showing: the match
+        # first, then the spotlight, so a spotlighted team stays on screen instead of vanishing. Live events
+        # may overtake this snapshot; the page drops anything older than what it already applied.
+        state = await overlay_state.load(manager._redis, entity_id)
+        for kind in ("match", "team"):
+            if kind in state:
+                await websocket.send_json(state[kind])
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
