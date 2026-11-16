@@ -29,18 +29,20 @@ from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.db import async_session_factory, check_db_connection, engine, get_db
 from backend.core.redis import check_redis_connection, redis_client
+from backend.core.command_bus import CommandBus
 from backend.core.public_cache import PublicCacheMiddleware
 from backend.core.request_context import RequestContextMiddleware
 from backend.core.security import validate_prompter_token
 from backend.core.settings import settings
 from backend.loader import Loader
+from backend.modules.leader_commands import StateMirror, register_handlers
 from backend.modules.automation.engine import AutomationEngine
 from backend.modules.leader import LeaderElection
 from backend.modules.notifications.service import NotificationService
@@ -182,7 +184,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     ws_manager.get_predictor = lambda: getattr(app.state, "predictor", None)
     await ws_manager.start()
 
-    leader = LeaderElection(redis_client, port=settings.APP_PORT)
+    # Any node can ask the leader to do something (integration calls, timers, automation triggers)
+    # through the Redis command bus; only the leader consumes it (started/stopped with promotion).
+    command_bus = CommandBus(redis_client)
+    register_handlers(command_bus, app)
+    state_mirror = StateMirror(redis_client, lambda: app.state.loader)
+    app.state.command_bus = command_bus
+
+    leader = LeaderElection(redis_client, port=settings.APP_PORT, eligible=settings.LEADER_ELIGIBLE)
 
     async def on_promoted() -> None:
         # Loader first: AutomationEngine's `service`/`target_tag` actions
@@ -200,8 +209,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.automation_engine = automation_engine
         app.state.loader = loader
         app.state.predictor = predictor
+        await command_bus.start()
+        await state_mirror.start()
 
     async def on_demoted() -> None:
+        await command_bus.stop()
+        await state_mirror.stop()
         app.state.timer_manager = None
         app.state.automation_engine = None
         app.state.loader = None
@@ -234,6 +247,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.automation_engine = None
     app.state.loader = None
     app.state.predictor = None
+    try:
+        await command_bus.stop()
+        await state_mirror.stop()
+    except Exception:
+        logger.exception("Error stopping the command bus during shutdown")
     try:
         await notification_service.stop()
     except Exception:
@@ -299,6 +317,15 @@ def create_app() -> FastAPI:
         """Liveness probe. No dependency checks — must always return 200 as
         long as the process is alive."""
         return HealthResponse(status="ok")
+
+    @app.get("/leaderz", tags=["health"], include_in_schema=False)
+    async def leaderz(request: Request) -> JSONResponse:
+        """200 only on the node that currently holds the leader lock, 503 on every other node. A
+        load balancer health-checks this to send leader-only traffic (the prompter WebSocket) to
+        whichever node leads, even after leadership moves."""
+        leader = getattr(request.app.state, "leader", None)
+        is_leader = bool(leader is not None and leader.is_leader())
+        return JSONResponse({"leader": is_leader}, status_code=200 if is_leader else 503)
 
     @app.get("/readyz", tags=["health"])
     async def readyz():

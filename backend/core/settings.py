@@ -94,6 +94,16 @@ class Settings(BaseSettings):
         default="mailto:admin@example.com",
         description="`sub` claim for VAPID — a mailto: or https: contact for the push services.",
     )
+    LEADER_ELIGIBLE: bool = Field(
+        default=True,
+        description=(
+            "When false this container never contends for the leader lock: it serves requests (reads, "
+            "the public site, commands forwarded to the leader over the Redis command bus) and nothing "
+            "else, so extra containers add capacity without ever taking over the live show. "
+            "At least one container must stay eligible. /ws/prompter and the other leader-only "
+            "WebSockets only work on the leader, so route them to an eligible container."
+        ),
+    )
     PUBLIC_CACHE_TTL_SECONDS: float = Field(
         default=3.0,
         description=(
