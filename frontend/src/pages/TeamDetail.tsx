@@ -28,6 +28,8 @@ export function TeamDetailPage() {
   const logoInput = useRef<HTMLInputElement>(null);
   const websiteOk = websiteUrl.trim() === '' || /^https?:\/\/\S+$/i.test(websiteUrl.trim());
 
+  // The form is disabled until `team` has loaded: this effect copies the loaded values into the fields, so anything
+  // typed before then would be overwritten (and an empty value saved).
   useEffect(() => {
     setPitLocation(team?.pit_location ?? '');
     setExtraNotes(team?.extra_notes ?? '');
@@ -51,11 +53,11 @@ export function TeamDetailPage() {
           <div className="space-y-3">
             <div>
               <Label>Pit Location</Label>
-              <Input value={pitLocation} onChange={(e) => setPitLocation(e.target.value)} disabled={!canEdit} />
+              <Input value={pitLocation} onChange={(e) => setPitLocation(e.target.value)} disabled={!canEdit || !team} />
             </div>
             <div>
               <Label>Extra Notes</Label>
-              <Textarea rows={3} value={extraNotes} onChange={(e) => setExtraNotes(e.target.value)} disabled={!canEdit} />
+              <Textarea rows={3} value={extraNotes} onChange={(e) => setExtraNotes(e.target.value)} disabled={!canEdit || !team} />
             </div>
             <div>
               <Label>Website (shown on the public team page)</Label>
@@ -63,7 +65,7 @@ export function TeamDetailPage() {
                 value={websiteUrl}
                 placeholder="https://team.example.com"
                 onChange={(e) => setWebsiteUrl(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || !team}
                 aria-label="Team website"
               />
               {!websiteOk && <p className="mt-1 text-xs text-vmd-danger">Must start with http:// or https://</p>}
@@ -114,7 +116,7 @@ export function TeamDetailPage() {
                     body: { pit_location: pitLocation, extra_notes: extraNotes, website_url: websiteUrl.trim() },
                   })
                 }
-                disabled={updateTeam.isPending || !websiteOk}
+                disabled={updateTeam.isPending || !websiteOk || !team}
               >
                 Save
               </Button>
