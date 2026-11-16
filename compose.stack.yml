@@ -19,7 +19,7 @@
 #   s3.BASE        Garage S3 (presigned URLs handed to browsers/OBS)
 #   ldap.BASE      LLDAP admin UI (users, groups, password changes)
 #   BASE, stats.BASE  public robotics sites (--profile sites; needs VEX_API_KEY, TEAMS_VIQRC, TEAMS_V5RC)
-#   lighting.BASE  lighting tracker, behind Authelia forward auth
+#   lighting.BASE  lighting tracker, behind oauth2-proxy (OIDC; provider swappable, see stack/extras.yml)
 #   comp.BASE      public competitors page (/site) via the Cloudflare tunnel
 #   mumble.BASE    Mumble voice (plain TCP/UDP 64738, not routed by Traefik)
 # Only these hostnames are routed: any other hostname or a bare IP on :80/:443
