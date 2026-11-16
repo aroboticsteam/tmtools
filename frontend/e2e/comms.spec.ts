@@ -7,6 +7,15 @@ async function makeStation(api: APIRequestContext, role = 'emcee') {
   return slug;
 }
 
+const timers: string[] = [];
+
+async function makeTimer(api: APIRequestContext, name: string, duration: number) {
+  const entityId = uid('timer.e2e-st');
+  await ok(await api.post('/api/v1/timers', { data: { entity_id: entityId, display_name: name, field_set_id: 1, field_id: 1, duration_s: duration } }));
+  timers.push(entityId);
+  return entityId;
+}
+
 /** The iPad: a separate, signed-out browser context. */
 async function openStation(browser: Browser, url: string) {
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -20,6 +29,7 @@ test.describe('comms desk and station pages', () => {
 
   test.afterEach(async ({ request }) => {
     for (const slug of slugs.splice(0)) await request.delete(`/api/v1/comms/stations/${slug}`);
+    for (const id of timers.splice(0)) await request.delete(`/api/v1/timers/${encodeURIComponent(id)}`);
     const agenda = await ok<{ id: string; title: string }[]>(await request.get('/api/v1/comms/agenda'));
     for (const item of agenda.filter((i) => i.title.startsWith('E2E'))) await request.delete(`/api/v1/comms/agenda/${item.id}`);
     await request.delete('/api/v1/comms/inbox');
@@ -49,55 +59,48 @@ test.describe('comms desk and station pages', () => {
     await expect(row.getByTestId('presence')).toHaveAttribute('data-connected', 'false', { timeout: 20_000 });
   });
 
-  test('a timer started on the desk runs, pauses and stops on the station', async ({ page, browser, request }) => {
+  test('a timer instance shown on a station runs and stops on the iPad', async ({ page, browser, request }) => {
     const slug = await makeStation(request);
     slugs.push(slug);
+    const timer = await makeTimer(request, 'Finals break', 300);
     const ipad = await openStation(browser, `/station/${slug}`);
     await expect(ipad.page.locator('#status')).toHaveText('live');
 
     await page.goto('/comms');
-    await page.getByLabel('Timer type').selectOption('countdown');
-    await page.getByLabel('Minutes').fill('5');
-    await page.getByLabel('Seconds').fill('0');
-    await page.getByLabel('Timer label').fill('Finals break');
-    await page.getByRole('button', { name: /^Start$/ }).click();
+    await page.getByLabel('Timer to show').selectOption(timer);
+    await page.getByRole('button', { name: 'Show on stations' }).click();
 
     const clock = ipad.page.locator('#tclock');
     await expect(clock).toBeVisible();
     await expect(ipad.page.getByText('Finals break')).toBeVisible();
+    await expect(ipad.page.locator('#tstate')).toHaveText('Ready'); // idle until it is started where timers are managed
+    await expect(clock).toHaveText('5:00');
+
+    // Started like the prompter's timer: the iPad follows it live.
+    await ok(await request.post(`/api/v1/timers/${encodeURIComponent(timer)}/start`));
     await expect(clock).toHaveClass(/green/);
-    await expect(clock).toHaveText(/^(4:5\d|5:00)$/); // well above the amber threshold
+    await expect(clock).toHaveText(/^(4:5\d|5:00)$/);
     const before = await clock.textContent();
     await expect.poll(() => clock.textContent(), { timeout: 5000 }).not.toBe(before); // it is running
 
-    await page.getByRole('button', { name: /Pause/ }).click();
-    await expect(ipad.page.locator('#tstate')).toHaveText('Paused');
-    const frozen = await clock.textContent();
-    await ipad.page.waitForTimeout(1500);
-    await expect(clock).toHaveText(frozen!);
-
-    await page.getByRole('button', { name: /Stop/ }).click();
-    // Stopping hands the iPad back to the messages screen.
-    await expect(ipad.page.getByPlaceholder('Message the desk…')).toBeVisible();
-    await expect(ipad.page.locator('#tclock')).toHaveCount(0);
+    await ok(await request.post(`/api/v1/timers/${encodeURIComponent(timer)}/stop`));
+    await expect(ipad.page.locator('#tstate')).toHaveText('Ready');
+    await expect(clock).toHaveText('5:00');
     await ipad.context.close();
   });
 
-  test('colour cues turn amber and red as the countdown runs down', async ({ page, browser, request }) => {
+  test('colour cues turn amber and red as a timer instance counts down', async ({ page, browser, request }) => {
     const slug = await makeStation(request);
     slugs.push(slug);
+    const timer = await makeTimer(request, 'Cues', 40);
     const ipad = await openStation(browser, `/station/${slug}`);
     await expect(ipad.page.locator('#status')).toHaveText('live');
-    await ok(
-      await request.post('/api/v1/comms/timer', {
-        data: { stations: [slug], action: 'start', duration_seconds: 8, warn_seconds: 6, critical_seconds: 3, label: 'Cues' },
-      }),
-    );
+    await ok(await request.post('/api/v1/comms/screen', { data: { stations: [slug], screen: 'timer', timer } }));
+    await ok(await request.post(`/api/v1/timers/${encodeURIComponent(timer)}/start`));
     const clock = ipad.page.locator('#tclock');
-    await expect(clock).toHaveClass(/amber/, { timeout: 6000 });
-    await expect(clock).toHaveClass(/red/, { timeout: 6000 });
-    await expect(clock).toHaveClass(/overtime/, { timeout: 8000 });
-    await expect(clock).toHaveText(/^-0:0\d$/);
+    await expect(clock).toHaveClass(/amber/, { timeout: 6000 }); // 40 s left is inside the 2 minute amber band
+    await expect(clock).toHaveClass(/red/, { timeout: 15_000 }); // and red from 30 s
+    await ok(await request.post(`/api/v1/timers/${encodeURIComponent(timer)}/stop`));
     await ipad.context.close();
     void page;
   });

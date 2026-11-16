@@ -33,7 +33,6 @@ vi.mock('../api/comms', () => ({
   useAckMessage: () => noop,
   useSendMessage: () => noop,
   usePushScreen: () => noop,
-  useTimerControl: () => noop,
   useSaveStation: () => noop,
   useSavePreset: () => noop,
   useSaveAgendaItem: () => noop,
