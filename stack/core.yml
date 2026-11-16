@@ -183,11 +183,11 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # ── In front of the app containers ──────────────────────────────────────────────────────────────
+  # ── In front of the app containers (two copies for redundancy) ──────────────────────────────────────────────────────────────
   # HAProxy balances REST and the public site over every healthy app container and sends /ws/* to the node
   # that currently leads (health-checked on /leaderz). See stack/config/haproxy.cfg. Always on: with the
   # scale profile off only `app` is up and the other servers are skipped.
-  haproxy:
+  haproxy-1: &haproxy
     image: *haproxy-image
     depends_on:
       app:
@@ -195,8 +195,15 @@ services:
     configs:
       - source: cfg_haproxy
         target: /usr/local/etc/haproxy/haproxy.cfg
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/_haproxy"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     mem_limit: 128m
     restart: unless-stopped
+  # Second identical copy: Traefik lists both and health-checks each, so losing or restarting one is invisible.
+  haproxy-2: *haproxy
 
   # ── Scale-out (`--profile scale`): more app containers and static frontends ─────────────────────
   # `app-worker` containers behind HAProxy (workers: they never contend for the leader lock) serve REST and
