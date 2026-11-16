@@ -44,6 +44,7 @@ from typing import Any
 import yaml
 from sqlalchemy import select
 
+from backend.core import field_state
 from backend.core.db import async_session_factory
 from backend.core.ntfy import send_ntfy_notification
 from backend.core.redis import redis_client
@@ -356,6 +357,7 @@ class Loader:
                     if isinstance(data, bytes):
                         data = data.decode("utf-8")
                     parsed = json.loads(data)
+                    await field_state.record(self._redis, parsed)
                     entity_id = parsed.get("entity_id")
                     if not entity_id:
                         continue
