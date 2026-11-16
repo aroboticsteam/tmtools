@@ -111,11 +111,6 @@ configs:
 
       http:
         middlewares:
-          authelia:
-            forwardAuth:
-              address: http://authelia:9091/api/authz/forward-auth
-              trustForwardHeader: true
-              authResponseHeaders: [Remote-User, Remote-Groups, Remote-Email, Remote-Name]
           # comp.BASE/ -> /site. A redirect rather than a path prefix: the page
           # calls absolute /api/v1/public/site/... URLs, which a prefix would break.
           comp-root:
@@ -169,8 +164,7 @@ configs:
           lighting:
             rule: "Host(`lighting.${BASE_DOMAIN:-vex.localhost}`) || Host(`lights.${BASE_DOMAIN:-vex.localhost}`)"
             entryPoints: [websecure]
-            middlewares: [authelia]
-            service: lighting
+            service: lighting-auth
             tls: {}
           # comp.BASE (public competitors page): only "/" (redirected to /site),
           # the page and its API are served, on the tunnel origin (:8081, via
@@ -217,8 +211,7 @@ configs:
           lighting-web:
             rule: "Host(`lighting.${BASE_DOMAIN:-vex.localhost}`) || Host(`lights.${BASE_DOMAIN:-vex.localhost}`)"
             entryPoints: [web]
-            middlewares: [authelia]
-            service: lighting
+            service: lighting-auth
           # Temporary unauthenticated "secret URL" for the lighting tracker: the
           # unguessable host in LIGHTING_PUBLIC_HOST (set in the server .env, not
           # in git) is the only protection. Reached via the homelab ingress, which
@@ -274,7 +267,13 @@ configs:
             loadBalancer:
               servers:
                 - url: http://lldap:17170
+          # The tracker itself (the unauthenticated secret-URL router above) ...
           lighting:
             loadBalancer:
               servers:
                 - url: http://host.docker.internal:8080
+          # ... and oauth2-proxy in front of it (OIDC login), which every named lighting host uses.
+          lighting-auth:
+            loadBalancer:
+              servers:
+                - url: http://lighting-auth:4180
