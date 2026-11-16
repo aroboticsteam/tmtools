@@ -20,7 +20,9 @@ services:
     depends_on:
       cert-init:
         condition: service_completed_successfully
-      haproxy:
+      haproxy-1:
+        condition: service_started
+      haproxy-2:
         condition: service_started
       authelia:
         condition: service_started
@@ -114,6 +116,12 @@ configs:
           # gzip/brotli for the public competitors page and its API (the page is ~70 KB, /event ~40 KB).
           public-compress:
             compress: {}
+          # If an HAProxy copy dies, Traefik keeps sending to it until its next health probe (2 s); a request
+          # that gets no answer is retried on the other copy instead of surfacing as a 502.
+          app-retry:
+            retry:
+              attempts: 3
+              initialInterval: 50ms
           # comp.BASE/ -> /site. A redirect rather than a path prefix: the page
           # calls absolute /api/v1/public/site/... URLs, which a prefix would break.
           comp-root:
@@ -129,6 +137,7 @@ configs:
           app:
             rule: "Host(`tmtools.${BASE_DOMAIN:-vex.localhost}`) || Host(`qecomp-server.local`)"
             entryPoints: [websecure]
+            middlewares: [app-retry]
             service: app
             tls: {}
           site-home:
@@ -185,7 +194,7 @@ configs:
               Host(`comp.${BASE_DOMAIN:-vex.localhost}`) &&
               (Path(`/site`) || Path(`/site/leaderboard`) || PathPrefix(`/api/v1/public/site/`))
             entryPoints: [public, web]
-            middlewares: [public-compress]
+            middlewares: [public-compress, app-retry]
             service: app
             priority: 100
           public-block-http:
@@ -199,6 +208,7 @@ configs:
           app-web:
             rule: "Host(`tmtools.${BASE_DOMAIN:-vex.localhost}`) || Host(`qecomp-server.local`) || Host(`${REMOTE_APP_HOST:-r-tmtools.vmd1.dev}`)"
             entryPoints: [web]
+            middlewares: [app-retry]
             service: app
           # Hashed build files (JS/CSS) come from the static nginx containers.
           app-assets:
@@ -241,7 +251,7 @@ configs:
               Host(`comp.${BASE_DOMAIN:-vex.localhost}`) &&
               (Path(`/site`) || Path(`/site/leaderboard`) || PathPrefix(`/api/v1/public/site/`))
             entryPoints: [websecure]
-            middlewares: [public-compress]
+            middlewares: [public-compress, app-retry]
             service: app
             priority: 100
             tls: {}
@@ -252,12 +262,17 @@ configs:
             priority: 10
             tls: {}
         services:
-          # HAProxy in front of the app containers: it balances REST and the public site over every healthy
+          # Two HAProxy copies in front of the app containers (Traefik health-checks each): they balance REST and the public site over every healthy
           # container and sends /ws/* to whichever one currently leads (stack/config/haproxy.cfg).
           app:
             loadBalancer:
+              healthCheck:
+                path: /_haproxy
+                interval: 2s
+                timeout: 2s
               servers:
-                - url: http://haproxy:8000
+                - url: http://haproxy-1:8000
+                - url: http://haproxy-2:8000
           frontend-pool:
             loadBalancer:
               healthCheck:
