@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useIntegrations, useCallIntegrationService } from '../api/integrations';
+import { useFieldState } from '../api/fields';
 import { useWsStore } from '../stores/ws';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
@@ -41,11 +42,31 @@ const AUDIENCE_DISPLAY_MODES = [
  * B.5) with fields identified only by `fieldID` inside event payloads —
  * there's no `/api/v1/fields` listing endpoint, so the field cards show
  * any fieldID that has appeared in a `fieldMatchAssigned`/`upcoming_match`
- * WS event this session. Fields with no event yet simply don't appear
- * (there's no static field topology endpoint to seed an empty list from). */
+ * WS event — this session's live ones plus the server-side snapshot
+ * (`GET /api/v1/fields/state`, recorded by the leader in Redis) loaded on
+ * mount and again after every WebSocket reconnect, so a page opened
+ * mid-match shows each field's current state straight away. A field that has
+ * never had an event still doesn't appear (there's no static field topology
+ * endpoint to seed an empty list from). */
 export function MatchControlPage() {
   useWebSocket('/ws/events');
   const { data: integrations } = useIntegrations();
+  const connected = useWsStore((s) => s.connected);
+  const seedFields = useWsStore((s) => s.seedFields);
+  const { data: fieldState, refetch: refetchFieldState } = useFieldState();
+  useEffect(() => {
+    if (fieldState) seedFields(fieldState);
+  }, [fieldState, seedFields]);
+  // After a reconnect events may have been missed: take the server's snapshot as authoritative.
+  const wasConnected = useRef(false);
+  useEffect(() => {
+    if (connected && !wasConnected.current) {
+      void refetchFieldState().then((result) => {
+        if (result.data) seedFields(result.data, true);
+      });
+    }
+    wasConnected.current = connected;
+  }, [connected, refetchFieldState, seedFields]);
   const tmInstances = (integrations ?? []).filter((i) => i.domain === 'vex_tm');
 
   return (
@@ -75,7 +96,7 @@ function FieldCards() {
   const fieldIds = Object.keys(currentMatches).filter((key) => !key.includes('.'));
 
   if (fieldIds.length === 0) {
-    return <p className="text-sm text-vmd-textSubtle">No field events observed yet this session.</p>;
+    return <p className="text-sm text-vmd-textSubtle">No field activity recorded yet.</p>;
   }
 
   return (
