@@ -9,7 +9,6 @@ import type {
   StationMessage,
   StationLink,
   StationRole,
-  TimerRequest,
 } from '../types/api';
 
 const BASE = '/api/v1/comms';
@@ -73,19 +72,13 @@ export function useSendMessage() {
 
 export function usePushScreen() {
   return useMutation({
-    mutationFn: (body: Audience & { screen: CommsScreen }) =>
+    mutationFn: (body: Audience & { screen: CommsScreen; /** entity_id of a timer instance, for the `timer` screen */ timer?: string }) =>
       apiFetch<{ stations: string[] }>(`${BASE}/screen`, { method: 'POST', body }),
   });
 }
 
 export const useAckMessage = () =>
   useInvalidating('inbox', (id: string) => apiFetch<void>(`${BASE}/inbox/${id}/ack`, { method: 'POST' }));
-
-export function useTimerControl() {
-  return useMutation({
-    mutationFn: (body: TimerRequest) => apiFetch<{ stations: string[] }>(`${BASE}/timer`, { method: 'POST', body }),
-  });
-}
 
 export const useRotateLink = () =>
   useInvalidating('stations', (slug: string) =>

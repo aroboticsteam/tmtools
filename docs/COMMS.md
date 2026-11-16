@@ -40,6 +40,6 @@ and connect with the server password. Use channels such as *Desk*, *Emcees*, *Fl
 
 ## Timers, presence and agenda
 
-- **Timer** card: start a countdown (green → amber → red → flashing overtime) or a count-up on the selected stations; pause, resume, ±1 min, stop. All iPads show the same time (server clock).
+- **Timer on stations** card: pick one of the timer instances from *Timers & teleprompter* (same page) and show it on the selected stations. The iPads follow that timer live (green → amber at 2 min → red at 30 s while counting down, then *Match in progress* / *Match complete*); start, stop and reset it where timers are managed, exactly like the prompter. There is no separate ad-hoc timer any more.
 - Each station row shows a green dot while its page is open, or when it was last seen.
 - Agenda rows can be dragged to reorder; **Import** takes pasted lines like `10:30-11:00 Opening ceremony | details` (checked first, all-or-nothing). Items announce themselves to the rooms ahead of time (see Settings → Team alerts).

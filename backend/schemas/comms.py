@@ -162,6 +162,8 @@ class ScreenRequest(BaseModel):
     stations: list[str] | None = Field(default=None, max_length=100)
     roles: list[str] | None = Field(default=None, max_length=3)
     screen: str
+    #: For `screen == "timer"`: the entity_id of the timer instance (Timer-Teleprompter) to show.
+    timer: str | None = Field(default=None, max_length=100)
 
     @field_validator("screen")
     @classmethod
@@ -174,6 +176,8 @@ class ScreenRequest(BaseModel):
     def _roles_valid(self) -> "ScreenRequest":
         for role in self.roles or []:
             _check_role(role)
+        if self.screen == "timer" and not self.timer:
+            raise ValueError("the timer screen needs a timer (the entity_id of a timer instance)")
         return self
 
 
@@ -221,8 +225,8 @@ class PublicStation(BaseModel):
     screens: list[str]
     screen: str
     last_message: dict | None = None
-    #: The running timer cue, if any, and the server clock to sync it against.
-    timer: "TimerState | None" = None
+    #: The timer instance this station shows on its timer screen, if one was chosen, and the server clock.
+    timer: "StationTimer | None" = None
     server_time: float = 0.0
 
 
@@ -257,48 +261,16 @@ class UnlockResult(BaseModel):
     expires_in: int
 
 
-class TimerRequest(BaseModel):
-    """Stagetimer-style cue pushed to stations. `start` needs a mode (and a
-    duration for countdowns); the other actions act on the running timer."""
+class StationTimer(BaseModel):
+    """A timer instance as a station shows it (see `backend/modules/comms/station_timer.py`)."""
 
-    stations: list[str] | None = Field(default=None, max_length=100)
-    roles: list[str] | None = Field(default=None, max_length=3)
-    action: str
-    mode: str = "countdown"
-    duration_seconds: int | None = Field(default=None, ge=1, le=86400)
-    label: str = Field(default="", max_length=60)
-    #: Countdown colours: amber at/below `warn`, red at/below `critical`.
-    warn_seconds: int = Field(default=120, ge=0, le=86400)
-    critical_seconds: int = Field(default=30, ge=0, le=86400)
-    #: For `adjust`: add (or, negative, remove) seconds on a countdown.
-    adjust_seconds: int | None = Field(default=None, ge=-3600, le=3600)
-
-    @model_validator(mode="after")
-    def _check(self) -> "TimerRequest":
-        if self.action not in ("start", "pause", "resume", "stop", "adjust"):
-            raise ValueError("action must be start, pause, resume, stop or adjust")
-        if self.mode not in ("countdown", "countup"):
-            raise ValueError("mode must be countdown or countup")
-        if self.action == "start" and self.mode == "countdown" and self.duration_seconds is None:
-            raise ValueError("a countdown needs duration_seconds")
-        if self.action == "adjust" and not self.adjust_seconds:
-            raise ValueError("adjust needs a non-zero adjust_seconds")
-        if self.critical_seconds > self.warn_seconds:
-            raise ValueError("critical_seconds cannot exceed warn_seconds")
-        return self
-
-
-class TimerState(BaseModel):
-    id: str
-    mode: str
+    entity_id: str
     label: str = ""
-    duration: int | None = None
-    warn: int = 120
-    critical: int = 30
-    #: Seconds already run before the current run started.
-    elapsed_before: float = 0
-    #: Epoch seconds the current run started; null while paused.
-    running_since: float | None = None
+    phase: str = "idle"
+    running: bool = False
+    duration_s: int = 0
+    elapsed: int = 0
+    remaining: int = 0
 
 
 PublicStation.model_rebuild()
