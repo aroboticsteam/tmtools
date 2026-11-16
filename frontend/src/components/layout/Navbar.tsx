@@ -4,7 +4,6 @@ import {
   Plug,
   Workflow,
   FileCode2,
-  Timer,
   Presentation,
   Users2,
   ScrollText,
@@ -50,7 +49,6 @@ const NAV_GROUPS: NavGroup[] = [
     icon: MonitorPlay,
     items: [
       { to: '/match-control', label: 'Match Control', icon: MonitorPlay },
-      { to: '/timers', label: 'Timers', icon: Timer },
       { to: '/overlays', label: 'Overlays', icon: Presentation },
       { to: '/buttons', label: 'Button Pages', icon: LayoutGrid },
       { to: '/comms', label: 'Comms', icon: Radio },

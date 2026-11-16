@@ -1,6 +1,6 @@
 # TMTools (TMTools) — Source of Truth
 
-**Last verified against the codebase:** 2026-11-16 (legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + example.com stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
+**Last verified against the codebase:** 2026-11-16 (Timer-Teleprompter merged into Comms, legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + example.com stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
 
 This is the single authoritative description of what is in this repository: architecture, decisions, data model, API surface, RBAC, frontend, deployment and tests. It replaces `tm_update_plan.md` (the original v3.0 rewrite plan). Where the old plan and the code disagreed, **the code wins** and this document records the code.
 
@@ -370,6 +370,8 @@ Every integration, timer and overlay instance has a system-wide unique `entity_i
 
 ### 10.1 Timer-Teleprompter (`modules/timer/manager.py`)
 
+*(UI: the "Timers & teleprompter" section of the Comms page, `/comms`; `/timers` redirects there.)*
+
 - Each timer instance binds a TM `field_set_id` + `field_id` and a `duration_s`. API: `start_countdown`, `stop_timer`, `reset_timer`, `get_state`.
 - States: countdown to zero → **Match Running** (count-up elapsed) → ends on `matchStopped` for the bound field → "Match Complete". State lives in Redis; ticks recompute from `start_ts` (1s tick). Emits `timer_started`, `timer_milestone`, `timer_finished`, `timer_stopped`.
 - Only the EMCEE starts the countdown (`prompter:control`, via the prompter page or API); field operators cannot from Match Control.
@@ -650,13 +652,13 @@ Authentik setup: [`docs/AUTHENTIK_SETUP.md`](docs/AUTHENTIK_SETUP.md) (OAuth2/OI
 | `/integrations` | Integrations | CRUD from manifest schemas, status chips, tags, test connection, Spotify auth button, ZerOS presets + fire, telemetry cards |
 | `/automations` | Automations | folder tree (create/rename/delete), enable toggle, form builder + YAML editor, validate, test run, run history |
 | `/scripts` | Scripts | same editors |
-| `/timers` | Timers | instance CRUD, duration, copyable prompter link, regenerate token, cues/runsheet |
+| `/timers` | (redirect) | redirects to `/comms`; the Timer-Teleprompter page is now the top section of Comms |
 | `/overlays` | Overlays | CRUD, copyable URL, next-match preview, spotlight |
 | `/teams`, `/teams/:number` | Teams, TeamDetail | search/filter; stats, notes, pit location, match recordings card (`TeamRecordingsCard`, `GET /capture/recordings?team=`), inspection checklist (status select, 360/team-video marks; list page shows progress + incomplete-only filter), logo, video upload + WebGL keying preview + re-process, clips, bio |
 | `/analysis` | Analysis | Analysis desk (#38/#41), gated on `analysis:view` (navbar entry too); controls need `capture:control`. Match navigation (arrows, go-to-number) over `GET /capture/recordings`, follows the live recording. **Match tab:** agent/recording state, Mark last 3/5/10 s (buttons + number-key bindings, stored per browser), moment list with upload state, per-moment and full-match "Send to program" (`/capture/replay/{id}/play`, then `obs.switch_scene` on the chosen OBS instance), pause/resume/restart, speed 0.25/0.5/0.75/1×, Back to program (stop + switch scene), Flash LED (`wled.flash`). **Stats tab:** each team's cached stats for the selected match; never shows predictions. Setup (replay id, OBS/WLED instance, scenes, keys) lives in `localStorage` (`lib/analysis.ts`). Polls every 2–3 s (`api/capture.ts`) |
 | `/record` | Recorder | in-browser clip recorder |
 | `/rooms` | Rooms | rooms, team allocation, broadcast, team alerts |
-| `/comms` | Comms | stations, presets, send, screens, timers, agenda, inbox |
+| `/comms` | Comms | one page for what used to be Timer-Teleprompter and Comms: **timers & teleprompter** first (instance CRUD, duration, copyable prompter link, regenerate token, cues/runsheet, start/stop/reset; gated by `timers:read`/`timers:edit`/`prompter:control`), then the station iPad desk: send, screens, station timer, inbox, stations, presets, agenda |
 | `/buttons` | ButtonPages | visual action builder, drag-and-drop, icons, confirm, press |
 | `/audit` | AuditLog | filters (user, action, resource, date), live append via WS |
 | `/settings` | Settings | S3, VEX Events API token, predictor threshold, chroma defaults, notifications/ntfy + team alerts, prompter index token, API keys, site config + images, match recordings |
@@ -838,3 +840,4 @@ Build order for the replay chain: #45 → #42 → #38 → #41. Not planned: Shea
 - **2026-11-16 (fix):** `frontend-1/2` healthchecks in `stack/core.yml` probe `127.0.0.1:8080` (busybox resolves `localhost` to `::1`, nginx listens on IPv4 only, so they reported unhealthy while serving).
 - **2026-11-16 (test):** `test_agent_connects_receives_commands_and_reports_back` polls for presence cleanup instead of a fixed 0.3 s sleep (flaked on loaded runners).
 - **2026-11-16 (redundancy):** HAProxy runs as two copies (`haproxy-1`/`haproxy-2`, `stack/core.yml`); `stack/config/haproxy.cfg` answers `/_haproxy` itself (`monitor-uri`); Traefik's `app` service lists both with a 2 s health check and the `app-retry` middleware (3 attempts) is on every router that uses it. Killing a copy under 12 concurrent clients: ~70 of 38,700 requests failed (those in flight at the SIGKILL), none afterwards; without the retry ~360 per kill.
+- **2026-11-16 (Comms merge):** the Timer-Teleprompter page (`/timers`, `pages/Timers.tsx`) and the Comms page are one page, `/comms` (`pages/Comms.tsx`): the timer/teleprompter section (all of the old page: instance CRUD, prompter links and tokens, cues, start/stop/reset, New Timer) comes first, followed by the station desk (send, screens, station timer, inbox, stations, presets, agenda). `pages/Timers.tsx` and the Timers nav entry are gone; `/timers` redirects to `/comms`. Backend routes and permissions are unchanged. Tests: `frontend/src/pages/Comms.test.tsx`.
