@@ -1,4 +1,4 @@
-"""Station security, timers, presence and agenda ordering/import (issue #27)."""
+"""Station security, the station timer screen (a real timer instance), presence and agenda ordering/import (issue #27)."""
 from __future__ import annotations
 
 import time
@@ -6,7 +6,8 @@ import time
 import pytest
 
 from backend.modules.comms import access, presence
-from backend.modules.comms import timer as ctimer
+from backend.modules.comms import station_timer
+from backend.models.timer import TimerInstance
 from backend.tests.test_comms.test_routers import ctx, events, make_station, session_factory  # noqa: F401  (fixtures)
 
 pytestmark = pytest.mark.asyncio
@@ -31,23 +32,22 @@ async def test_pin_hash_and_token_round_trip():
     assert not access.verify_token(None, "emcee-1", 3) and not access.verify_token("no-dot", "emcee-1", 3)
 
 
-async def test_timer_state_machine():
-    state = ctimer.start(mode="countdown", duration=300, label="Finals", warn=120, critical=30, now=1000.0)
-    assert ctimer.remaining(state, 1100.0) == 200 and ctimer.colour(state, 1100.0) == "green"
-    assert ctimer.colour(state, 1190.0) == "amber" and ctimer.colour(state, 1280.0) == "red"
-    assert ctimer.remaining(state, 1310.0) == -10 and ctimer.colour(state, 1310.0) == "overtime"
+async def test_display_state_follows_the_stored_timer_hash():
+    ds = station_timer.display_state
+    idle = ds({}, entity_id="t", label="Finals", default_duration=300, now=1000.0)
+    assert idle == {"entity_id": "t", "label": "Finals", "phase": "idle", "running": False, "duration_s": 300, "elapsed": 0, "remaining": 0}
 
-    paused = ctimer.pause(state, 1100.0)
-    assert paused["running_since"] is None and ctimer.remaining(paused, 5000.0) == 200
-    assert ctimer.pause(paused, 5000.0) is paused
-    resumed = ctimer.resume(paused, 2000.0)
-    assert ctimer.remaining(resumed, 2050.0) == 150 and ctimer.resume(resumed, 2100.0) is resumed
+    running = {"phase": "countdown", "running": "1", "start_ts": "1000.0", "duration_s": "120", "frozen_elapsed": "0"}
+    mid = ds(running, entity_id="t", now=1045.0)
+    assert (mid["running"], mid["elapsed"], mid["remaining"], mid["duration_s"]) == (True, 45, 75, 120)
+    assert ds(running, entity_id="t", now=5000.0)["remaining"] == 0  # never negative
 
-    assert ctimer.adjust(resumed, 60)["duration"] == 360 and ctimer.adjust(resumed, -9999)["duration"] == 1
+    match = ds({**running, "phase": "match_running"}, entity_id="t", now=1100.0)
+    assert (match["phase"], match["elapsed"], match["remaining"]) == ("match_running", 100, 0)
 
-    up = ctimer.start(mode="countup", duration=None, label="", warn=0, critical=0, now=10.0)
-    assert ctimer.remaining(up, 99.0) is None and ctimer.colour(up, 99.0) == "neutral"
-    assert ctimer.elapsed(up, 70.0) == 60 and ctimer.adjust(up, 30) is up
+    stopped = ds({"phase": "idle", "running": "0", "start_ts": "0.0", "duration_s": "120", "frozen_elapsed": "37"}, entity_id="t", now=9999.0)
+    assert (stopped["running"], stopped["elapsed"]) == (False, 37)
+    assert ds({"phase": "countdown", "running": "1", "start_ts": "junk", "duration_s": "x"}, entity_id="t", default_duration=60, now=1.0)["duration_s"] == 60
 
 
 async def test_presence_counts_connections_and_remembers_last_seen():
@@ -190,71 +190,120 @@ async def test_station_list_reports_presence(ctx):
     assert after["connected"] is True and abs(after["last_seen"] - time.time()) < 5
 
 
-# ── timers ───────────────────────────────────────────────────────────
+# ── the timer screen (a Timer-Teleprompter instance) ─────────────────
 
 
-async def test_timer_start_pause_resume_adjust_stop(ctx):
+async def make_timer(session_factory, entity_id="timer.st-test", name="Finals break", duration=300):
+    async with session_factory() as session:
+        session.add(TimerInstance(entity_id=entity_id, display_name=name, field_set_id=1, field_id=1, duration_s=duration, tags=[]))
+        await session.commit()
+    return entity_id
+
+
+async def drop_timers(session_factory):
+    from sqlalchemy import delete
+
+    async with session_factory() as session:
+        await session.execute(delete(TimerInstance).where(TimerInstance.entity_id.like("timer.st-test%")))
+        await session.commit()
+
+
+async def test_showing_a_timer_binds_it_to_the_stations_and_they_follow_it(ctx, session_factory):
     await make_station(ctx, "emcee-1")
     await make_station(ctx, "cam-1", role="camera")
+    tid = await make_timer(session_factory)
+    try:
+        sent = await events(ctx, lambda: ctx.post("/api/v1/comms/screen", json={"screen": "timer", "timer": tid, "stations": ["emcee-1"]}))
+        timer_events = [e for e in sent if e["type"] == "station_timer"]
+        assert len(timer_events) == 1 and timer_events[0]["payload"]["stations"] == ["emcee-1"]
+        shown = timer_events[0]["payload"]["timer"]
+        assert shown["entity_id"] == tid and shown["label"] == "Finals break" and shown["phase"] == "idle" and shown["duration_s"] == 300
+        assert any(e["type"] == "station_screen" and e["payload"] == {"stations": ["emcee-1"], "screen": "timer"} for e in sent)
 
-    sent = await events(ctx, lambda: ctx.post(
-        "/api/v1/comms/timer",
-        json={"action": "start", "duration_seconds": 300, "label": "Finals", "warn_seconds": 60, "critical_seconds": 10},
-    ))
-    timer_events = [e for e in sent if e["type"] == "station_timer"]
-    assert sorted(e["payload"]["stations"][0] for e in timer_events) == ["cam-1", "emcee-1"]
-    state = timer_events[0]["payload"]["timer"]
-    assert state["duration"] == 300 and state["label"] == "Finals" and state["running_since"] is not None
-    assert any(e["type"] == "station_screen" and e["payload"]["screen"] == "timer" for e in sent)
+        public = (await ctx.get("/api/v1/public/stations/emcee-1")).json()
+        assert public["screen"] == "timer" and public["timer"]["entity_id"] == tid and public["timer"]["label"] == "Finals break"
+        assert "timer" in public["screens"] and abs(public["server_time"] - time.time()) < 5
+        other = (await ctx.get("/api/v1/public/stations/cam-1")).json()
+        assert other["timer"] is None and other["screen"] == "messages"  # not shown there
 
-    public = (await ctx.get("/api/v1/public/stations/emcee-1")).json()
-    assert public["screen"] == "timer" and public["timer"]["warn"] == 60 and abs(public["server_time"] - time.time()) < 5
-    assert "timer" in public["screens"]
-
-    paused = await events(ctx, lambda: ctx.post("/api/v1/comms/timer", json={"action": "pause", "stations": ["emcee-1"]}))
-    assert paused[0]["payload"]["timer"]["running_since"] is None and paused[0]["payload"]["stations"] == ["emcee-1"]
-    stored = (await ctx.get("/api/v1/public/stations/emcee-1")).json()["timer"]
-    assert stored["running_since"] is None and stored["elapsed_before"] >= 0
-    assert (await ctx.get("/api/v1/public/stations/cam-1")).json()["timer"]["running_since"] is not None  # untouched
-
-    await ctx.post("/api/v1/comms/timer", json={"action": "resume", "stations": ["emcee-1"]})
-    assert (await ctx.get("/api/v1/public/stations/emcee-1")).json()["timer"]["running_since"] is not None
-    await ctx.post("/api/v1/comms/timer", json={"action": "adjust", "adjust_seconds": 60, "stations": ["emcee-1"]})
-    assert (await ctx.get("/api/v1/public/stations/emcee-1")).json()["timer"]["duration"] == 360
-
-    stopped = await events(ctx, lambda: ctx.post("/api/v1/comms/timer", json={"action": "stop"}))
-    assert [e["payload"]["timer"] for e in stopped if e["type"] == "station_timer"] == [None, None]
-    after = (await ctx.get("/api/v1/public/stations/emcee-1")).json()
-    assert after["timer"] is None and after["screen"] == "messages"
+        # The instance runs on the leader; the station reads its state from Redis.
+        await ctx.redis.hset(
+            station_timer.timer_state_key(tid),
+            mapping={"phase": "countdown", "running": "1", "start_ts": time.time() - 100, "duration_s": 300, "frozen_elapsed": 0},
+        )
+        live = (await ctx.get("/api/v1/public/stations/emcee-1")).json()["timer"]
+        assert live["running"] is True and live["phase"] == "countdown" and 195 <= live["remaining"] <= 200
+    finally:
+        await drop_timers(session_factory)
 
 
-async def test_timer_countup_validation_and_empty_targets(ctx):
+async def test_the_timer_screen_needs_a_real_timer(ctx, session_factory):
     await make_station(ctx, "emcee-1")
-    ok = await ctx.post("/api/v1/comms/timer", json={"action": "start", "mode": "countup", "label": "Stage time"})
-    assert ok.status_code == 200
-    assert (await ctx.get("/api/v1/public/stations/emcee-1")).json()["timer"]["duration"] is None
-
-    for bad in (
-        {"action": "start"},  # countdown without a duration
-        {"action": "start", "duration_seconds": 60, "warn_seconds": 10, "critical_seconds": 20},
-        {"action": "explode"},
-        {"action": "adjust"},
-        {"action": "start", "mode": "sideways", "duration_seconds": 5},
-        {"action": "start", "duration_seconds": 0},
-    ):
-        assert (await ctx.post("/api/v1/comms/timer", json=bad)).status_code == 422, bad
-    assert (await ctx.post("/api/v1/comms/timer", json={"action": "stop", "stations": ["emcee-1"]})).status_code == 200
-    assert (await ctx.post("/api/v1/comms/timer", json={"action": "pause"})).status_code == 409  # nothing running
-    assert (await ctx.post("/api/v1/comms/timer", json={"action": "stop"})).status_code == 409
-    assert (await ctx.post("/api/v1/comms/timer", json={"action": "stop", "roles": ["camera"]})).status_code == 422
+    assert (await ctx.post("/api/v1/comms/screen", json={"screen": "timer", "stations": ["emcee-1"]})).status_code == 422
+    unknown = await ctx.post("/api/v1/comms/screen", json={"screen": "timer", "timer": "timer.nope", "stations": ["emcee-1"]})
+    assert unknown.status_code == 422 and "Unknown timer" in unknown.json()["detail"]
+    assert (await ctx.get("/api/v1/public/stations/emcee-1")).json()["screen"] == "messages"
+    # The old ad-hoc timer API is gone.
+    assert (await ctx.post("/api/v1/comms/timer", json={"action": "start", "duration_seconds": 60})).status_code in (404, 405)
 
 
-async def test_timer_needs_send_permission(ctx):
+async def test_a_station_whose_timer_was_deleted_falls_back_to_messages(ctx, session_factory):
+    await make_station(ctx, "emcee-1")
+    tid = await make_timer(session_factory, "timer.st-test-gone")
+    await ctx.post("/api/v1/comms/screen", json={"screen": "timer", "timer": tid})
+    await drop_timers(session_factory)
+    public = (await ctx.get("/api/v1/public/stations/emcee-1")).json()
+    assert public["timer"] is None and public["screen"] == "messages"
+
+
+async def test_showing_a_timer_needs_send_permission(ctx, session_factory):
     from backend.core.dependencies import CurrentPrincipal
 
     await make_station(ctx, "emcee-1")
-    ctx.state["principal"] = CurrentPrincipal(subject="viewer", permissions={"comms:read"})
-    assert (await ctx.post("/api/v1/comms/timer", json={"action": "stop"})).status_code == 403
+    tid = await make_timer(session_factory)
+    try:
+        ctx.state["principal"] = CurrentPrincipal(subject="viewer", permissions={"comms:read"})
+        assert (await ctx.post("/api/v1/comms/screen", json={"screen": "timer", "timer": tid})).status_code == 403
+    finally:
+        await drop_timers(session_factory)
+
+
+async def test_timer_events_reach_only_the_stations_showing_that_timer():
+    from backend.routers.ws import ConnectionManager
+
+    class FakeWs:
+        def __init__(self):
+            self.sent = []
+
+        async def accept(self):
+            pass
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+    class FakeManager:
+        def get_state(self, entity_id):
+            return {"entity_id": entity_id, "phase": "countdown", "running": True, "duration_s": 120, "elapsed": 5, "remaining": 115, "tags": ["x"]}
+
+    class FakeRedis:
+        bindings = {"station:a": "timer.f1", "station:b": "timer.f2"}
+
+        async def get(self, key):
+            slug = key.split(":")[2]
+            return self.bindings.get(f"station:{slug}")
+
+    manager = ConnectionManager(redis=FakeRedis())
+    manager.get_timer_manager = lambda: FakeManager()
+    a, b, c = FakeWs(), FakeWs(), FakeWs()
+    await manager.connect("station:a", a)
+    await manager.connect("station:b", b)
+    await manager.connect("station:c", c)  # never shown a timer
+
+    await manager._dispatch({"entity_id": "timer.f1", "type": "timer_started", "timestamp": 1.0, "payload": {}})
+    got = [m for m in a.sent if m.get("type") == "timer"]
+    assert len(got) == 1 and got[0]["timer"] == {"entity_id": "timer.f1", "phase": "countdown", "running": True, "duration_s": 120, "elapsed": 5, "remaining": 115}
+    assert "server_time" in got[0]
+    assert not [m for m in b.sent if m.get("type") == "timer"] and not [m for m in c.sent if m.get("type") == "timer"]
 
 
 # ── agenda ordering and import ───────────────────────────────────────
