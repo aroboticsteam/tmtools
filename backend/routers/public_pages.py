@@ -47,6 +47,10 @@ async def _require_room(db: AsyncSession, slug: str) -> Room:
     return room
 
 
+#: The two public pages are static per deploy: let browsers reuse them for a minute.
+_PAGE_CACHE = {"Cache-Control": "public, max-age=60"}
+
+
 @router.get("/room/{slug}", response_class=HTMLResponse)
 async def serve_room(slug: str, db: Annotated[AsyncSession, Depends(get_db)]) -> HTMLResponse:
     await _require_room(db, slug)
@@ -57,14 +61,14 @@ async def serve_room(slug: str, db: Annotated[AsyncSession, Depends(get_db)]) ->
 async def serve_site() -> HTMLResponse:
     """Team-facing public website (issue #10): one page, hash-routed, fed by
     `/api/v1/public/site/*`."""
-    return HTMLResponse(_SITE_HTML)
+    return HTMLResponse(_SITE_HTML, headers=_PAGE_CACHE)
 
 
 @router.get("/site/leaderboard", response_class=HTMLResponse)
 async def serve_leaderboard() -> HTMLResponse:
     """Big-screen rotating leaderboards (issue #28): overall / tournament /
     skills / awards per panel interval, IQ <-> VRC per programme interval."""
-    return HTMLResponse(_LEADERBOARD_HTML)
+    return HTMLResponse(_LEADERBOARD_HTML, headers=_PAGE_CACHE)
 
 
 @router.get("/station/{slug}", response_class=HTMLResponse)

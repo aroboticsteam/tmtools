@@ -10,6 +10,8 @@ os.environ.setdefault(
 )
 os.environ.setdefault("REDIS_URL", "redis://localhost:6380/0")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
+# Existing tests mutate data between requests; the public-site cache has its own tests.
+os.environ.setdefault("PUBLIC_CACHE_TTL_SECONDS", "0")
 os.environ.setdefault(
     "ENCRYPTION_KEY", "kL8f1nqvQxq8n0G8T3xW6oScyLQ1sxvV1jHR9AXeV9Q="
 )
