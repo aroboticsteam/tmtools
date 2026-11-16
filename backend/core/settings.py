@@ -94,6 +94,13 @@ class Settings(BaseSettings):
         default="mailto:admin@example.com",
         description="`sub` claim for VAPID — a mailto: or https: contact for the push services.",
     )
+    PUBLIC_CACHE_TTL_SECONDS: float = Field(
+        default=3.0,
+        description=(
+            "Seconds a successful `/api/v1/public/site/*` response is served from memory "
+            "(shared between concurrent requests). 0 disables the cache. See backend/core/public_cache.py."
+        ),
+    )
     LOG_LEVEL: str = Field(
         default="INFO",
         description=(
