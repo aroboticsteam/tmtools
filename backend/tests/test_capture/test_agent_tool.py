@@ -81,7 +81,8 @@ def _settings(tmp_path: Path, **kw) -> "agent_mod.Settings":
     import shlex
 
     return agent_mod.Settings(
-        server="http://test", key="tmt_x", input_args=shlex.split(SOURCE), work_dir=tmp_path, video_bitrate="1M", **kw
+        server="http://test", key="tmt_x", input_args=shlex.split(SOURCE), work_dir=tmp_path, video_bitrate="1M",
+        **{"keep_local": True, **kw},  # the e2e test compares the local files with the uploaded objects
     )
 
 
@@ -225,3 +226,67 @@ async def test_queue_retries_with_backoff_and_survives_restart(tmp_path):
     q2.load()
     assert list(q2.jobs) == ["match:rec-1"]
     await client.aclose()
+
+
+def _ok_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path.endswith("/uploads"):
+        return httpx.Response(200, json={"upload_id": "u1", "url": "http://store.test/put", "headers": {}, "object_key": "k"})
+    if request.url.host == "store.test":
+        return httpx.Response(200)
+    return httpx.Response(200, json={})
+
+
+def _mock_uploads(monkeypatch) -> httpx.AsyncClient:
+    """An API client on a mock transport; the agent's separate object-store client is routed to it too."""
+    real = httpx.AsyncClient
+    monkeypatch.setattr(agent_mod.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(_ok_handler), **kw))
+    return real(transport=httpx.MockTransport(_ok_handler), base_url="http://test")
+
+
+async def test_uploaded_files_are_deleted_by_default(tmp_path, monkeypatch):
+    client = _mock_uploads(monkeypatch)
+    rec = tmp_path / "rec-1"
+    rec.mkdir()
+    match, clip = rec / "match.mp4", rec / "moment-m1.mp4"
+    match.write_bytes(b"m" * 10)
+    clip.write_bytes(b"c" * 10)
+    q = agent_mod.UploadQueue(tmp_path, client)
+    await q._upload(agent_mod.UploadJob("moment", "rec-1", str(clip), moment_id="m1"))
+    assert not clip.exists() and match.exists() and rec.exists()  # the folder stays while a file is left
+    await q._upload(agent_mod.UploadJob("match", "rec-1", str(match)))
+    assert not match.exists() and not rec.exists()  # last file gone, so the folder goes too
+
+
+async def test_keep_local_leaves_uploaded_files(tmp_path, monkeypatch):
+    client = _mock_uploads(monkeypatch)
+    rec = tmp_path / "rec-1"
+    rec.mkdir()
+    match = rec / "match.mp4"
+    match.write_bytes(b"m" * 10)
+    q = agent_mod.UploadQueue(tmp_path, client, keep_local=True)
+    await q._upload(agent_mod.UploadJob("match", "rec-1", str(match)))
+    assert match.exists()
+
+
+async def test_failed_upload_keeps_the_file(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://test")
+    file = tmp_path / "match.mp4"
+    file.write_bytes(b"x")
+    q = agent_mod.UploadQueue(tmp_path, client)
+    with pytest.raises(httpx.HTTPStatusError):
+        await q._upload(agent_mod.UploadJob("match", "rec-1", str(file)))
+    assert file.exists()
+
+
+async def test_master_is_removed_after_remux_unless_keep_local(tmp_path):
+    for keep in (False, True):
+        work = tmp_path / str(keep)
+        recorder = agent_mod.Recorder(_settings(work, keep_local=keep), f"rec-{keep}", "QUAL", "1")
+        await recorder.start()
+        await asyncio.sleep(2)
+        out = await recorder.stop()
+        assert out.exists()
+        assert recorder.master.exists() is keep
