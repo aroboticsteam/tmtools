@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import loader
+from backend.core import overlay_state
 from backend.core.dependencies import get_db, require_permission
 from backend.core.exceptions import ProcessingError
 from backend.core.redis import get_redis
@@ -133,6 +134,7 @@ async def delete_overlay(
     await db.delete(row)
     await db.commit()
     await _publish_config_change(redis_client, entity_id, "deleted", tags)
+    await overlay_state.clear(redis_client, entity_id)
 
 
 @router.post(
