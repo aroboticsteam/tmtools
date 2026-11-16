@@ -378,14 +378,23 @@
     window.setTimeout(connect, delay);
   }
 
+  // On (re)connect the server replays what this overlay was last showing (a reload must not blank it). That
+  // snapshot can overlap a live event, so per message type only ever move forward: anything not newer than
+  // what is already on screen (an older message, or the same one delivered twice) is dropped.
+  var lastApplied = {};
+
   function handleMessage(msg) {
     if (!msg || typeof msg !== "object") return;
     var payload = msg.payload || msg;
+    if (typeof msg.timestamp === "number" && msg.type) {
+      if (lastApplied[msg.type] !== undefined && msg.timestamp <= lastApplied[msg.type]) return;
+      lastApplied[msg.type] = msg.timestamp;
+    }
     switch (msg.type) {
-      case "upcoming_match": renderMatch(payload); break;
-      case "match_cleared": renderMatch(null); break;
-      case "show_team": setSpotlight(payload && payload.team); break;
-      default: break; // forward-compatible: ignore unknown message types
+      case "upcoming_match": return renderMatch(payload);
+      case "match_cleared": return renderMatch(null);
+      case "show_team": return setSpotlight(payload && payload.team);
+      default: return; // forward-compatible: ignore unknown message types
     }
   }
 
