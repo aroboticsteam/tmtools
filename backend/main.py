@@ -29,7 +29,7 @@ from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -191,7 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state_mirror = StateMirror(redis_client, lambda: app.state.loader)
     app.state.command_bus = command_bus
 
-    leader = LeaderElection(redis_client, port=settings.APP_PORT)
+    leader = LeaderElection(redis_client, port=settings.APP_PORT, eligible=settings.LEADER_ELIGIBLE)
 
     async def on_promoted() -> None:
         # Loader first: AutomationEngine's `service`/`target_tag` actions
@@ -317,6 +317,15 @@ def create_app() -> FastAPI:
         """Liveness probe. No dependency checks — must always return 200 as
         long as the process is alive."""
         return HealthResponse(status="ok")
+
+    @app.get("/leaderz", tags=["health"], include_in_schema=False)
+    async def leaderz(request: Request) -> JSONResponse:
+        """200 only on the node that currently holds the leader lock, 503 on every other node. A
+        load balancer health-checks this to send leader-only traffic (the prompter WebSocket) to
+        whichever node leads, even after leadership moves."""
+        leader = getattr(request.app.state, "leader", None)
+        is_leader = bool(leader is not None and leader.is_leader())
+        return JSONResponse({"leader": is_leader}, status_code=200 if is_leader else 503)
 
     @app.get("/readyz", tags=["health"])
     async def readyz():
