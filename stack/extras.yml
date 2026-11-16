@@ -1,6 +1,38 @@
 # Optional profiles: lighting tracker, Mumble voice, Cloudflare tunnel.
 # Part of compose.stack.yml (see its header for configuration).
 
+# Brand theme for both public sites (robotics-home / robotics-stats). Every value is optional: unset = the TMTools brand
+# built into the images. Set SITES_THEME_* (dark palette) / SITES_THEME_LIGHT_* (light palette) in .env to override.
+x-site-theme: &site-theme
+  THEME_MODE: ${SITES_THEME_MODE:-}
+  THEME_BG: ${SITES_THEME_BG:-}
+  THEME_BG2: ${SITES_THEME_BG2:-}
+  THEME_CARD: ${SITES_THEME_CARD:-}
+  THEME_RAISE: ${SITES_THEME_RAISE:-}
+  THEME_LINE: ${SITES_THEME_LINE:-}
+  THEME_INK: ${SITES_THEME_INK:-}
+  THEME_MUTED: ${SITES_THEME_MUTED:-}
+  THEME_ACCENT: ${SITES_THEME_ACCENT:-}
+  THEME_LINK: ${SITES_THEME_LINK:-}
+  THEME_OK: ${SITES_THEME_OK:-}
+  THEME_RED: ${SITES_THEME_RED:-}
+  THEME_BLUE: ${SITES_THEME_BLUE:-}
+  THEME_LIGHT_BG: ${SITES_THEME_LIGHT_BG:-}
+  THEME_LIGHT_BG2: ${SITES_THEME_LIGHT_BG2:-}
+  THEME_LIGHT_CARD: ${SITES_THEME_LIGHT_CARD:-}
+  THEME_LIGHT_RAISE: ${SITES_THEME_LIGHT_RAISE:-}
+  THEME_LIGHT_LINE: ${SITES_THEME_LIGHT_LINE:-}
+  THEME_LIGHT_INK: ${SITES_THEME_LIGHT_INK:-}
+  THEME_LIGHT_MUTED: ${SITES_THEME_LIGHT_MUTED:-}
+  THEME_LIGHT_ACCENT: ${SITES_THEME_LIGHT_ACCENT:-}
+  THEME_LIGHT_LINK: ${SITES_THEME_LIGHT_LINK:-}
+  THEME_LIGHT_OK: ${SITES_THEME_LIGHT_OK:-}
+  THEME_LIGHT_RED: ${SITES_THEME_LIGHT_RED:-}
+  THEME_LIGHT_BLUE: ${SITES_THEME_LIGHT_BLUE:-}
+  IQ_COLOR: ${SITES_IQ_COLOR:-}
+  V5_COLOR: ${SITES_V5_COLOR:-}
+  FONT_HEADING: ${SITES_FONT_HEADING:-}
+
 services:
   # Small caching resolver for the site LAN: answers BASE_DOMAIN and *.BASE_DOMAIN
   # with DNS_ANSWER_IP (this server) and forwards everything else to DNS_UPSTREAM.
@@ -26,6 +58,7 @@ services:
     profiles: [sites]
     image: ${SITE_HOME_IMAGE:-registry.example.net/robotics-home:latest}
     environment:
+      <<: *site-theme
       SITE_TITLE: ${SITES_TITLE:-TMTools Robotics}
       TAGLINE: ${SITES_TAGLINE:-}
       WELCOME_HEADING: ${SITES_WELCOME_HEADING:-}
@@ -35,7 +68,7 @@ services:
       LOGO_URL: ${SITES_LOGO_URL:-}
       LOGO_ALT: ${SITES_LOGO_ALT:-}
       LOGO_HREF: ${SITES_LOGO_HREF:-}
-      LOGO_WHITE_BG: ${SITES_LOGO_WHITE_BG:-true}
+      LOGO_DARK_URL: ${SITES_LOGO_DARK_URL:-}
       FOOTER_TEXT: ${SITES_FOOTER_TEXT:-}
       FOOTER_SECONDARY_TEXT: ${SITES_FOOTER_SECONDARY_TEXT:-VEX Robotics Competition}
     volumes:
@@ -46,6 +79,7 @@ services:
     profiles: [sites]
     image: ${SITE_STATS_IMAGE:-registry.example.net/robotics-stats:latest}
     environment:
+      <<: *site-theme
       VEX_API_KEY: ${VEX_API_KEY:-}
       TEAMS_VIQRC: ${TEAMS_VIQRC:-}
       TEAMS_V5RC: ${TEAMS_V5RC:-}
@@ -54,7 +88,7 @@ services:
       LOGO_URL: ${SITES_LOGO_URL:-}
       LOGO_ALT: ${SITES_LOGO_ALT:-}
       LOGO_HREF: ${SITES_LOGO_HREF:-}
-      LOGO_WHITE_BG: ${SITES_LOGO_WHITE_BG:-true}
+      LOGO_DARK_URL: ${SITES_LOGO_DARK_URL:-}
       FOOTER_TEXT: ${SITES_FOOTER_TEXT:-}
       FOOTER_SECONDARY_TEXT: ${SITES_FOOTER_SECONDARY_TEXT:-VEX Robotics Competition}
     volumes:
