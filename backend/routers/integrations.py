@@ -23,7 +23,7 @@ from backend import loader
 from backend.core.audit import log_action
 from backend.core.dependencies import CurrentPrincipal, get_current_principal, get_db, require_permission
 from backend.core.redis import get_redis
-from backend.core.security import decrypt, encrypt
+from backend.core.security import encrypt
 from backend.core.service_validation import (
     ServiceValidationError,
     redact_service_data,
