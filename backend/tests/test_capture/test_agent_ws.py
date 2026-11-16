@@ -79,6 +79,18 @@ def _publish_command(command: dict) -> None:
     r.close()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_redis_pool():
+    """The app's global async Redis client keeps sockets bound to earlier tests' (closed) event loops; the
+    server's disconnect cleanup then fails silently and presence is never cleared. Start every test here
+    with a clean pool (test_agent_tool.py does the same)."""
+    from backend.core.redis import redis_client
+
+    asyncio.run(redis_client.connection_pool.disconnect())
+    yield
+    asyncio.run(redis_client.connection_pool.disconnect())
+
+
 def test_agent_rejects_missing_or_underprivileged_key():
     raw, key_id = _make_key(["analysis:view"])
     try:
