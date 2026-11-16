@@ -217,3 +217,35 @@ async def test_broken_redis_never_breaks_a_request(ttl):
         a = await c.get("/api/v1/public/site/overview")
         b = await c.get("/api/v1/public/site/overview")
     assert a.status_code == b.status_code == 200 and calls["n"] == 1
+
+
+async def test_a_successful_write_clears_the_cache_everywhere(ttl):
+    shared = _fake_redis()
+    calls = {"n": 0}
+    async with _client(_make_app(calls, redis=shared)) as c:
+        await c.get("/api/v1/public/site/overview")
+        assert await shared.keys("qecomp:pubcache:*")
+        assert (await c.post("/api/v1/public/site/write")).status_code == 200
+        assert await shared.keys("qecomp:pubcache:*") == []
+        r = await c.get("/api/v1/public/site/overview")
+    assert r.headers["x-cache"] == "MISS" and calls["n"] == 3  # overview, write, overview again
+
+
+async def test_a_failed_write_keeps_the_cache(ttl):
+    calls = {"n": 0}
+    app = _make_app(calls)
+    async with _client(app) as c:
+        await c.get("/api/v1/public/site/overview")
+        # unknown route -> 404, nothing changed
+        await c.post("/api/v1/nothing-here")
+        r = await c.get("/api/v1/public/site/overview")
+    assert r.headers["x-cache"] == "HIT" and calls["n"] == 1
+
+
+async def test_writes_to_any_path_invalidate(ttl):
+    calls = {"n": 0}
+    async with _client(_make_app(calls)) as c:
+        await c.get("/api/v1/public/site/overview")
+        await c.post("/api/v1/public/site/write")  # any successful non-GET
+        r = await c.get("/api/v1/public/site/overview")
+    assert r.headers["x-cache"] == "MISS"

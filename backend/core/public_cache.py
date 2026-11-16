@@ -40,6 +40,7 @@ SKIP_PREFIXES = ("/api/v1/public/site/image/",)
 MAX_ENTRIES = 512
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REDIS_PREFIX = "qecomp:pubcache:"
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 REDIS_TIMEOUT_SECONDS = 0.25
 
 
@@ -61,6 +62,9 @@ class PublicCacheMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         ttl = float(settings.PUBLIC_CACHE_TTL_SECONDS)
         path = scope.get("path", "")
+        if scope["type"] == "http" and scope.get("method") in _WRITE_METHODS and ttl > 0:
+            await self._passthrough_then_invalidate(scope, receive, send)
+            return
         if (
             scope["type"] != "http"
             or scope.get("method") != "GET"
@@ -108,6 +112,35 @@ class PublicCacheMiddleware:
             self._inflight.pop(key, None)
             future.set_result(result)
         await self._send(result, send, ttl if result.status == 200 else 0, state)
+
+    async def _passthrough_then_invalidate(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Read-your-writes: after any successful write request, forget every cached response so
+        an admin who just edited something sees it on the next read (other containers' in-process
+        copies still expire within the TTL)."""
+        status = 0
+
+        async def watch(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, watch)
+        finally:
+            if 200 <= status < 400:
+                await self.invalidate()
+
+    async def invalidate(self) -> None:
+        self._entries.clear()
+        try:
+            async with asyncio.timeout(REDIS_TIMEOUT_SECONDS * 4):
+                redis = self._redis()
+                keys = [k async for k in redis.scan_iter(match=REDIS_PREFIX + "*", count=200)]
+                if keys:
+                    await redis.delete(*keys)
+        except Exception:  # noqa: BLE001 - best effort by design
+            logger.debug("public cache: redis invalidation failed", exc_info=True)
 
     async def _compute(self, scope: Scope, receive: Receive) -> _Entry:
         status = 500
