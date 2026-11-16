@@ -111,6 +111,9 @@ configs:
 
       http:
         middlewares:
+          # gzip/brotli for the public competitors page and its API (the page is ~70 KB, /event ~40 KB).
+          public-compress:
+            compress: {}
           # comp.BASE/ -> /site. A redirect rather than a path prefix: the page
           # calls absolute /api/v1/public/site/... URLs, which a prefix would break.
           comp-root:
@@ -182,6 +185,7 @@ configs:
               Host(`comp.${BASE_DOMAIN:-vex.localhost}`) &&
               (Path(`/site`) || Path(`/site/leaderboard`) || PathPrefix(`/api/v1/public/site/`))
             entryPoints: [public, web]
+            middlewares: [public-compress]
             service: app
             priority: 100
           public-block-http:
@@ -225,6 +229,7 @@ configs:
               Host(`comp.${BASE_DOMAIN:-vex.localhost}`) &&
               (Path(`/site`) || Path(`/site/leaderboard`) || PathPrefix(`/api/v1/public/site/`))
             entryPoints: [websecure]
+            middlewares: [public-compress]
             service: app
             priority: 100
             tls: {}
