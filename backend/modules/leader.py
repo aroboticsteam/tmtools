@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import socket
 from collections.abc import Awaitable, Callable
 
@@ -31,6 +32,9 @@ LOCK_KEY = "tmtools:leader:lock"
 LOCK_TTL_SECONDS = 30
 RENEW_INTERVAL_SECONDS = 10
 MAX_BACKOFF_SECONDS = 300  # 5 minutes
+#: When the lock is seen free, wait a random 0..this many seconds before racing for it, so several
+#: followers that notice at the same moment do not all stampede Redis in lock-step.
+ACQUIRE_JITTER_SECONDS = 0.5
 
 # Atomic check-and-renew / check-and-delete (Redlock-style). A plain
 # GET-then-EXPIRE or GET-then-DELETE has a race window between the two
@@ -84,8 +88,14 @@ class LeaderElection:
         lock_key: str = LOCK_KEY,
         lock_ttl: int = LOCK_TTL_SECONDS,
         renew_interval: int = RENEW_INTERVAL_SECONDS,
+        eligible: bool = True,
+        acquire_jitter: float = ACQUIRE_JITTER_SECONDS,
     ) -> None:
         self._redis = redis_client
+        # A node with `eligible=False` (settings.LEADER_ELIGIBLE) never contends for the lock: it is a
+        # pure worker that serves requests and sends commands to whichever node leads.
+        self._eligible = eligible
+        self._acquire_jitter = acquire_jitter
         self._pod_ip = pod_ip or _detect_local_ip()
         self._port = port
         self._lock_key = lock_key
@@ -139,6 +149,9 @@ class LeaderElection:
 
     async def start(self) -> None:
         """Begin the election loop as a background asyncio task."""
+        if not self._eligible:
+            logger.info("Leader election disabled on this node (LEADER_ELIGIBLE=false): running as a worker only")
+            return
         self._shutdown.clear()
         self._task = asyncio.create_task(self._election_loop())
 
@@ -275,6 +288,14 @@ class LeaderElection:
             pass
 
     async def _try_acquire(self) -> bool:
+        """Take the lock only if it is free. While a leader holds it this is a plain read: a follower
+        never contends with a healthy leader, so leadership changes only when the leader's lock is
+        released or expires (it failed, shut down or lost Redis). A restarted former leader therefore
+        rejoins as a follower instead of taking its role back."""
+        if await self._redis.get(self._lock_key):
+            return False
+        if self._acquire_jitter > 0:
+            await asyncio.sleep(random.uniform(0, self._acquire_jitter))
         result = await self._redis.set(
             self._lock_key, self._lock_value, nx=True, ex=self._lock_ttl
         )

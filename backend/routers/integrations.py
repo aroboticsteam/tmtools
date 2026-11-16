@@ -8,13 +8,13 @@ otherwise delegating to `backend.loader.get_instance(...).call_service(...)`
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Annotated, Any
 
-import httpx
 import yaml
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ from backend import loader
 from backend.core.audit import log_action
 from backend.core.dependencies import CurrentPrincipal, get_current_principal, get_db, require_permission
 from backend.core.redis import get_redis
-from backend.core.security import decrypt, encrypt
+from backend.core.security import encrypt
 from backend.core.service_validation import (
     ServiceValidationError,
     redact_service_data,
@@ -32,6 +32,7 @@ from backend.core.service_validation import (
 from backend.loader import INTEGRATIONS_DIR
 from backend.models.integration import IntegrationInstance
 from backend.modules.integrations.base import STATUS_KEY_TMPL
+from backend.routers._leader import is_passive, run_on_leader
 from backend.schemas.events import EventBusMessage
 from backend.schemas.integration import (
     IntegrationInstanceCreate,
@@ -139,6 +140,15 @@ async def _publish_config_change(redis_client: Any, entity_id: str, action: str,
         await redis_client.publish("tmtools:config_change", msg.model_dump_json())
     except Exception:
         logger.exception("Failed to publish config_change for %s", entity_id)
+
+
+async def _mirrored_state(redis_client: Any, entity_id: str) -> Any | None:
+    """The leader's copy of an integration's `get_state()` (see `StateMirror`), or None."""
+    try:
+        raw = await redis_client.get(f"tmtools:integration:state:{entity_id}")
+        return json.loads(raw) if raw else None
+    except Exception:  # noqa: BLE001 - Redis trouble means "no mirrored state"
+        return None
 
 
 async def _shared_status(redis_client: Any, entity_id: str) -> str:
@@ -371,51 +381,6 @@ _DOMAIN_PERMISSIONS = {
 }
 
 
-async def _proxy_to_leader(
-    request: Request, leader: Any, entity_id: str, service: str | None = None, *, method: str = "POST", suffix: str | None = None
-) -> Response | None:
-    """Passive-node request forwarding (plan §3.1).
-
-    Integration instances (the `Loader`) only run on the current leader
-    pod. When a passive pod receives a `service` call it can't service
-    locally, it reads the current leader's address from Redis
-    (`LeaderElection.get_leader_address_async()`) and HTTP-proxies this
-    exact request to `http://{leader_address}/api/v1/integrations/...`,
-    forwarding the caller's `Authorization`/`Cookie` headers (so the
-    leader's own permission check sees the same principal) and the raw
-    request body, then returns the leader's response verbatim. Returns
-    `None` if no leader address can currently be resolved (Redis down, no
-    leader yet) so the caller falls back to a plain 503.
-    """
-    leader_address = await leader.get_leader_address_async()
-    if not leader_address:
-        return None
-
-    forward_headers: dict[str, str] = {"content-type": "application/json"}
-    auth = request.headers.get("authorization")
-    if auth:
-        forward_headers["authorization"] = auth
-    cookie = request.headers.get("cookie")
-    if cookie:
-        forward_headers["cookie"] = cookie
-
-    path = suffix if suffix is not None else f"service/{service}"
-    url = f"http://{leader_address}/api/v1/integrations/{entity_id}/{path}"
-    body = await request.body() if method == "POST" else None
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.request(method, url, content=body, headers=forward_headers)
-    except httpx.HTTPError:
-        logger.exception("Failed to proxy service call for %r to leader at %s", entity_id, leader_address)
-        return None
-
-    return Response(
-        content=resp.content,
-        status_code=resp.status_code,
-        headers={"content-type": resp.headers.get("content-type", "application/json")},
-    )
-
-
 @router.post("/{entity_id}/service/{service}", response_model=None)
 async def call_integration_service(
     request: Request,
@@ -424,7 +389,7 @@ async def call_integration_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     data: dict[str, Any] | None = Body(default=None),
     principal: CurrentPrincipal | None = Depends(get_current_principal),
-) -> Response | dict[str, Any]:
+) -> dict[str, Any]:
     """Per plan §11, permission for this route "varies by integration"
     (`vfx:control` for zeros.*, `video:control` for atem.*/obs.*,
     `audio:control` for spotify.*, `tm:control` for vex_tm.*). Enforcing a
@@ -465,23 +430,23 @@ async def call_integration_service(
 
     instance = loader.get_instance(entity_id)
     if instance is None:
-        leader = getattr(request.app.state, "leader", None)
-        if leader is not None and not leader.is_leader():
-            proxied = await _proxy_to_leader(request, leader, entity_id, service)
-            if proxied is not None:
-                return proxied
-        raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
-
-    try:
-        result = await instance.call_service(service, data)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except KeyError as exc:
-        # Defense-in-depth: `validate_service_data` should already catch a
-        # missing required field, but this also covers schema drift (an
-        # integration reading a field name `services.yaml` doesn't declare)
-        # so it surfaces as a clean 400 instead of an unhandled 500.
-        raise HTTPException(status_code=400, detail=f"Missing or invalid field: {exc}") from exc
+        # Integrations only run on the leader: a passive node asks it through the command bus.
+        if not is_passive(request):
+            raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
+        result = await run_on_leader(
+            request, "integration.service", {"entity_id": entity_id, "service": service, "data": data}, target=entity_id
+        )
+    else:
+        try:
+            result = await instance.call_service(service, data)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except KeyError as exc:
+            # Defense-in-depth: `validate_service_data` should already catch a
+            # missing required field, but this also covers schema drift (an
+            # integration reading a field name `services.yaml` doesn't declare)
+            # so it surfaces as a clean 400 instead of an unhandled 500.
+            raise HTTPException(status_code=400, detail=f"Missing or invalid field: {exc}") from exc
 
     await log_action(
         db,
@@ -499,6 +464,7 @@ async def call_integration_service(
     dependencies=[Depends(require_permission("integrations:edit"))],
 )
 async def set_oauth_token(
+    request: Request,
     entity_id: str,
     body: dict[str, Any],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -512,13 +478,25 @@ async def set_oauth_token(
     if row.domain != "spotify":
         raise HTTPException(status_code=400, detail="oauth_token is only supported for spotify.* instances")
 
-    instance = loader.get_instance(entity_id)
-    if instance is None:
-        raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
-
     access_token = body.get("access_token")
     if not access_token:
         raise HTTPException(status_code=400, detail="access_token is required")
+
+    instance = loader.get_instance(entity_id)
+    if instance is None:
+        if not is_passive(request):
+            raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
+        return await run_on_leader(
+            request,
+            "integration.oauth_token",
+            {
+                "entity_id": entity_id,
+                "access_token": access_token,
+                "refresh_token": body.get("refresh_token"),
+                "expires_in": int(body.get("expires_in", 3600)),
+            },
+            target=entity_id,
+        )
 
     set_tokens = getattr(instance, "set_oauth_tokens", None)
     if set_tokens is None:
@@ -541,14 +519,19 @@ async def get_integration_state(
 ) -> Any:
     instance = loader.get_instance(entity_id)
     if instance is None:
-        # Live state (websocket/connection/last event) exists only in the
-        # leader's memory — a passive replica forwards the read there.
-        leader = getattr(request.app.state, "leader", None)
-        if leader is not None and not leader.is_leader():
-            proxied = await _proxy_to_leader(request, leader, entity_id, method="GET", suffix="state")
-            if proxied is not None:
-                return proxied
-        return {"entity_id": entity_id, "status": await _shared_status(redis_client, entity_id), "state": {}}
+        status_str = await _shared_status(redis_client, entity_id)
+        # Live state (websocket/connection/last event) exists only in the leader's memory, but
+        # the leader mirrors it into Redis every couple of seconds: answer from there.
+        mirrored = await _mirrored_state(redis_client, entity_id)
+        if mirrored is not None:
+            return {"entity_id": entity_id, "status": status_str, "state": mirrored}
+        if is_passive(request):
+            try:
+                state = await run_on_leader(request, "integration.state", {"entity_id": entity_id}, target=entity_id)
+                return {"entity_id": entity_id, "status": status_str, "state": state}
+            except HTTPException:
+                pass  # no leader answer: fall back to the shared status alone
+        return {"entity_id": entity_id, "status": status_str, "state": {}}
     state = await instance.get_state()
     return {"entity_id": entity_id, "status": await _shared_status(redis_client, entity_id), "state": state}
 
@@ -559,7 +542,7 @@ async def get_integration_state(
     dependencies=[Depends(require_permission("integrations:read"))],
 )
 async def test_integration_connection(
-    entity_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+    request: Request, entity_id: str, db: Annotated[AsyncSession, Depends(get_db)]
 ) -> IntegrationTestResult:
     """Plan §12 Integrations page "Test Connection" button (finding 1.11): a
     lightweight, read-only connectivity check. Reports whether the instance
@@ -569,6 +552,10 @@ async def test_integration_connection(
     is part of the `Integration` base contract every domain implements."""
     await _get_or_404(db, entity_id)
     instance = loader.get_instance(entity_id)
+    if instance is None and is_passive(request):
+        return IntegrationTestResult(
+            **await run_on_leader(request, "integration.test", {"entity_id": entity_id}, target=entity_id)
+        )
     if instance is None:
         return IntegrationTestResult(
             ok=False,
@@ -588,7 +575,7 @@ async def test_integration_connection(
     dependencies=[Depends(require_permission("integrations:read"))],
 )
 async def get_spotify_library(
-    entity_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+    request: Request, entity_id: str, db: Annotated[AsyncSession, Depends(get_db)]
 ) -> dict[str, Any]:
     row = await _get_or_404(db, entity_id)
     if row.domain != "spotify":
@@ -596,7 +583,9 @@ async def get_spotify_library(
 
     instance = loader.get_instance(entity_id)
     if instance is None:
-        raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
+        if not is_passive(request):
+            raise HTTPException(status_code=503, detail=f"Integration {entity_id!r} is not currently running")
+        return await run_on_leader(request, "integration.spotify_library", {"entity_id": entity_id}, target=entity_id)
     try:
         return await instance.call_service("browse_library", {})
     except ValueError as exc:

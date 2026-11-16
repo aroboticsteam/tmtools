@@ -20,7 +20,7 @@ services:
     depends_on:
       cert-init:
         condition: service_completed_successfully
-      app:
+      haproxy:
         condition: service_started
       authelia:
         condition: service_started
@@ -200,6 +200,18 @@ configs:
             rule: "Host(`tmtools.${BASE_DOMAIN:-vex.localhost}`) || Host(`tmtools-server.local`) || Host(`${REMOTE_APP_HOST:-r-tmtools.vmd1.dev}`)"
             entryPoints: [web]
             service: app
+          # Hashed build files (JS/CSS) come from the static nginx containers.
+          app-assets:
+            rule: "(Host(`tmtools.${BASE_DOMAIN:-vex.localhost}`) || Host(`tmtools-server.local`)) && PathPrefix(`/assets/`)"
+            entryPoints: [websecure]
+            service: frontend-pool
+            priority: 200
+            tls: {}
+          app-assets-web:
+            rule: "(Host(`tmtools.${BASE_DOMAIN:-vex.localhost}`) || Host(`tmtools-server.local`) || Host(`${REMOTE_APP_HOST:-r-tmtools.vmd1.dev}`)) && PathPrefix(`/assets/`)"
+            entryPoints: [web]
+            service: frontend-pool
+            priority: 200
           authelia-web:
             rule: "Host(`auth.${BASE_DOMAIN:-vex.localhost}`)"
             entryPoints: [web]
@@ -240,10 +252,21 @@ configs:
             priority: 10
             tls: {}
         services:
+          # HAProxy in front of the app containers: it balances REST and the public site over every healthy
+          # container and sends /ws/* to whichever one currently leads (stack/config/haproxy.cfg).
           app:
             loadBalancer:
               servers:
-                - url: http://app:8000
+                - url: http://haproxy:8000
+          frontend-pool:
+            loadBalancer:
+              healthCheck:
+                path: /index.html
+                interval: 10s
+                timeout: 3s
+              servers:
+                - url: http://frontend-1:8080
+                - url: http://frontend-2:8080
           site-home:
             loadBalancer:
               servers:

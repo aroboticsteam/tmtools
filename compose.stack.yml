@@ -43,6 +43,12 @@
 #   VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY / VAPID_SUBJECT   Web Push keys (optional).
 #   DNS_BIND_IP / DNS_ANSWER_IP / DNS_UPSTREAM   `--profile dns` resolver: LAN address to listen on,
 #                          address answered for BASE_DOMAIN and *.BASE_DOMAIN, upstream (1.1.1.1).
+#   APP_REPLICAS           leader-eligible `app` containers behind HAProxy (default 1; 2 gives a hot standby
+#                          that takes over within ~30 s if the leader dies)
+#   APP_WORKERS            `app-worker` containers (default 2; `--profile scale`): they serve requests and
+#                          never lead. FRONTEND_IMAGE = the static nginx image for the 2 `frontend`
+#                          containers of that profile (default ghcr.io/aroboticsteam/vex-tm-tools:frontend;
+#                          deploy it from the same build as TMTOOLS_IMAGE). HAPROXY_IMAGE = haproxy:3.0-alpine.
 #   LIGHTING_IMAGE         default ghcr.io/aroboticsteam/lightpoint:latest
 #   LIGHTING_CONFIG_DIR    host dir with fixtures.json for `--profile lighting`,
 #                          writable by uid 1000 (default ./lighting-config).
