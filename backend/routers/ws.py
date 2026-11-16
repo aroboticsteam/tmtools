@@ -36,6 +36,7 @@ from backend.models.overlay import OverlayInstance
 from backend.models.comms import Station
 from backend.modules.comms import access as station_access
 from backend.modules.comms import presence as station_presence
+from backend.modules.comms.station_timer import STATION_TIMER_KEY
 from backend.models.room import Room
 from backend.modules.capture import hub as capture_hub
 from backend.modules.capture import replay as replay_module
@@ -305,6 +306,21 @@ class ConnectionManager:
                 "payload": state,
             },
         )
+        await self._forward_timer_to_stations(entity_id, state)
+
+    async def _forward_timer_to_stations(self, entity_id: str, state: dict[str, Any]) -> None:
+        """Stations the desk bound to this timer instance (their timer screen) get its new state too;
+        the iPad keeps the heading it was given when the timer was shown."""
+        for bucket in [b for b in self._by_entity if b.startswith(STATION_BUCKET_PREFIX)]:
+            slug = bucket[len(STATION_BUCKET_PREFIX):]
+            try:
+                bound = await self._redis.get(STATION_TIMER_KEY.format(slug=slug))
+            except Exception:
+                continue
+            if bound != entity_id:
+                continue
+            shown = {k: state.get(k) for k in ("entity_id", "phase", "running", "duration_s", "elapsed", "remaining")}
+            await self.broadcast(bucket, {"type": "timer", "timer": shown, "server_time": time.time()})
 
     async def _dispatch_upcoming_match(self, data: dict[str, Any]) -> None:
         """On `fieldMatchAssigned`, push a sanitized `upcoming_match` message

@@ -271,11 +271,11 @@ Unauthenticated, display-safe. The page itself is at `/site` (hash-routed: `#eve
 
 The `overlay` system setting (`{"show_robot_name": true}`) makes `GET /api/v1/public/overlay/teams` return `show_robot_name: true`, which makes the overlay print each team's robot name. Opt-in because robot names need VEX Events approval; `?robot_name=1` on the overlay URL forces it for one browser source.
 
-### Comms: timers, secured stations, presence, agenda tools (issue #27)
+### Comms: station timer screen, secured stations, presence, agenda tools (issue #27)
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/v1/comms/timer` | Stagetimer-style cue on stations (`comms:send`): `action` = `start` (`mode` countdown/countup, `duration_seconds`, `label`, `warn_seconds` amber, `critical_seconds` red), `pause`, `resume`, `adjust` (`adjust_seconds` ±), `stop`. Runs on the server clock; stations show green → amber → red → flashing overtime. |
+| POST | `/api/v1/comms/screen` with `"screen": "timer"` | Shows a Timer-Teleprompter timer instance on the stations' timer screen (`comms:send`): body `{stations?, roles?, screen: "timer", timer: "<entity_id>"}` (422 if the timer is unknown or missing). The iPads then follow that instance live; it is started/stopped/reset through `/api/v1/timers/{entity_id}/start|stop|reset` like the prompter. The old ad-hoc `POST /api/v1/comms/timer` (count-up, pause, ±1 min) is gone. |
 | POST | `/api/v1/comms/stations/{slug}/rotate-link` | Secures the station (if needed) and issues a new key; old links/tokens stop working (`comms:manage`). Returns `{access_key, path}`. |
 | GET | `/api/v1/comms/stations/{slug}/link` | The current private link (`comms:manage`). |
 | PUT | `/api/v1/comms/stations/{slug}/pin` | `{"pin": "4821"}` (4-8 digits) sets a PIN on top of the key; `null` clears it. |
