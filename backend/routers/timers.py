@@ -21,7 +21,6 @@ import logging
 from typing import Any
 from uuid import UUID
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -44,6 +43,7 @@ from backend.schemas.timer import (
     TimerInstanceRead,
     TimerInstanceUpdate,
 )
+from backend.routers._leader import is_passive, run_on_leader
 
 import secrets
 import time
@@ -109,48 +109,6 @@ def _get_timer_manager(request: Request) -> TimerManager | None:
     point in `backend/main.py`). Returns `None` on a passive node / before
     startup instead of raising, so read-only routes still work everywhere."""
     return getattr(request.app.state, "timer_manager", None)
-
-
-async def _proxy_timer_action_to_leader(
-    request: Request, entity_id: str, action: str
-) -> Response | None:
-    """Passive-node request forwarding, mirroring
-    `routers/integrations.py::_proxy_to_leader`. The `TimerManager` (like
-    the integration `Loader`) only runs on the current leader pod, so a
-    passive pod forwards the start/stop/reset call to the leader's own
-    `/api/v1/timers/{entity_id}/{action}` route (carrying the caller's
-    auth so the leader's own permission check applies) instead of failing
-    with a bare 503. Returns `None` if no leader address can currently be
-    resolved, so the caller falls back to a plain 503."""
-    leader = getattr(request.app.state, "leader", None)
-    if leader is None or leader.is_leader():
-        return None
-
-    leader_address = await leader.get_leader_address_async()
-    if not leader_address:
-        return None
-
-    forward_headers: dict[str, str] = {}
-    auth = request.headers.get("authorization")
-    if auth:
-        forward_headers["authorization"] = auth
-    cookie = request.headers.get("cookie")
-    if cookie:
-        forward_headers["cookie"] = cookie
-
-    url = f"http://{leader_address}/api/v1/timers/{entity_id}/{action}"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, headers=forward_headers)
-    except httpx.HTTPError:
-        logger.exception("Failed to proxy timer %s action for %r to leader at %s", action, entity_id, leader_address)
-        return None
-
-    return Response(
-        content=resp.content,
-        status_code=resp.status_code,
-        headers={"content-type": resp.headers.get("content-type", "application/json")},
-    )
 
 
 # ── Timer instance CRUD (plan §11 "Timers") ──────────────────────────────
@@ -292,9 +250,10 @@ async def start_timer(
     await get_timer_or_404(session, entity_id)  # 404 before touching the manager
     manager = _get_timer_manager(request)
     if manager is None:
-        proxied = await _proxy_timer_action_to_leader(request, entity_id, "start")
-        if proxied is not None:
-            return proxied
+        if is_passive(request):
+            return await run_on_leader(
+                request, "timer.action", {"entity_id": entity_id, "action": "start"}, target=entity_id
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TimerManager is not running on this node (not the current leader?)",
@@ -319,9 +278,10 @@ async def stop_timer_route(
     await get_timer_or_404(session, entity_id)
     manager = _get_timer_manager(request)
     if manager is None:
-        proxied = await _proxy_timer_action_to_leader(request, entity_id, "stop")
-        if proxied is not None:
-            return proxied
+        if is_passive(request):
+            return await run_on_leader(
+                request, "timer.action", {"entity_id": entity_id, "action": "stop"}, target=entity_id
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TimerManager is not running on this node (not the current leader?)",
@@ -346,9 +306,10 @@ async def reset_timer_route(
     await get_timer_or_404(session, entity_id)
     manager = _get_timer_manager(request)
     if manager is None:
-        proxied = await _proxy_timer_action_to_leader(request, entity_id, "reset")
-        if proxied is not None:
-            return proxied
+        if is_passive(request):
+            return await run_on_leader(
+                request, "timer.action", {"entity_id": entity_id, "action": "reset"}, target=entity_id
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TimerManager is not running on this node (not the current leader?)",

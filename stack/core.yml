@@ -3,6 +3,8 @@
 
 x-app-image: &app-image ${TMTOOLS_IMAGE:-ghcr.io/aroboticsteam/vex-tm-tools:backend}
 
+x-frontend-image: &frontend-image ${FRONTEND_IMAGE:-ghcr.io/aroboticsteam/vex-tm-tools:frontend}
+
 x-app-env: &app-env
   POSTGRES_DSN: postgresql+asyncpg://tmtools:tmtools@postgres:5432/tmtools
   REDIS_URL: redis://redis:6379/0
@@ -23,6 +25,40 @@ x-app-env: &app-env
   PUBLIC_BASE_URL: https://tmtools.${BASE_DOMAIN:-vex.localhost}
   APP_PORT: "8000"
 
+x-haproxy-image: &haproxy-image ${HAPROXY_IMAGE:-haproxy:3.0-alpine}
+
+x-app-worker: &app-worker
+  image: *app-image
+  profiles: [scale]
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+    garage-init:
+      condition: service_completed_successfully
+    cert-init:
+      condition: service_completed_successfully
+    authelia:
+      condition: service_started
+  entrypoint:
+    - sh
+    - -c
+    - ". /secrets/env && exec uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=*"
+  volumes:
+    - secrets:/secrets:ro
+    - certs:/certs:ro
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/healthz', timeout=3)"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+  mem_limit: 512m
+  restart: unless-stopped
+
 services:
   secrets-init:
     image: *app-image
@@ -40,6 +76,9 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    # 200 connections: with the scale profile there are four app containers (SQLAlchemy keeps up to 15
+    # connections each) plus migrations; the default 100 is enough but tight.
+    command: ["postgres", "-c", "max_connections=200"]
     environment:
       POSTGRES_USER: tmtools
       POSTGRES_PASSWORD: tmtools
@@ -55,6 +94,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Append-only file, fsynced every second: sessions and running timers survive a Redis restart.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -110,6 +151,9 @@ services:
 
   app:
     image: *app-image
+    # Leader-eligible containers. With more than one, whichever wins the lock leads; the others are hot standbys.
+    deploy:
+      replicas: ${APP_REPLICAS:-1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,6 +183,48 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # ── In front of the app containers ──────────────────────────────────────────────────────────────
+  # HAProxy balances REST and the public site over every healthy app container and sends /ws/* to the node
+  # that currently leads (health-checked on /leaderz). See stack/config/haproxy.cfg. Always on: with the
+  # scale profile off only `app` is up and the other servers are skipped.
+  haproxy:
+    image: *haproxy-image
+    depends_on:
+      app:
+        condition: service_started
+    configs:
+      - source: cfg_haproxy
+        target: /usr/local/etc/haproxy/haproxy.cfg
+    mem_limit: 128m
+    restart: unless-stopped
+
+  # ── Scale-out (`--profile scale`): more app containers and static frontends ─────────────────────
+  # `app-worker` containers behind HAProxy (workers: they never contend for the leader lock) serve REST and
+  # the public site and send commands to the leader over the Redis command bus. Two static `frontend`
+  # containers (nginx) serve /assets so Python does not spend CPU on files.
+  # Worker containers: LEADER_ELIGIBLE=false, they never contend for the leader lock. APP_WORKERS of them
+  # (default 2) run behind HAProxy next to the leader-eligible `app` containers (APP_REPLICAS, default 1;
+  # set it to 2 on the event server so a dead leader is replaced within ~30 s).
+  app-worker:
+    <<: *app-worker
+    deploy:
+      replicas: ${APP_WORKERS:-2}
+    environment:
+      <<: *app-env
+      LEADER_ELIGIBLE: "false"
+
+  frontend-1: &frontend
+    image: *frontend-image
+    profiles: [scale]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: 64m
+    restart: unless-stopped
+  frontend-2: *frontend
+
 volumes:
   secrets:
   postgres_data:
@@ -147,6 +233,8 @@ volumes:
   garage_data:
 
 configs:
+  cfg_haproxy:
+    file: ./config/haproxy.cfg
   cfg_gen_secrets:
     file: ./config/gen-secrets.py
   cfg_garage:
