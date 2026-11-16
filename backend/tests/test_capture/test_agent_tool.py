@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 import json
 import shutil
 import sys
@@ -38,8 +39,18 @@ pytestmark = [
     pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed"),
 ]
 
-SOURCE = "-f lavfi -i testsrc=size=320x240:rate=25"
+# Bounded (`-t`): an ffmpeg orphaned by a killed test run used to encode flat out forever (GBs of disk, several
+# cores); it now stops by itself after this much media, which a fast synthetic source produces in seconds. The
+# tests need a source faster than real time (clips are cut from a master that is ahead of the wall clock).
+SOURCE = "-f lavfi -t 300 -i testsrc=size=320x240:rate=25"
 NUM = 9100 + int(uuid.uuid4().int % 800)
+
+
+@pytest.fixture(autouse=True)
+def _reap_ffmpeg():
+    """Whatever happens in a test, no ffmpeg child outlives it."""
+    yield
+    subprocess.run(["pkill", "-P", str(os.getpid()), "-x", "ffmpeg"], check=False, capture_output=True)
 
 
 @pytest.fixture(autouse=True)

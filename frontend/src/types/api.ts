@@ -419,6 +419,27 @@ export interface ReadyResponse {
 
 // ── Event bus (backend/schemas/events.py, plan §C.4) — FROZEN interface ─
 
+/** `GET /api/v1/fields/state` (backend/core/field_state.py): what the leader last saw per field. */
+export interface FieldStateEntry {
+  type: string;
+  entity_id: string;
+  timestamp: number;
+  payload: Record<string, unknown>;
+}
+
+export interface FieldStateEvent {
+  type: string;
+  entity_id: string;
+  timestamp: number;
+}
+
+export interface FieldStateSnapshot {
+  /** Latest fieldMatchAssigned keyed by fieldID, upcoming_match keyed by entity_id. */
+  matches: Record<string, FieldStateEntry>;
+  /** Last few events per fieldID, newest first. */
+  events: Record<string, FieldStateEvent[]>;
+}
+
 export interface EventBusMessage {
   entity_id: string;
   entity_tags: string[];
