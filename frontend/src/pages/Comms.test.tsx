@@ -47,11 +47,40 @@ vi.mock('../api/comms', () => ({
   useImportAgenda: () => ({ mutate: m.importAgenda, isPending: false }),
   fetchStationLink: vi.fn().mockResolvedValue({ access_key: 'k', path: '/station/cam-1?k=k' }),
 }));
-vi.mock('../hooks/usePermission', () => ({ usePermission: () => true }));
+
+const timers = [
+  { entity_id: 'timer.field1', display_name: 'Field 1 timer', field_set_id: 1, field_id: 1, duration_s: 60, tags: [], prompter_token: 'tok123' },
+];
+const t = {
+  start: vi.fn(),
+  stop: vi.fn(),
+  reset: vi.fn(),
+  update: vi.fn(),
+  del: vi.fn(),
+};
+const perms = vi.hoisted(() => ({ denied: new Set<string>() }));
+
+vi.mock('../api/timers', () => ({
+  useTimers: () => ({ data: timers, isLoading: false }),
+  useStartTimer: () => ({ mutate: t.start }),
+  useStopTimer: () => ({ mutate: t.stop }),
+  useResetTimer: () => ({ mutate: t.reset }),
+  useUpdateTimer: () => ({ mutate: t.update, isPending: false }),
+  useDeleteTimer: () => ({ mutate: t.del }),
+  useCreateTimer: () => ({ mutate: vi.fn(), isPending: false }),
+  useCues: () => ({ data: [] }),
+  useCreateCue: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateCue: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteCue: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock('../hooks/useWebSocket', () => ({ useWebSocket: vi.fn() }));
+vi.mock('../hooks/usePermission', () => ({ usePermission: (p: string) => !perms.denied.has(p) }));
 
 describe('CommsPage desk console', () => {
   beforeEach(() => {
     Object.values(m).forEach((fn) => fn.mockReset());
+    Object.values(t).forEach((fn) => fn.mockReset());
+    perms.denied.clear();
     useUiStore.setState({ toasts: [] } as never);
   });
 
@@ -135,5 +164,58 @@ describe('CommsPage desk console', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Import' }).at(-1)!); // the modal's submit, after the card's opener
     expect(m.importAgenda).toHaveBeenLastCalledWith(expect.objectContaining({ dry_run: false }), expect.anything());
+  });
+
+  it('is one page: timer-teleprompter instances above the station comms', () => {
+    render(<CommsPage />);
+    expect(screen.getByRole('heading', { name: 'Comms' })).toBeInTheDocument();
+    expect(screen.queryByText('Timer-Teleprompter')).not.toBeInTheDocument();
+    const timersSection = screen.getByTestId('timers-section');
+    expect(within(timersSection).getByText('Field 1 timer')).toBeInTheDocument();
+    expect(within(timersSection).getByText(/\/prompter\/timer\.field1\?token=tok123/)).toBeInTheDocument();
+    expect(screen.getAllByTestId('station-row')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /New Timer/ })).toBeInTheDocument();
+    const before = screen.getByTestId('timers-section').compareDocumentPosition(screen.getAllByTestId('station-row')[0]);
+    expect(before & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // stations come after the timers
+  });
+
+  it('drives a timer and regenerates its prompter token from the page', async () => {
+    const user = userEvent.setup();
+    render(<CommsPage />);
+    const section = screen.getByTestId('timers-section');
+    await user.click(within(section).getByRole('button', { name: 'Start' }));
+    expect(t.start).toHaveBeenCalledWith('timer.field1');
+    await user.click(within(section).getByRole('button', { name: 'Stop' }));
+    expect(t.stop).toHaveBeenCalledWith('timer.field1');
+    await user.click(within(section).getByRole('button', { name: /Regenerate token/ }));
+    expect(t.update).toHaveBeenCalledWith({ entityId: 'timer.field1', body: { regenerate_token: true } }, expect.anything());
+    await user.click(within(section).getByRole('button', { name: 'Manage cues' }));
+    expect(within(section).getByRole('button', { name: 'Hide cues' })).toBeInTheDocument();
+  });
+
+  it('opens the timer editor from New Timer', async () => {
+    const user = userEvent.setup();
+    render(<CommsPage />);
+    await user.click(screen.getByRole('button', { name: /New Timer/ }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('hides the timer section and controls without timers:read / timers:edit / prompter:control', () => {
+    perms.denied.add('timers:read');
+    perms.denied.add('timers:edit');
+    const { unmount } = render(<CommsPage />);
+    expect(screen.queryByTestId('timers-section')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New Timer/ })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('station-row')).toHaveLength(3); // the comms half is unaffected
+    unmount();
+
+    perms.denied.clear();
+    perms.denied.add('prompter:control');
+    perms.denied.add('timers:edit');
+    render(<CommsPage />);
+    const section = screen.getByTestId('timers-section');
+    expect(within(section).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: /Regenerate token/ })).not.toBeInTheDocument();
+    expect(within(section).getByText('Field 1 timer')).toBeInTheDocument();
   });
 });
