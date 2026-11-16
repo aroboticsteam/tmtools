@@ -119,7 +119,11 @@ def test_agent_connects_receives_commands_and_reports_back():
                 ws.send_json({"type": "status", "state": "recording"})
                 time.sleep(0.3)
                 assert json.loads(r.get(hub.PRESENCE_KEY))["state"] == "recording"
-            time.sleep(0.3)
+            # The server clears presence asynchronously after the socket closes; wait for it (a fixed
+            # sleep raced on a loaded CI runner).
+            deadline = time.time() + 5
+            while r.get(hub.PRESENCE_KEY) is not None and time.time() < deadline:
+                time.sleep(0.05)
             assert r.get(hub.PRESENCE_KEY) is None  # cleared when the agent disconnects
     finally:
         r.delete(hub.PRESENCE_KEY)
