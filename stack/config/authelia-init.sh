@@ -12,6 +12,7 @@ if [ ! -f oidc_key.pem ]; then
   mv /tmp/k/private.pem oidc_key.pem
 fi
 client_hash=$(authelia crypto hash generate pbkdf2 --password "$OIDC_CLIENT_SECRET" | sed 's/^Digest: //')
+lighting_hash=$(authelia crypto hash generate pbkdf2 --password "$LIGHTING_OIDC_CLIENT_SECRET" | sed 's/^Digest: //')
 rm -f users_database.yml
 
 cat > configuration.yml <<YAML
@@ -36,14 +37,11 @@ authentication_backend:
     base_dn: dc=tmtools,dc=local
     user: uid=admin,ou=people,dc=tmtools,dc=local
     # password: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
+# Authelia is only an OIDC provider and login portal here: nothing uses its forward auth any more (the lighting
+# tracker sits behind oauth2-proxy), and who may enter is decided by each client (the app's roles, oauth2-proxy's
+# allowed groups).
 access_control:
   default_policy: one_factor
-  rules:
-    - domain: ["lighting.$base", "lights.$base"]
-      policy: one_factor
-      subject: ["group:tmtools-admin"]
-    - domain: ["lighting.$base", "lights.$base"]
-      policy: deny
 session:
   cookies:
     - domain: $base
@@ -77,5 +75,21 @@ $(sed 's/^/          /' oidc_key.pem)
         scopes: [openid, profile, email, groups]
         userinfo_signed_response_alg: none
         token_endpoint_auth_method: client_secret_post
+      # The lighting tracker's oauth2-proxy (stack/extras.yml, service lighting-auth).
+      - client_id: lighting
+        client_name: Lighting tracker
+        claims_policy: tmtools
+        client_secret: "$lighting_hash"
+        public: false
+        authorization_policy: one_factor
+        consent_mode: implicit  # first-party: no "allow access?" screen on every sign-in
+        redirect_uris:
+          - "https://lighting.$base/oauth2/callback"
+          - "http://lighting.$base/oauth2/callback"
+          - "https://lights.$base/oauth2/callback"
+          - "http://lights.$base/oauth2/callback"
+        scopes: [openid, profile, email, groups]
+        userinfo_signed_response_alg: none
+        token_endpoint_auth_method: client_secret_basic
 YAML
 echo "authelia config rendered for $base"

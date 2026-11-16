@@ -28,6 +28,8 @@ if first_run:
         "S3_SECRET_KEY": secrets.token_hex(32),
         # OIDC client secret the app presents to Authelia (Authelia stores a digest).
         "OIDC_CLIENT_SECRET": secrets.token_urlsafe(32),
+        "LIGHTING_OIDC_CLIENT_SECRET": secrets.token_urlsafe(32),
+        "LIGHTING_COOKIE_SECRET": secrets.token_urlsafe(24),
     }
     env.write_text("".join(f"export {k}={shlex.quote(v)}\n" for k, v in values.items()))
 else:
@@ -35,6 +37,16 @@ else:
     for line in env.read_text().splitlines():
         if line.startswith("export ADMIN_LOCAL_PASSWORD="):
             admin_pw = shlex.split(line[len("export "):])[0].split("=", 1)[1]
+
+# Secrets added after the first run (existing installs): appended to /secrets/env when missing.
+#  LIGHTING_OIDC_CLIENT_SECRET: the lighting oauth2-proxy's client secret at Authelia (a digest is stored there);
+#  LIGHTING_COOKIE_SECRET: oauth2-proxy's session cookie key (32 ASCII chars = 32 bytes, as it requires).
+if not first_run:
+    have = env.read_text()
+    extra = {"LIGHTING_OIDC_CLIENT_SECRET": secrets.token_urlsafe(32), "LIGHTING_COOKIE_SECRET": secrets.token_urlsafe(24)}
+    add = "".join(f"export {k}={shlex.quote(v)}\n" for k, v in extra.items() if f"export {k}=" not in have)
+    if add:
+        env.write_text(have + ("" if have.endswith("\n") else "\n") + add)
 
 def put(name, value):
     f = d / name
