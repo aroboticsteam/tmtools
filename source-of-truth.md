@@ -1,6 +1,6 @@
 # TMTools (QEComp) — Source of Truth
 
-**Last verified against the codebase:** 2026-11-16 (legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + qerobotics.co.uk stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
+**Last verified against the codebase:** 2026-11-16 (field state snapshot for Match Control, legacy `modules/`/`storage/`/old tools removed, leader command bus + non-leader replicas + scale profile, public-site response cache + compression after a k6 load test, lighting behind oauth2-proxy (OIDC, swappable provider) + capture agent deletes uploaded files + sites theme env passthrough + `main` + VEX Events rate-limit fix + #29 mock shapes + team-site feedback pass + open team notifications / QR removal + qerobotics.co.uk stack: split compose, host-based Traefik, self-signed wildcard, LLDAP, lighting, Mumble, tunnel and dns profiles, Alembic head `d1e2f3a4b5c6`)
 
 This is the single authoritative description of what is in this repository: architecture, decisions, data model, API surface, RBAC, frontend, deployment and tests. It replaces `tm_update_plan.md` (the original v3.0 rewrite plan). Where the old plan and the code disagreed, **the code wins** and this document records the code.
 
@@ -230,6 +230,8 @@ Migrations: single linear head `c1d2e3f4a5b6` (CI fails on multiple heads). Seed
 | `qecomp:cmd:reply:<id>` | list | 30s | the leader's reply to one command (BLPOP by the sender) |
 | `qecomp:integration:state:<entity_id>` | string (JSON) | 10s | leader-mirrored `get_state()` so passive nodes can answer state reads |
 | `qecomp:pubcache:<path>?<query>` | string (JSON) | `PUBLIC_CACHE_TTL_SECONDS` | shared copy of a public-site API response |
+| `qecomp:field:state` | hash | 24h since last update | latest `fieldMatchAssigned` per `fieldID` / `upcoming_match` per entity (JSON `{type, entity_id, timestamp, payload}`), written by the leader's event listener (`backend/core/field_state.py`) |
+| `qecomp:field:events:<fieldID>` | list | 24h since last update | last 5 events of any type for that field, newest first |
 | `qecomp:session:<id>` | hash | 24h | OIDC/admin session (user, groups, permissions) |
 | `qecomp:integration:<entity_id>:status` | string | none | CONNECTED / DEGRADED / DISCONNECTED |
 | `qecomp:integration:<entity_id>:state` | hash | none | integration state for telemetry |
@@ -464,6 +466,7 @@ Generated reference: [`docs/API.md`](docs/API.md) and the live `/docs` (Swagger)
 | GET | `/api/v1/zeros/presets` | `integrations:read` |
 | POST/PUT/DELETE | `/api/v1/zeros/presets[/{preset_id}]` | `integrations:edit` |
 | GET | `/api/v1/debug/integrations/{entity_id}/log` | `settings:edit` (per-instance raw event log, last 100) |
+| GET | `/api/v1/fields/state` | `integrations:read` (Match Control's field snapshot from Redis: `{matches, events}`; any node answers) |
 
 **Automations / scripts**
 
@@ -646,7 +649,7 @@ Authentik setup: [`docs/AUTHENTIK_SETUP.md`](docs/AUTHENTIK_SETUP.md) (OAuth2/OI
 | `/admin_login` | AdminLogin | public |
 | `/integrations/spotify/callback` | SpotifyCallback | PKCE return |
 | `/` | Dashboard | integration health + telemetry (Spotify now playing, ATEM input, ZerOS last preset, TM fields), last 50 events, cluster/leader status, Redis-unavailable banner |
-| `/match-control` | MatchControl | per-TM-instance live field cards (state, match, teams, recent events) and manual controls: Queue Next/Prev/Skills, Start, End Early, Abort, Reset, audience display. **Field Monitor was merged into this page**; `/fields` redirects here |
+| `/match-control` | MatchControl | per-TM-instance live field cards (state, match, teams, recent events; seeded from `GET /api/v1/fields/state` on load and replaced from it after each WebSocket reconnect, so a page opened mid-match is not blank) and manual controls: Queue Next/Prev/Skills, Start, End Early, Abort, Reset, audience display. **Field Monitor was merged into this page**; `/fields` redirects here |
 | `/integrations` | Integrations | CRUD from manifest schemas, status chips, tags, test connection, Spotify auth button, ZerOS presets + fire, telemetry cards |
 | `/automations` | Automations | folder tree (create/rename/delete), enable toggle, form builder + YAML editor, validate, test run, run history |
 | `/scripts` | Scripts | same editors |
@@ -837,5 +840,6 @@ Build order for the replay chain: #45 → #42 → #38 → #41. Not planned: Shea
 - **2026-11-16:** Removed the pre-rewrite legacy tree: root `modules/` (`match_scheduler.py`, READMEs), `storage/` (README, `userInfo/*/Me.txt` password hashes) and the unused `tools/add_user.py`, `migrate_remove_legacy.py`, `get_field_sets.py`, `get_spotify_devices.py` (all read the legacy `storage/` store); dropped the matching `.gitignore` lines. Nothing in backend, frontend, CI, Docker or stack referenced them.
 - **2026-11-16 (fix):** `frontend-1/2` healthchecks in `stack/core.yml` probe `127.0.0.1:8080` (busybox resolves `localhost` to `::1`, nginx listens on IPv4 only, so they reported unhealthy while serving).
 - **2026-11-16 (test):** `test_agent_connects_receives_commands_and_reports_back` polls for presence cleanup instead of a fixed 0.3 s sleep (flaked on loaded runners).
+- **2026-11-16 (field state):** the leader's `qecomp:events` listener (`backend/loader.py`) records field state in Redis (`backend/core/field_state.py`, keys `qecomp:field:state` / `qecomp:field:events:<id>`, 24 h) and `GET /api/v1/fields/state` (`backend/routers/fields.py`, `integrations:read`) serves it from any node. Match Control seeds the WS store from it on mount and after reconnects (`useFieldState`, `seedFields`), so field cards show live state even for events the page never saw. Tests: `backend/tests/test_core/test_field_state.py`, `frontend/src/stores/ws.test.ts`.
 - **2026-11-16 (redundancy):** HAProxy runs as two copies (`haproxy-1`/`haproxy-2`, `stack/core.yml`); `stack/config/haproxy.cfg` answers `/_haproxy` itself (`monitor-uri`); Traefik's `app` service lists both with a 2 s health check and the `app-retry` middleware (3 attempts) is on every router that uses it. Killing a copy under 12 concurrent clients: ~70 of 38,700 requests failed (those in flight at the SIGKILL), none afterwards; without the retry ~360 per kill.
 - **2026-11-16 (test hygiene):** `backend/tests/test_capture/test_agent_tool.py` bounds its synthetic ffmpeg source (`-t 300`) and reaps ffmpeg children after every test; a killed pytest used to leave an unbounded `testsrc` encoder running at ~275% CPU writing GBs.

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EventBusMessage } from '../types/api';
+import type { EventBusMessage, FieldStateSnapshot } from '../types/api';
 
 /**
  * WebSocket Zustand store (plan §C.3 / §C.8). ALL live-pushed data lives
@@ -65,6 +65,10 @@ export interface WsState {
   setConnected: (value: boolean) => void;
   dispatch: (event: EventBusMessage) => void;
   clearRecentEvents: () => void;
+  /** Seeds field cards from the server-side snapshot (`/api/v1/fields/state`). By default only fills fields
+   *  this session has not heard about (live events win); `replace` overwrites them (used after a reconnect,
+   *  when events may have been missed). */
+  seedFields: (snapshot: FieldStateSnapshot, replace?: boolean) => void;
 }
 
 export const useWsStore = create<WsState>((set) => ({
@@ -141,4 +145,34 @@ export const useWsStore = create<WsState>((set) => ({
     }),
 
   clearRecentEvents: () => set({ recentEvents: [] }),
+
+  seedFields: (snapshot, replace = false) =>
+    set((state) => {
+      const currentMatches = { ...state.currentMatches };
+      for (const [key, entry] of Object.entries(snapshot.matches ?? {})) {
+        if (replace || !(key in currentMatches)) {
+          currentMatches[key] = entry.payload as UpcomingMatchPayload;
+        }
+      }
+      // Older, server-recorded events go behind the live ones; a field with live events keeps only those.
+      const live = new Set(state.recentEvents.map((e) => String(e.payload.fieldID ?? '')));
+      const older: EventBusMessage[] = [];
+      for (const [fieldId, rows] of Object.entries(snapshot.events ?? {})) {
+        if (!replace && live.has(fieldId)) continue;
+        for (const row of rows) {
+          older.push({
+            entity_id: row.entity_id,
+            entity_tags: [],
+            type: row.type,
+            timestamp: row.timestamp,
+            payload: { fieldID: fieldId },
+          });
+        }
+      }
+      older.sort((a, b) => b.timestamp - a.timestamp);
+      const kept = replace
+        ? state.recentEvents.filter((e) => !(String(e.payload.fieldID ?? '') in (snapshot.events ?? {})))
+        : state.recentEvents;
+      return { currentMatches, recentEvents: [...kept, ...older].slice(0, 50) };
+    }),
 }));
