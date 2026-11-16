@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 
+import fakeredis
 import pytest
+from fakeredis import aioredis as fake_aioredis
 from httpx import ASGITransport, AsyncClient
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse, Response
@@ -16,7 +18,7 @@ from backend.core.settings import settings
 pytestmark = pytest.mark.asyncio
 
 
-def _make_app(calls: dict[str, int], delay: float = 0.0):
+def _make_app(calls: dict[str, int], delay: float = 0.0, redis=None):
     async def data(request):
         calls["n"] += 1
         if delay:
@@ -53,8 +55,17 @@ def _make_app(calls: dict[str, int], delay: float = 0.0):
             Route("/api/v1/public/site/write", post, methods=["POST", "GET"]),
         ]
     )
-    app.add_middleware(PublicCacheMiddleware)
+    app.add_middleware(PublicCacheMiddleware, redis=redis if redis is not None else _NoRedis())
     return app
+
+
+class _NoRedis:
+    """Stands in for an unreachable Redis (the layer is best effort)."""
+
+    async def get(self, *a, **k):
+        raise ConnectionError("no redis")
+
+    pttl = set = get
 
 
 @pytest.fixture
@@ -160,3 +171,49 @@ async def test_entry_count_is_bounded(ttl, monkeypatch):
     while not isinstance(mw, PublicCacheMiddleware):
         mw = mw.app
     assert len(mw._entries) <= 3
+
+
+def _fake_redis():
+    return fake_aioredis.FakeRedis(server=fakeredis.FakeServer(), decode_responses=True)
+
+
+async def test_second_container_reuses_the_shared_redis_copy(ttl):
+    shared = _fake_redis()
+    a_calls, b_calls = {"n": 0}, {"n": 0}
+    async with _client(_make_app(a_calls, redis=shared)) as a, _client(_make_app(b_calls, redis=shared)) as b:
+        ra = await a.get("/api/v1/public/site/overview?q=7")
+        rb = await b.get("/api/v1/public/site/overview?q=7")
+        rb2 = await b.get("/api/v1/public/site/overview?q=7")
+    assert (a_calls["n"], b_calls["n"]) == (1, 0)
+    assert (ra.headers["x-cache"], rb.headers["x-cache"], rb2.headers["x-cache"]) == ("MISS", "HIT-REDIS", "HIT")
+    assert rb.json() == ra.json()
+    assert rb.headers["content-type"] == ra.headers["content-type"]
+    assert 0 < await shared.pttl("qecomp:pubcache:/api/v1/public/site/overview?q=7") <= 5000
+
+
+async def test_redis_copy_expires_with_the_ttl(ttl):
+    shared = _fake_redis()
+    calls = {"n": 0}
+    async with _client(_make_app(calls, redis=shared)) as c:
+        await c.get("/api/v1/public/site/overview")
+    await shared.pexpire("qecomp:pubcache:/api/v1/public/site/overview?", 1)
+    await asyncio.sleep(0.01)
+    other = {"n": 0}
+    async with _client(_make_app(other, redis=shared)) as c2:
+        r = await c2.get("/api/v1/public/site/overview")
+    assert other["n"] == 1 and r.headers["x-cache"] == "MISS"
+
+
+async def test_only_200_goes_to_redis(ttl):
+    shared = _fake_redis()
+    async with _client(_make_app({"n": 0}, redis=shared)) as c:
+        await c.get("/api/v1/public/site/teams/XYZ")
+    assert await shared.keys("qecomp:pubcache:*") == []
+
+
+async def test_broken_redis_never_breaks_a_request(ttl):
+    calls = {"n": 0}
+    async with _client(_make_app(calls, redis=_NoRedis())) as c:
+        a = await c.get("/api/v1/public/site/overview")
+        b = await c.get("/api/v1/public/site/overview")
+    assert a.status_code == b.status_code == 200 and calls["n"] == 1

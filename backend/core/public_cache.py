@@ -7,27 +7,40 @@ GET response for `settings.PUBLIC_CACHE_TTL_SECONDS` and shares one computation 
 concurrent requests for the same URL ("single flight"), so the cost no longer grows with the
 number of viewers. Data is at most that many seconds stale. A TTL of 0 turns it off.
 
-In-process by design: the app runs one worker per container (leader election), so there is
-nothing to keep consistent between processes, and a cache miss on another replica is only
-extra work, never wrong data. Only 200 responses are stored (a 404 for an unknown team is
-recomputed), the number of entries and the size of a body are bounded, and the signed-image
-redirect route is left alone.
+Two layers. The first is in-process (a dictionary lookup, no I/O). Under it sits Redis
+(`qecomp:pubcache:*`, the same TTL), shared by every app container: when the stack is scaled
+to several containers, one of them computes a response and the others reuse it, and the cache
+survives an app restart. Redis is best effort: a failure or a slow answer (250 ms cap) just
+means the response is computed locally, so the cache can never make a request fail. The app
+runs one worker per container (leader election), so the in-process layer has nothing to keep
+consistent. Only 200 responses are stored (a 404 for an unknown team is recomputed), the number
+of in-process entries and the size of a body are bounded, and the signed-image redirect route
+is left alone.
 """
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
+import logging
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from backend.core import redis as redis_module
 from backend.core.settings import settings
+
+logger = logging.getLogger(__name__)
 
 PREFIX = "/api/v1/public/site/"
 #: Redirects to presigned object-store URLs with their own Cache-Control; never cached here.
 SKIP_PREFIXES = ("/api/v1/public/site/image/",)
 MAX_ENTRIES = 512
 MAX_BODY_BYTES = 2 * 1024 * 1024
+REDIS_PREFIX = "qecomp:pubcache:"
+REDIS_TIMEOUT_SECONDS = 0.25
 
 
 @dataclass
@@ -39,8 +52,9 @@ class _Entry:
 
 
 class PublicCacheMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, redis: Any = None) -> None:
         self.app = app
+        self._redis_override = redis
         self._entries: dict[str, _Entry] = {}
         self._inflight: dict[str, asyncio.Future[_Entry | None]] = {}
 
@@ -76,17 +90,24 @@ class PublicCacheMiddleware:
         future: asyncio.Future[_Entry | None] = asyncio.get_running_loop().create_future()
         self._inflight[key] = future
         result: _Entry | None = None
+        state = "MISS"
         try:
-            result = await self._compute(scope, receive)
-            if result.status == 200 and len(result.body) <= MAX_BODY_BYTES:
-                self._store(key, result, ttl)
+            result = await self._redis_get(key)
+            if result is not None:
+                state = "HIT-REDIS"
+                self._store(key, result, result.expires)
+            else:
+                result = await self._compute(scope, receive)
+                if result.status == 200 and len(result.body) <= MAX_BODY_BYTES:
+                    self._store(key, result, ttl)
+                    await self._redis_set(key, result, ttl)
         except BaseException:
             result = None
             raise
         finally:
             self._inflight.pop(key, None)
             future.set_result(result)
-        await self._send(result, send, ttl if result.status == 200 else 0, "MISS")
+        await self._send(result, send, ttl if result.status == 200 else 0, state)
 
     async def _compute(self, scope: Scope, receive: Receive) -> _Entry:
         status = 500
@@ -103,6 +124,47 @@ class PublicCacheMiddleware:
 
         await self.app(scope, receive, capture)
         return _Entry(status, headers, b"".join(chunks), 0.0)
+
+    def _redis(self) -> Any:
+        return self._redis_override if self._redis_override is not None else redis_module.redis_client
+
+    async def _redis_get(self, key: str) -> _Entry | None:
+        """The shared copy, with `expires` holding its *remaining* lifetime in seconds
+        (so the in-process copy never outlives the Redis one)."""
+        try:
+            async with asyncio.timeout(REDIS_TIMEOUT_SECONDS):
+                redis = self._redis()
+                raw = await redis.get(REDIS_PREFIX + key)
+                if raw is None:
+                    return None
+                pttl = await redis.pttl(REDIS_PREFIX + key)
+            data = json.loads(raw)
+            remaining = (pttl / 1000.0) if pttl and pttl > 0 else 0.0
+            if remaining <= 0:
+                return None
+            return _Entry(
+                int(data["s"]),
+                [(k.encode("latin-1"), v.encode("latin-1")) for k, v in data["h"]],
+                base64.b64decode(data["b"]),
+                remaining,
+            )
+        except Exception:  # noqa: BLE001 - best effort by design
+            logger.debug("public cache: redis read failed", exc_info=True)
+            return None
+
+    async def _redis_set(self, key: str, entry: _Entry, ttl: float) -> None:
+        try:
+            payload = json.dumps(
+                {
+                    "s": entry.status,
+                    "h": [[k.decode("latin-1"), v.decode("latin-1")] for k, v in entry.headers],
+                    "b": base64.b64encode(entry.body).decode("ascii"),
+                }
+            )
+            async with asyncio.timeout(REDIS_TIMEOUT_SECONDS):
+                await self._redis().set(REDIS_PREFIX + key, payload, px=max(1, int(ttl * 1000)))
+        except Exception:  # noqa: BLE001 - best effort by design
+            logger.debug("public cache: redis write failed", exc_info=True)
 
     def _store(self, key: str, entry: _Entry, ttl: float) -> None:
         now = time.monotonic()
