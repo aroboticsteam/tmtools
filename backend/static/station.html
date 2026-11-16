@@ -238,18 +238,20 @@
     clock.className = 'clock' + (late ? ' late' : '');
   }
 
-  function timerSecondsLeft() {
-    var t = state.timer; if (!t) return null;
-    var now = Date.now() / 1000 + state.offset;
-    var elapsed = t.elapsed_before + (t.running_since != null ? Math.max(0, now - t.running_since) : 0);
-    return { elapsed: elapsed, left: t.mode === 'countdown' && t.duration != null ? t.duration - elapsed : null };
-  }
   function fmtClock(total) {
     var neg = total < 0, a = Math.abs(Math.floor(total)), h = Math.floor(a / 3600), m = Math.floor((a % 3600) / 60), sec = a % 60;
     return (neg ? '-' : '') + (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
   }
+  // The timer screen shows a Timer-Teleprompter timer instance chosen on the desk. Countdowns turn amber
+  // and red as they run down; after zero the instance moves on to "match running" / "match complete".
+  var WARN_SECONDS = 120, CRITICAL_SECONDS = 30;
+  function timerElapsed() {
+    var t = state.timer; if (!t) return null;
+    var since = t.running ? Math.max(0, Date.now() / 1000 + state.offset - (state.timerAt || 0)) : 0;
+    return t.elapsed + since;
+  }
   function renderTimer() {
-    if (!state.timer) { viewEl.appendChild(el('div', 'empty', 'No timer running')); return; }
+    if (!state.timer) { viewEl.appendChild(el('div', 'empty', 'No timer selected')); return; }
     var box = el('div', 'timer');
     box.appendChild(el('div', 'tlabel', state.timer.label || ''));
     var clock = el('div', 'tclock neutral', '--:--'); clock.id = 'tclock';
@@ -260,22 +262,31 @@
     tickTimer();
   }
   function tickTimer() {
-    var clock = document.getElementById('tclock'), st = document.getElementById('tstate'), t = state.timer, v = timerSecondsLeft();
-    if (!clock || !t || !v) return;
-    var cls = 'neutral', shown = v.elapsed;
-    if (v.left !== null) {
-      shown = v.left;
-      cls = v.left < 0 ? 'overtime' : v.left <= t.critical ? 'red' : v.left <= t.warn ? 'amber' : 'green';
-    }
+    var clock = document.getElementById('tclock'), st = document.getElementById('tstate'), t = state.timer, e = timerElapsed();
+    if (!clock || !t || e === null) return;
+    var cls = 'neutral', shown, text = '';
+    if (t.phase === 'countdown') {
+      shown = Math.max(0, t.duration_s - e);
+      cls = shown <= CRITICAL_SECONDS ? 'red' : shown <= WARN_SECONDS ? 'amber' : 'green';
+    } else if (t.phase === 'match_running') { shown = e; cls = 'green'; text = 'Match in progress'; }
+    else if (t.phase === 'match_complete') { shown = e; text = 'Match complete'; }
+    else { shown = t.duration_s; text = 'Ready'; }
     clock.textContent = fmtClock(shown);
     clock.className = 'tclock ' + cls;
-    if (st) st.textContent = t.running_since == null ? 'Paused' : (v.left !== null && v.left < 0 ? 'Over time' : '');
+    if (st) st.textContent = text;
   }
   function setTimer(timer, serverTime) {
-    state.timer = timer || null;
+    if (!timer) return;
+    var prev = state.timer;
+    if (prev && prev.entity_id === timer.entity_id && !timer.label) timer.label = prev.label; // live updates carry no heading
+    state.timer = timer;
     if (serverTime) state.offset = serverTime - Date.now() / 1000;
-    if (state.timer) { if (state.screen !== 'timer') setScreen('timer'); else render(); }
-    else if (state.screen === 'timer') setScreen('messages');
+    state.timerAt = serverTime || Date.now() / 1000 + state.offset;
+    if (state.screen === 'timer') render();
+  }
+  // A reset publishes no event, so the timer screen also re-reads the instance every few seconds.
+  function refreshTimer() {
+    api('').then(function (st) { if (st.timer) setTimer(st.timer, st.server_time); }).catch(function () {});
   }
 
   function currentAgendaIndex(items) {
@@ -334,7 +345,7 @@
     return api('').then(function (st) {
       state.station = st;
       state.timer = st.timer || null;
-      if (st.server_time) state.offset = st.server_time - Date.now() / 1000;
+      if (st.server_time) { state.offset = st.server_time - Date.now() / 1000; state.timerAt = st.server_time; }
       document.title = st.name; document.getElementById('name').textContent = st.name;
       state.screen = st.screen;
       if (st.last_message && !state.messages.length) state.messages.push({ id: st.last_message.id, text: st.last_message.text, flash: false, sent_at: st.last_message.sent_at });
@@ -361,6 +372,7 @@
   start();
   setInterval(function () { if (state.screen === 'countdown') tickClock(); }, 1000);
   setInterval(function () { if (state.screen === 'timer') tickTimer(); }, 250);
+  setInterval(function () { if (state.screen === 'timer') refreshTimer(); }, 5000);
   setInterval(function () { if (state.screen === 'countdown') loadNext(); else if (state.screen.indexOf('agenda_') === 0) render(); }, 30000);
 })();
 </script>
