@@ -32,14 +32,16 @@ python agent.py --server https://tm.example.com --key tmt_... --input "-f avfoun
 | `--reencode` / `--no-reencode` | on | On: H.264 at `--video-bitrate` with 1 s keyframes (~41 GB for 245 IQ matches at 15 Mbps). Off: stream copy of the feed as-is (can be ~190 GB at ~70 Mbps). Clips are always re-encoded. |
 | `--video-bitrate` | `15M` | Target bitrate when re-encoding |
 | `--work-dir` | `./capture-data` | Local recordings and the upload queue (`queue.json`) |
+| `--keep-local` | off | Keep recordings on disk after upload. By default each file is deleted once the object store has it and the server has confirmed it, and the recording's folder goes with the last file. The `master.mkv` is deleted as soon as the MP4 is made. Env: `CAPTURE_KEEP_LOCAL=1` |
 | `--agent-id` | random | Shown in the deck |
 
 ## How it behaves
 
-- **Local first.** Each match is written to `work-dir/<recording id>/master.mkv` (Matroska, safe to read while growing), then remuxed to a `+faststart` `match.mp4` when the match ends.
+- **Local first.** Each match is written to `work-dir/<recording id>/master.mkv` (Matroska, safe to read while growing), then remuxed to a `+faststart` `match.mp4` when the match ends (the master is then deleted, since the MP4 is a copy of it).
 - **Clips.** `mark` cuts the last *N* seconds into a standalone MP4 about 1.5 s after the mark (so the tail is flushed) and uploads it immediately; the target is a playable clip within ~10 s.
 - **Priorities.** Clip upload and match-file upload run on separate workers, so a clip never waits behind a multi-GB match file, and uploads never touch the running recording.
 - **Resilience.** The upload queue is persisted and retried with backoff, so a dropped venue connection or a restart loses nothing. The WebSocket reconnects automatically; a recording in progress continues while it is down.
+- **Disk use.** Local files are deleted after a confirmed upload, so the work dir only holds what is recording or still waiting to upload (a few GB during an outage, not the whole event). Pass `--keep-local` to keep everything.
 - **Layout in the bucket.** `{matchType}/{matchNumber}/match.mp4` and `{matchType}/{matchNumber}/segments/moment-N.mp4`. Clear between events from the server (`DELETE /api/v1/capture/recordings`).
 - Ctrl-C finishes and queues the current recording before exiting.
 
