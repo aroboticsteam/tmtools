@@ -23,8 +23,7 @@ import time
 from typing import Any
 from uuid import UUID
 
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +33,7 @@ from backend.core.dependencies import CurrentPrincipal, get_db, require_permissi
 from backend.core.redis import get_redis
 from backend.models.automation import Automation, AutomationFolder, AutomationRun
 from backend.modules.automation.engine import AutomationEngine, validate_automation_yaml
+from backend.routers._leader import is_passive, run_on_leader
 from backend.schemas.automation import (
     AutomationCreate,
     AutomationFolderCreate,
@@ -107,43 +107,6 @@ def _get_engine(request: Request) -> AutomationEngine | None:
     passive node / before startup instead of raising, so read-only CRUD
     routes still work everywhere (only `/trigger` actually needs it)."""
     return getattr(request.app.state, "automation_engine", None)
-
-
-async def _proxy_trigger_to_leader(request: Request, leader: Any, automation_id: UUID) -> Response | None:
-    """Passive-node request forwarding for `/trigger`, mirroring
-    `routers/integrations.py`'s `_proxy_to_leader` (plan §3.1). The
-    `AutomationEngine` only runs on the current leader pod; a passive pod
-    that can't service this locally reads the leader's address from Redis
-    and HTTP-proxies this exact request there, forwarding the caller's
-    `Authorization`/`Cookie` headers so the leader's own permission check
-    sees the same principal. Returns `None` if no leader address can
-    currently be resolved, so the caller falls back to a plain 503."""
-    leader_address = await leader.get_leader_address_async()
-    if not leader_address:
-        return None
-
-    forward_headers: dict[str, str] = {"content-type": "application/json"}
-    auth = request.headers.get("authorization")
-    if auth:
-        forward_headers["authorization"] = auth
-    cookie = request.headers.get("cookie")
-    if cookie:
-        forward_headers["cookie"] = cookie
-
-    url = f"http://{leader_address}/api/v1/automations/{automation_id}/trigger"
-    body = await request.body()
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, content=body, headers=forward_headers)
-    except httpx.HTTPError:
-        logger.exception("Failed to proxy automation trigger for %s to leader at %s", automation_id, leader_address)
-        return None
-
-    return Response(
-        content=resp.content,
-        status_code=resp.status_code,
-        headers={"content-type": resp.headers.get("content-type", "application/json")},
-    )
 
 
 # ── Folders (plan §11 "Automations" — automations:read/edit) ────────────
@@ -370,33 +333,32 @@ async def trigger_automation(
     automation_id: UUID,
     session: AsyncSession = Depends(get_db),
     principal: CurrentPrincipal = Depends(require_permission("automations:trigger")),
-) -> TriggerResponse | Response:
+) -> TriggerResponse:
     """The "Test Run" button (plan §12): fires the automation's action
     chain immediately, regardless of its trigger/condition.
 
     The `AutomationEngine` only runs on the current leader pod. A passive
-    pod forwards this request to the leader instead of a bare 503 (mirrors
-    `routers/integrations.py`'s `call_integration_service`) so a Stream
-    Deck-style trigger behind a load balancer doesn't fail ~50% of the time
-    (plan §3.1)."""
+    pod sends the trigger to the leader through the Redis command bus
+    (`backend/core/command_bus.py`) so a Stream Deck-style trigger behind a
+    load balancer doesn't fail (plan §3.1)."""
     row = await _get_automation_or_404(session, automation_id)  # 404 before touching the engine
 
     engine = _get_engine(request)
     if engine is None:
-        leader = getattr(request.app.state, "leader", None)
-        if leader is not None and not leader.is_leader():
-            proxied = await _proxy_trigger_to_leader(request, leader, automation_id)
-            if proxied is not None:
-                return proxied
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AutomationEngine is not running on this node (not the current leader?)",
+        # The engine only runs on the leader: a passive node asks it through the command bus.
+        if not is_passive(request):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AutomationEngine is not running on this node (not the current leader?)",
+            )
+        result = await run_on_leader(
+            request, "automation.trigger", {"automation_id": str(automation_id)}, target=f"automation:{automation_id}"
         )
-
-    try:
-        result = await engine.trigger(automation_id, {})
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    else:
+        try:
+            result = await engine.trigger(automation_id, {})
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     await log_action(
         session, principal.subject, "trigger", "automation", str(automation_id), changes={"alias": row.alias}
     )
