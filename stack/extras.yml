@@ -97,7 +97,7 @@ services:
 
   # Lighting tracker (aroboticsteam/lightpoint). Host networking so the
   # console's ArtPoll broadcast reaches it; the web UI binds to docker0 only and
-  # is published solely through Traefik + Authelia at https://lighting.BASE.
+  # is published solely through Traefik + oauth2-proxy (service lighting-auth) at https://lighting.BASE.
   lighting:
     profiles: [lighting]
     image: ${LIGHTING_IMAGE:-ghcr.io/aroboticsteam/lightpoint:latest}
@@ -113,6 +113,74 @@ services:
       interval: 30s
       timeout: 5s
       start_period: 10s
+    restart: unless-stopped
+
+  # Login for the lighting tracker: oauth2-proxy in front of it, speaking plain OIDC. Traefik sends lighting.BASE and
+  # lights.BASE here and it proxies to the tracker (websockets included) once the visitor is signed in and in
+  # LIGHTING_ALLOWED_GROUPS. The identity provider is whatever the LIGHTING_OIDC_* variables point at: by default the
+  # stack's Authelia (client `lighting`, registered by authelia-init.sh). To use another provider (Authentik, Keycloak,
+  # Google, Entra ID, ...) set these in .env and nothing else changes:
+  #   LIGHTING_OIDC_ISSUER_URL     issuer / discovery URL (default https://auth.BASE)
+  #   LIGHTING_OIDC_CLIENT_ID      default `lighting`
+  #   LIGHTING_OIDC_CLIENT_SECRET  default: generated into the secrets volume (the value Authelia was given)
+  #   LIGHTING_OIDC_PROVIDER       oauth2-proxy provider: oidc (default, any standard OIDC provider) or a specific one
+  #   LIGHTING_OIDC_GROUPS_CLAIM   default `groups`;  LIGHTING_OIDC_SCOPE default `openid profile email groups`
+  #   LIGHTING_OIDC_USER_CLAIM     claim that names the user, default `preferred_username` (`email` for Google)
+  #   LIGHTING_ALLOWED_GROUPS      comma list, default `tmtools-admin`; set it empty to let any signed-in user in
+  # The provider must allow the redirect URI https://lighting.BASE/oauth2/callback (and lights.BASE).
+  lighting-auth:
+    profiles: [lighting]
+    image: ${LIGHTING_AUTH_IMAGE:-quay.io/oauth2-proxy/oauth2-proxy:v7.7.1-alpine}
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+      cert-init:
+        condition: service_completed_successfully
+      authelia:
+        condition: service_started
+      traefik:
+        condition: service_started  # discovery goes through it (auth.BASE resolves to Traefik on the stack network)
+    extra_hosts:
+      - "host.docker.internal:${HOST_GATEWAY_IP:-172.17.0.1}"
+    environment:
+      LIGHTING_OIDC_CLIENT_SECRET: ${LIGHTING_OIDC_CLIENT_SECRET:-}
+      OAUTH2_PROXY_PROVIDER: ${LIGHTING_OIDC_PROVIDER:-oidc}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${LIGHTING_OIDC_ISSUER_URL:-https://auth.${BASE_DOMAIN:-vex.localhost}}
+      OAUTH2_PROXY_CLIENT_ID: ${LIGHTING_OIDC_CLIENT_ID:-lighting}
+      OAUTH2_PROXY_OIDC_GROUPS_CLAIM: ${LIGHTING_OIDC_GROUPS_CLAIM:-groups}
+      # Which claim identifies the user (oauth2-proxy calls it "email"). preferred_username because LLDAP users need
+      # not have an email address; set `email` for providers without preferred_username (Google).
+      OAUTH2_PROXY_OIDC_EMAIL_CLAIM: ${LIGHTING_OIDC_USER_CLAIM:-preferred_username}
+      OAUTH2_PROXY_SCOPE: ${LIGHTING_OIDC_SCOPE:-openid profile email groups}
+      OAUTH2_PROXY_ALLOWED_GROUPS: ${LIGHTING_ALLOWED_GROUPS-tmtools-admin}
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: ${LIGHTING_OIDC_PKCE:-S256}
+      OAUTH2_PROXY_UPSTREAMS: http://host.docker.internal:8080
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      # Behind Traefik: trust X-Forwarded-Host/-Proto so the callback URL follows the host the visitor used
+      # (lighting.BASE or lights.BASE). Login only works over https (secure cookie).
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_REDIRECT_URL: ${LIGHTING_OIDC_REDIRECT_URL:-}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_NAME: lighting_session
+      OAUTH2_PROXY_COOKIE_EXPIRE: ${LIGHTING_SESSION_HOURS:-12}h
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      # System roots + the stack's self-signed cert + EXTRA_CA_FILE (built by cert-init), as for the app.
+      SSL_CERT_FILE: /certs/ca-bundle.pem
+    entrypoint:
+      - sh
+      - -c
+      # The generated client and cookie secrets come from the secrets volume; LIGHTING_OIDC_CLIENT_SECRET in .env wins.
+      - |
+        client_secret="$${LIGHTING_OIDC_CLIENT_SECRET:-}"
+        . /secrets/env
+        export OAUTH2_PROXY_CLIENT_SECRET="$${client_secret:-$$LIGHTING_OIDC_CLIENT_SECRET}" OAUTH2_PROXY_COOKIE_SECRET="$$LIGHTING_COOKIE_SECRET"
+        exec /bin/oauth2-proxy
+    volumes:
+      - secrets:/secrets:ro
+      - certs:/certs:ro
     restart: unless-stopped
 
   # Voice for the desks and iPads. LAN only: plain TCP/UDP, not behind Traefik.

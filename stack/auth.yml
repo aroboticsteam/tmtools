@@ -1,4 +1,4 @@
-# Login: LLDAP (users, groups, password changes) and Authelia (OIDC + forward auth).
+# Login: LLDAP (users, groups, password changes) and Authelia (OIDC issuer and login portal).
 # Part of compose.stack.yml (see its header for configuration).
 
 services:
