@@ -384,3 +384,22 @@ async def test_receive_loop_does_not_report_during_shutdown(redis_client, monkey
     await integration._receive_loop()
 
     assert reports == [("CONNECTED", True)]
+
+
+async def test_current_field_follows_field_events_only(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    integration._enrich_field_match_assigned = AsyncMock(side_effect=lambda d: d)
+    integration._fetch_and_cache_schedule = AsyncMock()
+    assert (await integration.get_state())["current_field"] is None
+
+    await integration._handle_ws_message(json.dumps({"type": "fieldMatchAssigned", "fieldID": 2}))
+    assert (await integration.get_state())["current_field"] == 2
+
+    # audienceDisplayChanged carries no field, and matchStopped must not move it either.
+    await integration._handle_ws_message(json.dumps({"type": "audienceDisplayChanged", "display": "IN_MATCH"}))
+    await integration._handle_ws_message(json.dumps({"type": "matchStopped", "fieldID": 3}))
+    assert (await integration.get_state())["current_field"] == 2
+
+    await integration._handle_ws_message(json.dumps({"type": "fieldActivated", "fieldID": 3}))
+    assert (await integration.get_state())["current_field"] == 3
+    await integration.teardown()  # cancels the post-match schedule refresh matchStopped started
