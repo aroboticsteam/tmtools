@@ -288,3 +288,118 @@ async def test_call_service_missing_field_is_value_error(redis_client, service):
     with pytest.raises(ValueError):
         await integration.call_service(service, {})
     integration._ws.send.assert_not_awaited()
+
+
+class _FakeWs:
+    """An open TM WebSocket that delivers no messages and then closes."""
+
+    def __init__(self, on_iter=None):
+        self._on_iter = on_iter
+        self.close = AsyncMock()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._on_iter is not None:
+            self._on_iter()
+        raise StopAsyncIteration
+
+
+def _status_recorder(integration):
+    """Capture what the receive loop reports, with whether the socket was open at the time."""
+    reports: list[tuple[str, bool]] = []
+
+    async def hook(_entity_id, status):
+        reports.append((status, integration._ws is not None))
+
+    integration._status_hook = hook
+    return reports
+
+
+async def test_receive_loop_reports_status_as_the_websocket_comes_and_goes(redis_client, monkeypatch):
+    """The loader marks the instance CONNECTED once setup() returns (token only); the receive loop must then report
+    DEGRADED while the TM socket is down and CONNECTED while it is open, once per change."""
+    import backend.modules.integrations.vex_tm.integration as mod
+
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    reports = _status_recorder(integration)
+    monkeypatch.setattr(mod.asyncio, "sleep", AsyncMock())
+
+    attempts = {"n": 0}
+
+    async def open_ws():
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise ConnectionError("TM unreachable")  # down at start
+        if attempts["n"] == 2:
+            return _FakeWs()  # connects, then the socket closes
+        if attempts["n"] == 3:
+            raise ConnectionError("TM unreachable")  # still down: no repeat report
+        integration._shutdown.set()
+        raise ConnectionError("stop")
+
+    integration._open_ws = open_ws
+    await integration._receive_loop()
+
+    assert reports == [("DEGRADED", False), ("CONNECTED", True), ("DEGRADED", False)]
+    assert integration._ws_status == "DEGRADED"
+
+
+async def test_receive_loop_repeated_failures_report_degraded_only_once(redis_client, monkeypatch):
+    import backend.modules.integrations.vex_tm.integration as mod
+
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    reports = _status_recorder(integration)
+    monkeypatch.setattr(mod.asyncio, "sleep", AsyncMock())
+
+    attempts = {"n": 0}
+
+    async def open_ws():
+        attempts["n"] += 1
+        if attempts["n"] >= 5:
+            integration._shutdown.set()
+        raise ConnectionError("TM unreachable")
+
+    integration._open_ws = open_ws
+    await integration._receive_loop()
+
+    assert attempts["n"] == 5
+    assert reports == [("DEGRADED", False)]
+
+
+async def test_receive_loop_does_not_report_during_shutdown(redis_client, monkeypatch):
+    """teardown() sets the shutdown flag first and the loader then writes DISCONNECTED: a closing socket at that point
+    must not overwrite it with DEGRADED. (CONNECTED was reported when the socket opened, before shutdown began.)"""
+    import backend.modules.integrations.vex_tm.integration as mod
+
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    reports = _status_recorder(integration)
+    monkeypatch.setattr(mod.asyncio, "sleep", AsyncMock())
+
+    async def open_ws():
+        return _FakeWs(on_iter=integration._shutdown.set)
+
+    integration._open_ws = open_ws
+    await integration._receive_loop()
+
+    assert reports == [("CONNECTED", True)]
+
+
+async def test_current_field_follows_field_events_only(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    integration._enrich_field_match_assigned = AsyncMock(side_effect=lambda d: d)
+    integration._fetch_and_cache_schedule = AsyncMock()
+    assert (await integration.get_state())["current_field"] is None
+
+    await integration._handle_ws_message(json.dumps({"type": "fieldMatchAssigned", "fieldID": 2}))
+    assert (await integration.get_state())["current_field"] == 2
+
+    # audienceDisplayChanged carries no field, and matchStopped must not move it either.
+    await integration._handle_ws_message(json.dumps({"type": "audienceDisplayChanged", "display": "IN_MATCH"}))
+    await integration._handle_ws_message(json.dumps({"type": "matchStopped", "fieldID": 3}))
+    assert (await integration.get_state())["current_field"] == 2
+
+    await integration._handle_ws_message(json.dumps({"type": "fieldActivated", "fieldID": 3}))
+    assert (await integration.get_state())["current_field"] == 3
+    await integration.teardown()  # cancels the post-match schedule refresh matchStopped started
