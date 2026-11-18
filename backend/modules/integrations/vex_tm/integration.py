@@ -37,6 +37,7 @@ from urllib.parse import urlparse
 
 import httpx
 import websockets
+import websockets.exceptions  # not loaded by `import websockets` until websockets.connect is first used
 
 from backend.core.exceptions import IntegrationError
 from backend.modules.integrations.base import STATUS_KEY_TMPL, Integration
@@ -132,6 +133,13 @@ class VexTmIntegration(Integration):
         self._tasks: list[asyncio.Task] = []
         self._shutdown = asyncio.Event()
         self._last_event: dict[str, Any] | None = None
+        # fieldID of the latest fieldMatchAssigned/fieldActivated/matchStarted. Events like audienceDisplayChanged carry
+        # no fieldID, so automations read this (states('<entity>', 'current_field')) to know which field is in use.
+        self._current_field: int | None = None
+        # Last status this instance reported for its TM WebSocket (None = nothing yet). The loader marks the instance
+        # CONNECTED as soon as setup() returns, which only proves the OAuth token; the receive loop keeps the status
+        # honest from there (DEGRADED while the socket is down, CONNECTED while it is open).
+        self._ws_status: str | None = None
         self._auth_url = self.config.get("auth_url") or DEFAULT_AUTH_URL
         # Match-tuple -> {"divisionId", "matchNum", "round", "redTeams",
         # "blueTeams"} join index, built from the cached `/api/matches/{div}`
@@ -216,6 +224,7 @@ class VexTmIntegration(Integration):
             "connected": self._ws is not None,
             "status": status,
             "last_event": self._last_event,
+            "current_field": self._current_field,
         }
 
     # ── OAuth2 token (Redis-cached, §3.7) ────────────────────────────
@@ -323,6 +332,14 @@ class VexTmIntegration(Integration):
                 # spin a hot loop recreating it.
                 await asyncio.sleep(1)
 
+    async def _report_ws_status(self, status: str) -> None:
+        """Report CONNECTED/DEGRADED for the TM WebSocket, once per change (not on every retry). Silent during
+        shutdown: the loader writes DISCONNECTED itself."""
+        if self._shutdown.is_set() or self._ws_status == status:
+            return
+        self._ws_status = status
+        await self.report_status(status)
+
     async def _receive_loop(self) -> None:
         backoff = 1
         while not self._shutdown.is_set():
@@ -340,23 +357,27 @@ class VexTmIntegration(Integration):
                 logger.warning(
                     "vex_tm[%s]: WS connect cancelled unexpectedly; retrying", self.entity_id
                 )
+                await self._report_ws_status("DEGRADED")
                 await asyncio.sleep(min(backoff, 60))
                 backoff = min(backoff * 2, 60)
                 continue
             except websockets.exceptions.InvalidHandshake as exc:
                 # Replacement for the removed InvalidStatusCode (§3.7 fix).
                 logger.warning("vex_tm[%s]: WS handshake rejected: %s", self.entity_id, exc)
+                await self._report_ws_status("DEGRADED")
                 await asyncio.sleep(min(backoff, 60))
                 backoff = min(backoff * 2, 60)
                 continue
             except Exception as exc:
                 logger.warning("vex_tm[%s]: WS connect failed: %s", self.entity_id, exc)
+                await self._report_ws_status("DEGRADED")
                 await asyncio.sleep(min(backoff, 60))
                 backoff = min(backoff * 2, 60)
                 continue
 
             backoff = 1
             self._ws = ws
+            await self._report_ws_status("CONNECTED")
             try:
                 async for raw in ws:
                     await self._handle_ws_message(raw)
@@ -374,6 +395,7 @@ class VexTmIntegration(Integration):
                 self._ws = None
                 with contextlib.suppress(Exception):
                     await ws.close()
+            await self._report_ws_status("DEGRADED")
             if not self._shutdown.is_set():
                 await asyncio.sleep(min(backoff, 5))
 
@@ -396,6 +418,10 @@ class VexTmIntegration(Integration):
             self._schedule_post_match_refresh()
 
         self._last_event = payload
+        if event_type in ("fieldMatchAssigned", "fieldActivated", "matchStarted"):
+            field_id = _as_int(data.get("fieldID"))
+            if field_id is not None:
+                self._current_field = field_id
         message = EventBusMessage(
             entity_id=self.entity_id,
             entity_tags=list(self.tags),
