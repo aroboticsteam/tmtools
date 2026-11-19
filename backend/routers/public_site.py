@@ -287,6 +287,28 @@ async def site_image(name: str) -> Response:
     )
 
 
+_THEME_TOKENS = {
+    "primary", "accent", "accent-t", "accent-ink", "bg", "bg-2", "card", "raise", "line", "ink", "muted", "link",
+    "red", "blue", "iq", "v5", "ok", "hero-glow",
+}
+_HEX_COLOUR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+
+
+def _public_theme(value: Any) -> dict[str, dict[str, str]]:
+    """Colour overrides from the `site` setting, `{"dark": {token: "#hex"}, "light": {...}}`. Only known tokens with
+    a plain hex value pass, so the setting can never inject CSS."""
+    out: dict[str, dict[str, str]] = {}
+    if not isinstance(value, dict):
+        return out
+    for mode in ("dark", "light"):
+        raw = value.get(mode)
+        if isinstance(raw, dict):
+            picked = {k: v for k, v in raw.items() if k in _THEME_TOKENS and isinstance(v, str) and _HEX_COLOUR.match(v)}
+            if picked:
+                out[mode] = picked
+    return out
+
+
 @router.get("/overview")
 async def overview(
     db: Annotated[AsyncSession, Depends(get_db)], redis: Annotated[Any, Depends(get_redis)]
@@ -312,6 +334,7 @@ async def overview(
         "sponsors": await _public_sponsors(config.get("sponsors")),
         "map": await _public_map(config.get("map")),
         "presented_by": _text(config.get("presented_by"), 200),
+        "theme": _public_theme(config.get("theme")),
         "hero": {
             "image_url": await _image_url(config.get("hero_image_key")) or safe_image_url(config.get("hero_image_url"))
         },

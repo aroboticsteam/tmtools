@@ -31,6 +31,8 @@ export interface SiteConfig {
   map?: { image_key?: string; image_url?: string; rooms?: SiteRoom[] };
   leaderboard?: { panel_seconds?: number; programme_seconds?: number };
   recording_url_template?: string;
+  /** Colour overrides for the public site: CSS tokens (primary, accent, bg, ...) to `#hex`, per mode. Unset = neutral defaults. */
+  theme?: { dark?: Record<string, string>; light?: Record<string, string> };
   /** Full-width homepage photo: an uploaded image key (preferred) or a plain https URL. */
   hero_image_key?: string;
   hero_image_url?: string;
