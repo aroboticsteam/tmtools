@@ -4,7 +4,7 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](backend/requirements.txt)
 [![Node 20](https://img.shields.io/badge/node-20-339933)](frontend/package.json)
 [![Coverage >= 80%](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](.github/workflows/tests.yml)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![License: PolyForm Noncommercial + open forks](https://img.shields.io/badge/license-PolyForm%20NC%20%2B%20open%20forks-blue)](LICENSE)
 
 VEX TM competition-control system: connects to a VEX TM field-set
 WebSocket/REST API and drives Spotify playback, an ATEM switcher, a ZerOS
@@ -168,6 +168,9 @@ over from the project's original notes:
 
 ## License
 
-[AGPL-3.0](LICENSE) — if you run a modified version of this on a server
-that others interact with, you must also make that modified source
-available to them.
+Source-available and **noncommercial**: [PolyForm Noncommercial 1.0.0](LICENSE)
+plus Additional Terms. You may run, study and modify it for noncommercial
+purposes (schools, clubs, charities and personal use are fine). Forks and
+modified versions must keep the attribution ("based on TMTools by Vivaan"),
+publish their full source under the same license, and may not be sold or
+offered as a paid product or service. Copyright 2025-2026 Vivaan.
