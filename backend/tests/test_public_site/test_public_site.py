@@ -271,6 +271,20 @@ async def test_overview_hero_image(client):
     assert (await client.get("/api/v1/public/site/overview")).json()["hero"] == {"image_url": "https://img.example/h.jpg"}
 
 
+async def test_overview_theme_is_sanitised(client):
+    assert (await client.get("/api/v1/public/site/overview")).json()["theme"] == {}
+    theme = {
+        "dark": {"primary": "#112233", "accent": "#abc", "bg": "red;} body{display:none", "nope": "#fff", "ink": 5},
+        "light": {"bg": "#F0F0F0FF"},
+        "other": {"bg": "#000000"},
+    }
+    async with client.factory() as session:
+        session.add(SystemSetting(key="site", value={"theme": theme}))
+        await session.commit()
+    got = (await client.get("/api/v1/public/site/overview")).json()["theme"]
+    assert got == {"dark": {"primary": "#112233", "accent": "#abc"}, "light": {"bg": "#F0F0F0FF"}}
+
+
 async def test_overview_has_no_bus_tracker_even_if_stored(client):
     async with client.factory() as session:
         session.add(SystemSetting(key="site", value={"bus_tracker": {"title": "Old", "link_url": "https://bus.example"}}))
