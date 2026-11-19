@@ -59,7 +59,7 @@ services:
     image: ${SITE_HOME_IMAGE:-registry.example.net/robotics-home:latest}
     environment:
       <<: *site-theme
-      SITE_TITLE: ${SITES_TITLE:-TMTools Robotics}
+      SITE_TITLE: ${SITES_TITLE:-Robotics}
       TAGLINE: ${SITES_TAGLINE:-}
       WELCOME_HEADING: ${SITES_WELCOME_HEADING:-}
       STATS_URL: https://stats.${BASE_DOMAIN:-vex.localhost}
@@ -83,7 +83,7 @@ services:
       VEX_API_KEY: ${VEX_API_KEY:-}
       TEAMS_VIQRC: ${TEAMS_VIQRC:-}
       TEAMS_V5RC: ${TEAMS_V5RC:-}
-      SITE_TITLE: ${SITES_TITLE:-TMTools Robotics} Stats
+      SITE_TITLE: ${SITES_TITLE:-Robotics} Stats
       HOME_URL: https://${BASE_DOMAIN:-vex.localhost}
       LOGO_URL: ${SITES_LOGO_URL:-}
       LOGO_ALT: ${SITES_LOGO_ALT:-}
@@ -191,7 +191,7 @@ services:
     image: mumblevoip/mumble-server:v1.6.1001
     environment:
       MUMBLE_CONFIG_SERVERPASSWORD: ${MUMBLE_PASSWORD:-}
-      MUMBLE_CONFIG_WELCOMETEXT: "TMTools voice"
+      MUMBLE_CONFIG_WELCOMETEXT: ${MUMBLE_WELCOME_TEXT:-TMTools voice}
       MUMBLE_CONFIG_USERS: "100"
     ports:
       - "64738:64738/tcp"
