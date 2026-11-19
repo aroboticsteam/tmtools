@@ -1,7 +1,7 @@
 # Optional profiles: lighting tracker, Mumble voice, Cloudflare tunnel.
 # Part of compose.stack.yml (see its header for configuration).
 
-# Brand theme for both public sites (robotics-home / robotics-stats). Every value is optional: unset = the TMTools brand
+# Brand theme for both public sites (robotics-home / robotics-stats). Every value is optional: unset = the default theme
 # built into the images. Set SITES_THEME_* (dark palette) / SITES_THEME_LIGHT_* (light palette) in .env to override.
 x-site-theme: &site-theme
   THEME_MODE: ${SITES_THEME_MODE:-}
