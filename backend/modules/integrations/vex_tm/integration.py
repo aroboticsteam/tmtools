@@ -110,6 +110,33 @@ def _match_tuple_key(match_tuple: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+# Numeric round codes, in case a TM build sends the round as a number instead of a name (unverified against a live
+# TM: the live server sends names such as "PRACTICE" and "QUAL").
+_ROUND_CODES = {1: "PRACTICE", 2: "QUAL", 3: "QF", 4: "SF", 5: "F"}
+
+
+def _tuple_fallback(match_tuple: Any) -> dict[str, Any]:
+    """`matchNum`/`round` straight from the match tuple TM sent, for when the schedule has no entry for it, so
+    Match Control still shows "Match 0 · PRACTICE". Never raises; returns only the keys it could read (match 0 is
+    valid) and never invents teams."""
+    if not isinstance(match_tuple, dict):
+        return {}
+    out: dict[str, Any] = {}
+    number = _as_int(match_tuple.get("match"))
+    if number is not None:
+        out["matchNum"] = number
+    round_ = match_tuple.get("round")
+    if isinstance(round_, bool) or round_ is None:
+        round_ = None
+    elif isinstance(round_, (int, float)) or (isinstance(round_, str) and round_.strip().lstrip("-").isdigit()):
+        round_ = _ROUND_CODES.get(_as_int(round_))
+    else:
+        round_ = str(round_).strip().upper() or None
+    if round_:
+        out["round"] = round_
+    return out
+
+
 class VexTmIntegration(Integration):
     """VEX TM field-set integration: match control, schedule cache, live events."""
 
@@ -445,7 +472,7 @@ class VexTmIntegration(Integration):
         against a real TM server."""
         match_tuple = data.get("match")
         if not isinstance(match_tuple, dict) or match_tuple.get("division") is None:
-            return data
+            return {**data, **_tuple_fallback(match_tuple)}
 
         key = _match_tuple_key(match_tuple)
         entry = self._match_index.get(key)
@@ -468,7 +495,7 @@ class VexTmIntegration(Integration):
                 self.entity_id,
                 match_tuple,
             )
-            return data
+            return {**data, **_tuple_fallback(match_tuple)}
 
         return {
             **data,
