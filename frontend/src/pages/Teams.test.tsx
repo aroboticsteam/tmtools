@@ -5,12 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { TeamsPage } from './Teams';
 
 const teams = [
-  { team_number: '1234A', robot_name: 'Bolt', pit_location: null, video_processing_status: 'NONE' },
-  { team_number: '5678B', robot_name: 'Zip', pit_location: null, video_processing_status: 'NONE' },
+  { team_number: '1234A', robot_name: 'Bolt', pit_location: null },
+  { team_number: '5678B', robot_name: 'Zip', pit_location: null },
 ];
 const checklist = [
-  { team_number: '1234A', inspection: 'PASSED', bot_video: true, team_video: true, done: 3, total: 3, complete: true },
-  { team_number: '5678B', inspection: 'NOT_STARTED', bot_video: false, team_video: false, done: 0, total: 3, complete: false },
+  { team_number: '1234A', inspection: 'PASSED', bot_photo: true, team_photo: true, done: 3, total: 3, complete: true },
+  { team_number: '5678B', inspection: 'NOT_STARTED', bot_photo: false, team_photo: false, done: 0, total: 3, complete: false },
 ];
 
 vi.mock('../api/teams', () => ({

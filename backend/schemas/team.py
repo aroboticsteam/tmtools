@@ -49,31 +49,18 @@ class TeamProfileUpdate(BaseModel):
         return value
 
 
-class VideoProcessingStatus(BaseModel):
+class PhotoUploadAccepted(BaseModel):
     team_number: str
-    video_processing_status: str
-    video_360_s3_key: str | None = None
-    error: str | None = None
+    kind: str
+    status: str = "PROCESSING"
 
 
-class VideoUploadAccepted(BaseModel):
-    team_number: str
-    video_processing_status: str = "PROCESSING"
+class BatchPhotoUrlsResponse(BaseModel):
+    #: team number -> {"bot_photo": url|null, "team_photo": url|null}
+    photos: dict[str, dict[str, str | None]]
 
 
-class TeamVideoUrl(BaseModel):
-    team_number: str
-    url: str | None = Field(
-        default=None,
-        description="Presigned processed-video URL, or null if no processed video exists.",
-    )
-
-
-class BatchVideoUrlsResponse(BaseModel):
-    videos: dict[str, str | None]
-
-
-class TeamClipStatus(BaseModel):
+class TeamPhotoStatus(BaseModel):
     team_number: str
     kind: str
     status: str = "NONE"
@@ -81,9 +68,9 @@ class TeamClipStatus(BaseModel):
     error: str | None = None
 
 
-class TeamClipsRead(BaseModel):
+class TeamPhotosRead(BaseModel):
     team_number: str
-    clips: dict[str, TeamClipStatus]
+    photos: dict[str, TeamPhotoStatus]
 
 
 class OverlayTeam(BaseModel):
@@ -109,12 +96,12 @@ class OverlayTeamsResponse(BaseModel):
 
 
 class TeamChecklistItem(BaseModel):
-    """One team's checklist (issue #43): inspection plus the two videos."""
+    """One team's checklist (issue #43): inspection plus the bot and team photos."""
 
     team_number: str
     inspection: str
-    bot_video: bool
-    team_video: bool
+    bot_photo: bool
+    team_photo: bool
     done: int
     total: int
     complete: bool

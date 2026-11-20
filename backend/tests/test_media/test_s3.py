@@ -57,9 +57,9 @@ async def _ensure_bucket():
 
 
 def test_key_naming_conventions():
-    assert s3.raw_video_key("1234A", "mp4") == "teams/1234A/video/raw.mp4"
-    assert s3.raw_video_key("1234A", ".MOV") == "teams/1234A/video/raw.mov"
-    assert s3.processed_video_key("1234A") == "teams/1234A/video/processed.webm"
+    assert s3.photo_raw_key("1234A", "bot_photo", "jpg") == "teams/1234A/photos/bot_photo/raw.jpg"
+    assert s3.photo_raw_key("1234A", "team_photo", ".PNG") == "teams/1234A/photos/team_photo/raw.png"
+    assert s3.photo_processed_key("1234A", "bot_photo") == "teams/1234A/photos/bot_photo/processed.png"
 
 
 async def test_multipart_upload_presign_fetch_delete_roundtrip(tmp_path):

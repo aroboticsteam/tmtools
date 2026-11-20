@@ -32,7 +32,7 @@ from backend.models.team_clip import TeamClip
 from backend.modules.media import s3
 from backend.modules.notifications.logic import ScheduledMatch, match_key, parse_schedule
 from backend.modules.site import leaderboards as lb
-from backend.routers.team_clips import clip_urls_for
+from backend.routers.team_photos import photo_urls_for
 
 logger = logging.getLogger(__name__)
 
@@ -458,7 +458,7 @@ async def team(
     programme = programmes.get(str(division)) if division is not None else None
     programme = programme or next((pr for pr in programmes.values() if pr), None)
     schedule.sort(key=lambda m: (m["scheduled_at"] is None, m["scheduled_at"] or 0))
-    urls = (await clip_urls_for(db, [number], {number: profile}))[number]
+    urls = (await photo_urls_for(db, [number]))[number]
     clip_rows = {
         c.kind: c for c in (await db.execute(select(TeamClip).where(TeamClip.team_number == number))).scalars()
     }
@@ -496,35 +496,29 @@ async def team(
         },
         "schedule": schedule,
         "programme": programme,
-        "clips": {"bot": urls.get("bot"), "team": urls.get("team")},
-        "downloads": await _clip_downloads(number, profile, clip_rows),
+        "photos": {"bot": urls.get("bot_photo"), "team": urls.get("team_photo")},
+        "downloads": await _photo_downloads(number, clip_rows),
     }
 
 
-async def _clip_downloads(
-    number: str, profile: TeamProfile, clips: dict[str, TeamClip]
-) -> dict[str, dict[str, str] | None]:
-    """The team's own video files as save-as downloads: the original upload when
-    it still exists (a normal mp4/mov), else the processed clip."""
-    labels = {"bot": "360", "team": "team"}
+async def _photo_downloads(number: str, rows: dict[str, TeamClip]) -> dict[str, dict[str, str] | None]:
+    """The team's own photos as save-as downloads: the original upload when it
+    still exists, else the processed (transparent) PNG."""
+    labels = {"bot": ("bot_photo", "robot"), "team": ("team_photo", "team")}
     out: dict[str, dict[str, str] | None] = {}
-    for kind, label in labels.items():
-        clip = clips.get(kind)
-        key = None
-        if clip is not None and clip.status == "DONE":
-            key = clip.raw_s3_key or clip.processed_s3_key
-        if key is None and kind == "bot" and profile.video_360_s3_key and profile.video_processing_status == "DONE":
-            key = profile.raw_video_s3_key or profile.video_360_s3_key
+    for short, (kind, label) in labels.items():
+        row = rows.get(kind)
+        key = (row.raw_s3_key or row.processed_s3_key) if row is not None and row.status == "DONE" else None
         if not key:
-            out[kind] = None
+            out[short] = None
             continue
-        ext = key.rsplit(".", 1)[-1].lower() if "." in key.rsplit("/", 1)[-1] else "mp4"
-        name = f"{number}-{label}.{ext if ext.isalnum() and len(ext) <= 5 else 'mp4'}"
+        ext = key.rsplit(".", 1)[-1].lower() if "." in key.rsplit("/", 1)[-1] else "png"
+        name = f"{number}-{label}.{ext if ext.isalnum() and len(ext) <= 5 else 'png'}"
         try:
-            out[kind] = {"url": await s3.generate_presigned_url(key, expires_in=_IMAGE_URL_TTL, download_name=name), "name": name}
+            out[short] = {"url": await s3.generate_presigned_url(key, expires_in=_IMAGE_URL_TTL, download_name=name), "name": name}
         except Exception:
             logger.warning("Could not presign %s download for %s", kind, number, exc_info=True)
-            out[kind] = None
+            out[short] = None
     return out
 
 

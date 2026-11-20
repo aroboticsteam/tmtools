@@ -68,7 +68,7 @@ from backend.routers.scripts import router as scripts_router
 from backend.routers.settings import router as settings_router
 from backend.routers.static_pages import router as static_pages_router
 from backend.routers.status import router as status_router
-from backend.routers.team_clips import router as team_clips_router
+from backend.routers.team_photos import router as team_photos_router
 from backend.routers.teams import router as teams_router
 from backend.routers.timers import get_timer_or_404
 from backend.routers.timers import router as timers_router
@@ -359,7 +359,7 @@ def create_app() -> FastAPI:
 
     app.include_router(teams_router)
     app.include_router(capture_router)
-    app.include_router(team_clips_router)
+    app.include_router(team_photos_router)
     app.include_router(rooms_router)
     app.include_router(public_site_router)
     app.include_router(site_admin_router)

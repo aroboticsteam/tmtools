@@ -15,7 +15,7 @@ export function ChecklistMark({ done, label }: { done: boolean; label: string })
   );
 }
 
-/** Team checklist (issue #43): inspection (staff-editable) plus the two videos. */
+/** Team checklist (issue #43): inspection (staff-editable) plus the bot and team photos. */
 export function ChecklistCard({ teamNumber }: { teamNumber: string }) {
   const { data } = useTeamChecklist();
   const update = useUpdateTeam();
@@ -47,8 +47,8 @@ export function ChecklistCard({ teamNumber }: { teamNumber: string }) {
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <ChecklistMark done={row.bot_video} label="360 robot video" />
-          <ChecklistMark done={row.team_video} label="Team video" />
+          <ChecklistMark done={row.bot_photo} label="Robot photo" />
+          <ChecklistMark done={row.team_photo} label="Team photo" />
         </div>
       </div>
     </Card>
