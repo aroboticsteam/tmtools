@@ -13,7 +13,6 @@ so they can be checked against any camera's documentation.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import socket
 import struct
@@ -132,9 +131,13 @@ class PtzIntegration(Integration):
 
     async def _send_raw(self, packet: bytes) -> None:
         assert self._sock is not None and self._target is not None
+        # A plain non-blocking sendto: a UDP datagram goes straight to the socket buffer.
+        # `loop.sock_sendto` is not used because uvloop (what uvicorn runs on in the Docker
+        # image) does not implement it and raises NotImplementedError, which left the
+        # integration permanently DEGRADED.
         try:
-            await asyncio.get_running_loop().sock_sendto(self._sock, packet, self._target)
-        except OSError as exc:
+            self._sock.sendto(packet, self._target)
+        except OSError as exc:  # includes BlockingIOError if the buffer is full
             raise IntegrationError(f"ptz[{self.entity_id}]: send failed: {exc}") from exc
 
     async def _command(self, name: str, payload: bytes) -> dict[str, Any]:
