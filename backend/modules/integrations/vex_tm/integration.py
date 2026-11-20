@@ -137,6 +137,28 @@ def _tuple_fallback(match_tuple: Any) -> dict[str, Any]:
     return out
 
 
+def _match_id_key(value: Any) -> tuple[Any, ...] | None:
+    """Key for an event's ``matchID``: a scalar id (``12`` / ``"12"``) or a match-tuple dict (some TM builds send the
+    tuple under ``matchID``). ``None`` when the event has no usable matchID."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, dict):
+        return _match_tuple_key(value) if value.get("division") is not None else None
+    return ("id", str(value))
+
+
+def _event_match_keys(data: dict[str, Any]) -> list[tuple[Any, ...]]:
+    """Every join key an event offers for the match it is about (matchID, then the ``match`` tuple)."""
+    keys: list[tuple[Any, ...]] = []
+    id_key = _match_id_key(data.get("matchID"))
+    if id_key is not None:
+        keys.append(id_key)
+    match_tuple = data.get("match")
+    if isinstance(match_tuple, dict) and match_tuple.get("division") is not None:
+        keys.append(_match_tuple_key(match_tuple))
+    return keys
+
+
 class VexTmIntegration(Integration):
     """VEX TM field-set integration: match control, schedule cache, live events."""
 
@@ -163,6 +185,12 @@ class VexTmIntegration(Integration):
         # fieldID of the latest fieldMatchAssigned/fieldActivated/matchStarted. Events like audienceDisplayChanged carry
         # no fieldID, so automations read this (states('<entity>', 'current_field')) to know which field is in use.
         self._current_field: int | None = None
+        # matchID / match tuple -> fieldID, learnt from `fieldMatchAssigned` (the only event that ties a match to a
+        # field). Lets later events that omit (or null) their fieldID, e.g. `matchStopped` with `fieldID: null` or
+        # `audienceDisplayChanged`, be resolved to the right field even with several fields interleaved.
+        self._match_field: dict[tuple[Any, ...], int] = {}
+        # fieldID -> {"matchID", "match", "round", "matchNum"} of the match most recently assigned to that field.
+        self._field_assignment: dict[int, dict[str, Any]] = {}
         # Last status this instance reported for its TM WebSocket (None = nothing yet). The loader marks the instance
         # CONNECTED as soon as setup() returns, which only proves the OAuth token; the receive loop keeps the status
         # honest from there (DEGRADED while the socket is down, CONNECTED while it is open).
@@ -252,6 +280,7 @@ class VexTmIntegration(Integration):
             "status": status,
             "last_event": self._last_event,
             "current_field": self._current_field,
+            "current_match": self._field_assignment.get(self._current_field) if self._current_field is not None else None,
         }
 
     # ── OAuth2 token (Redis-cached, §3.7) ────────────────────────────
@@ -437,6 +466,8 @@ class VexTmIntegration(Integration):
             return
 
         payload = data
+        if event_type == "fieldMatchAssigned":
+            self._remember_assignment(data)
         if event_type in ("fieldMatchAssigned", "matchStarted"):
             # matchStarted is enriched too so the capture agent's recording
             # can be tagged with the teams (issue #42).
@@ -444,11 +475,10 @@ class VexTmIntegration(Integration):
         elif event_type == "matchStopped":
             self._schedule_post_match_refresh()
 
+        payload, field_id = self._with_resolved_field(event_type, payload)
         self._last_event = payload
-        if event_type in ("fieldMatchAssigned", "fieldActivated", "matchStarted"):
-            field_id = _as_int(data.get("fieldID"))
-            if field_id is not None:
-                self._current_field = field_id
+        if event_type in ("fieldMatchAssigned", "fieldActivated", "matchStarted") and field_id is not None:
+            self._current_field = field_id
         message = EventBusMessage(
             entity_id=self.entity_id,
             entity_tags=list(self.tags),
@@ -460,6 +490,70 @@ class VexTmIntegration(Integration):
             await self._redis.publish(EVENTS_CHANNEL, message.model_dump_json())
         except Exception:
             logger.exception("vex_tm[%s]: failed to publish event to Redis", self.entity_id)
+
+    def _remember_assignment(self, data: dict[str, Any]) -> None:
+        """`fieldMatchAssigned` carries `fieldID` plus the match (`matchID` and/or the `match` tuple): remember
+        match -> field. A null `fieldID` / empty `match` (TM clearing the field's queue) forgets nothing: the field
+        that just finished is still the right answer for the `matchStopped` that follows."""
+        field_id = _as_int(data.get("fieldID"))
+        keys = _event_match_keys(data)
+        if field_id is None or not keys:
+            return
+        for key in keys:
+            self._match_field[key] = field_id
+        match_tuple = data.get("match") if isinstance(data.get("match"), dict) else {}
+        self._field_assignment[field_id] = {
+            "matchID": data.get("matchID"),
+            "match": match_tuple or None,
+            "round": match_tuple.get("round") if match_tuple else data.get("round"),
+            "matchNum": match_tuple.get("match") if match_tuple else data.get("matchNum"),
+        }
+
+    def resolve_field(self, data: dict[str, Any]) -> tuple[int | None, str | None]:
+        """Best-known fieldID for an event: its own `fieldID`, else the field its matchID / match tuple was assigned
+        to, else (round + matchNum) matched against the assignments, else the current field. Returns
+        `(field_id, source)`; `(None, None)` when no field has ever been seen."""
+        own = _as_int(data.get("fieldID"))
+        if own is not None:
+            return own, "event"
+        for key in _event_match_keys(data):
+            if key in self._match_field:
+                return self._match_field[key], "match"
+        round_, num = data.get("round"), data.get("matchNum")
+        if round_ is not None and num is not None:
+            hits = {
+                fid
+                for fid, a in self._field_assignment.items()
+                if str(a.get("round")) == str(round_) and str(a.get("matchNum")) == str(num)
+            }
+            if len(hits) == 1:
+                return hits.pop(), "match"
+        if self._current_field is not None:
+            return self._current_field, "current"
+        return None, None
+
+    def _with_resolved_field(self, event_type: str, payload: dict[str, Any]) -> tuple[dict[str, Any], int | None]:
+        """Fills `fieldID` (and the match's round/matchNum when known) on events that lack them so automations can
+        rely on `trigger.payload.fieldID`. Returns `(payload, field_id)` where field_id is the event's own or
+        match-derived field, used to move `current_field`. A queue-clearing `fieldMatchAssigned` (no field, empty
+        match) stays untouched."""
+        own = _as_int(payload.get("fieldID"))
+        if own is not None:
+            return payload, own
+        if event_type == "fieldMatchAssigned" and not _event_match_keys(payload):
+            return payload, None
+        field_id, source = self.resolve_field(payload)
+        if field_id is None:
+            return payload, None
+        enriched = {**payload, "fieldID": field_id, "fieldIDSource": source}
+        assignment = self._field_assignment.get(field_id)
+        if assignment:
+            if enriched.get("round") is None and assignment.get("round") is not None:
+                enriched["round"] = assignment["round"]
+            if enriched.get("matchNum") is None and assignment.get("matchNum") is not None:
+                enriched["matchNum"] = assignment["matchNum"]
+        # The "current" fallback must not re-set current_field (it is already that value).
+        return enriched, (field_id if source == "match" else None)
 
     async def _enrich_field_match_assigned(self, data: dict[str, Any]) -> dict[str, Any]:
         """The real TM `fieldMatchAssigned` event only carries a match tuple
