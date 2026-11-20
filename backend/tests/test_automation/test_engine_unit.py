@@ -579,11 +579,10 @@ async def test_states_unknown_entity_falls_back_to_only_instance_of_domain(engin
     assert ctx["states"]("nothing.here", "x") is None
 
 
-async def test_target_and_trigger_fall_back_to_only_instance_of_domain(engine, patch_loader):
-    ptz = FakeIntegration(entity_id="ptz.birddog")
-    patch_loader["ptz.birddog"] = ptz
+async def test_trigger_falls_back_but_target_never_guesses_a_device(engine, patch_loader):
+    patch_loader["ptz.birddog"] = FakeIntegration(entity_id="ptz.birddog")
     patch_loader["vex_tm.main"] = FakeIntegration(entity_id="vex_tm.main")
-    assert engine._resolve_targets({"target": "ptz.main"}, {}) == [ptz]
+    assert engine._resolve_targets({"target": "ptz.main"}, {}) == []  # explicit failure, not ptz.birddog
     assert engine._resolve_targets({"target": "obs.main"}, {}) == []
     spec = {"platform": "state", "entity_id": "vex_tm.avimac", "event_type": "matchStopped"}
     assert engine._trigger_matches(spec, _event("vex_tm.main", "matchStopped")) is True
