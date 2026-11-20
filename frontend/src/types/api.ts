@@ -332,8 +332,8 @@ export type InspectionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PASSED';
 export interface TeamChecklistItem {
   team_number: string;
   inspection: InspectionStatus;
-  bot_video: boolean;
-  team_video: boolean;
+  bot_photo: boolean;
+  team_photo: boolean;
   done: number;
   total: number;
   complete: boolean;
@@ -347,20 +347,10 @@ export interface TeamProfileUpdate {
   inspection_status?: InspectionStatus;
 }
 
-export interface VideoProcessingStatus {
+export interface PhotoUploadAccepted {
   team_number: string;
-  video_processing_status: string;
-  video_360_s3_key: string | null;
-  error: string | null;
-}
-
-export interface VideoUploadAccepted {
-  team_number: string;
-  video_processing_status: string;
-}
-
-export interface BatchVideoUrlsResponse {
-  videos: Record<string, string | null>;
+  kind: PhotoKind;
+  status: string;
 }
 
 // ── Settings (backend/schemas/settings.py) ──────────────────────────────
@@ -539,21 +529,21 @@ export interface PressResult {
   actions_executed: number;
 }
 
-// ── Recorded team clips (issues #1/#12) ───────────────────────────────
+// ── Chroma-keyed team photos ──────────────────────────────────────────
 
-export type ClipKind = 'bot' | 'team';
+export type PhotoKind = 'bot_photo' | 'team_photo';
 
-export interface TeamClipStatus {
+export interface TeamPhotoStatus {
   team_number: string;
-  kind: ClipKind;
+  kind: PhotoKind;
   status: 'NONE' | 'PROCESSING' | 'DONE' | 'FAILED' | string;
   processed_s3_key: string | null;
   error: string | null;
 }
 
-export interface TeamClips {
+export interface TeamPhotos {
   team_number: string;
-  clips: Record<ClipKind, TeamClipStatus>;
+  photos: Record<PhotoKind, TeamPhotoStatus>;
 }
 
 // ── Comms: stations, presets, agenda, inbox (issue #8) ─────────────────

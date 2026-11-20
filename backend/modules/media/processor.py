@@ -92,6 +92,36 @@ def _build_ffmpeg_args(
     ]
 
 
+#: Team/bot photos: fit inside 2000x2000 (never upscaled), aspect ratio kept.
+PHOTO_MAX_DIMENSION = 2000
+
+
+def _build_image_ffmpeg_args(
+    input_path: str, output_path: str, key_colour: str, similarity: float, blend: float
+) -> list[str]:
+    """ffmpeg args that key one still image to a transparent PNG.
+
+    Same `colorkey` settings as the video path. `-map_metadata -1` drops
+    EXIF/XMP/GPS; re-encoding to PNG discards the rest of the source container.
+    """
+    ffmpeg_colour = _hex_to_ffmpeg_colour(key_colour)
+    sim = _clamp01("similarity", similarity)
+    bl = _clamp01("blend", blend)
+    vf = (
+        f"scale=w='min({PHOTO_MAX_DIMENSION},iw)':h='min({PHOTO_MAX_DIMENSION},ih)':force_original_aspect_ratio=decrease,"
+        f"colorkey={ffmpeg_colour}:{sim}:{bl},"
+        "format=rgba"
+    )
+    return [
+        "ffmpeg", "-y", "-i", input_path,
+        "-vf", vf,
+        "-map_metadata", "-1",
+        "-frames:v", "1",
+        "-c:v", "png", "-pix_fmt", "rgba",
+        output_path,
+    ]
+
+
 async def _drain_stderr(stream: asyncio.StreamReader, tail: list[str], max_tail: int = 40) -> None:
     """Consume FFmpeg's stderr asynchronously (progress + diagnostics live
     here), keeping only the last `max_tail` lines for error reporting.
@@ -162,6 +192,30 @@ async def _process_video(
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     args = _build_ffmpeg_args(str(in_path), str(out_path), key_colour, similarity, blend, clip)
+    await _run_ffmpeg(args, input_path, output_path)
+
+
+async def process_image(
+    input_path: str, output_path: str, key_colour: str, similarity: float, blend: float
+) -> None:
+    """Chroma-key a still photo to a transparent PNG at `output_path` (same
+    key colour/similarity/blend semantics as `process_video`), notifying via
+    ntfy and re-raising on failure."""
+    try:
+        if shutil.which("ffmpeg") is None:
+            raise ProcessingError("ffmpeg executable not found on PATH")
+        if not Path(input_path).is_file():
+            raise ProcessingError(f"Input image not found: {input_path}")
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        args = _build_image_ffmpeg_args(input_path, output_path, key_colour, similarity, blend)
+        await _run_ffmpeg(args, input_path, output_path)
+    except ProcessingError as exc:
+        await send_ntfy_notification("Photo processing failed", str(exc), priority="high")
+        raise
+
+
+async def _run_ffmpeg(args: list[str], input_path: str, output_path: str) -> None:
+    out_path = Path(output_path)
     logger.info("Running ffmpeg: %s", " ".join(args))
 
     try:

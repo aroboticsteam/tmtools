@@ -63,17 +63,14 @@ export function TeamsPage() {
               <p className="font-medium text-vmd-textStrong">{team.team_number}</p>
               {team.robot_name && <p className="text-sm text-vmd-textMuted">{team.robot_name}</p>}
               {team.pit_location && <p className="text-xs text-vmd-textSubtle">Pit: {team.pit_location}</p>}
-              <p className="mt-1 text-xs text-vmd-textSubtle">
-                Video: {team.video_processing_status}
-              </p>
               {byTeam.get(team.team_number) && (
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1" aria-label={`Checklist for ${team.team_number}`}>
                   <ChecklistMark
                     done={byTeam.get(team.team_number)!.inspection === 'PASSED'}
                     label={`Inspection: ${INSPECTION_LABELS[byTeam.get(team.team_number)!.inspection]}`}
                   />
-                  <ChecklistMark done={byTeam.get(team.team_number)!.bot_video} label="360" />
-                  <ChecklistMark done={byTeam.get(team.team_number)!.team_video} label="Team video" />
+                  <ChecklistMark done={byTeam.get(team.team_number)!.bot_photo} label="Robot photo" />
+                  <ChecklistMark done={byTeam.get(team.team_number)!.team_photo} label="Team photo" />
                 </div>
               )}
             </Card>

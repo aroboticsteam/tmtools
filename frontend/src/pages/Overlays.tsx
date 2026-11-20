@@ -14,9 +14,9 @@ import type { OverlayInstance } from '../types/api';
 /**
  * GAP: `GET /api/v1/overlays/{entity_id}/preview` is a documented stub in
  * the merged backend (backend/routers/overlays.py's own docstring: "the
- * full team-video pipeline ... isn't wired up by this wave" — it always
+ * full team-photo pipeline ... isn't wired up by this wave" — it always
  * returns `{match: null, teams: []}`). We still call the real endpoint
- * (never fabricate match/video data) and surface that limitation visibly
+ * (never fabricate match/photo data) and surface that limitation visibly
  * below the preview panel rather than pretending it's live.
  */
 export function OverlaysPage() {
@@ -32,7 +32,7 @@ export function OverlaysPage() {
     <div>
       <PageHeader
         title="Overlays"
-        subtitle="OBS browser-source instances showing upcoming-match team videos."
+        subtitle="OBS browser-source instances showing upcoming-match team photos."
         action={
           canEdit && (
             <Button
@@ -125,7 +125,7 @@ export function OverlaysPage() {
 }
 
 /** Finals "team spotlight" operator control: pick a team to put on the
- * overlay (robot 360 + info + team clip), or return to the match view. */
+ * overlay (bot photo + info + team photo), or return to the match view. */
 function SpotlightControls({ entityId }: { entityId: string }) {
   const { data: teams = [] } = useTeams();
   const spotlight = useSpotlightTeam();

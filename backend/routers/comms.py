@@ -35,7 +35,7 @@ from backend.modules.comms.next_match import find_next_match
 from backend.modules.notifications import delivery
 from backend.modules.notifications.logic import parse_schedule
 from backend.routers.notifications import _rate_limit
-from backend.routers.team_clips import _overlay_team
+from backend.routers.team_photos import _overlay_team
 from backend.schemas.comms import (
     AudienceDisplayRequest,
     AgendaBase,
