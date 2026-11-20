@@ -11,7 +11,8 @@ import re
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,6 +23,7 @@ from backend.core.dependencies import CurrentPrincipal, get_db, get_redis, requi
 from backend.core.exceptions import ProcessingError
 from backend.models.match_recording import MatchRecording
 from backend.modules.media import images, s3
+from backend.modules.site_export import build_site_export
 from backend.modules.notifications.logic import match_label
 from backend.routers.public_site import _schedules, safe_url
 
@@ -50,6 +52,37 @@ async def upload_site_image(
         raise HTTPException(status_code=502, detail="Could not store the image") from exc
     await log_action(db, principal.subject, "upload", "site_image", name, changes={"bytes": len(data)})
     return ImageUploaded(key=name, url=f"/api/v1/public/site/image/{name}")
+
+
+@router.get("/site/export.zip")
+async def export_site(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    principal: Annotated[CurrentPrincipal, Depends(require_permission("settings:edit"))],
+) -> StreamingResponse:
+    """The public competitor site as a static zip (final rankings, schedule, results, every team page,
+    images) ready to publish on Cloudflare Pages."""
+    try:
+        archive = await build_site_export(request.app)
+    except Exception as exc:
+        logger.exception("Site export failed")
+        raise HTTPException(status_code=502, detail="Could not build the site export") from exc
+    size = archive.seek(0, 2)
+    archive.seek(0)
+    await log_action(db, principal.subject, "export", "public_site", "*", changes={"bytes": size})
+
+    def chunks() -> Any:
+        try:
+            while block := archive.read(1024 * 1024):
+                yield block
+        finally:
+            archive.close()
+
+    return StreamingResponse(
+        chunks(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="competition-site.zip"', "Content-Length": str(size)},
+    )
 
 
 class RecordingIn(BaseModel):
