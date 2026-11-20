@@ -843,7 +843,7 @@ class AutomationEngine:
 
         targets = self._resolve_targets(action, context)
         if not targets:
-            return False, f"No targets resolved for service '{service_full}'"
+            return False, f"No targets resolved for service '{service_full}' (no such target entity; check the entity id)"
 
         async def _call_one(inst: Any) -> str | None:
             try:
@@ -874,12 +874,10 @@ class AutomationEngine:
             entity_id = render_value(action["target"], context, strict=True)
             instance = loader.get_instance(str(entity_id))
             if instance is None:
-                alias = self._domain_fallback(str(entity_id), [i.entity_id for i in loader.get_all_instances()])
-                if alias is not None:
-                    logger.warning(
-                        "target %r does not exist; using the only %s instance %r", entity_id, alias.split(".")[0], alias
-                    )
-                    instance = loader.get_instance(alias)
+                # Never guess a *device*: a typo must not drive another instance. Say what exists instead.
+                domain = str(entity_id).split(".", 1)[0]
+                known = sorted(i.entity_id for i in loader.get_all_instances() if i.entity_id.split(".", 1)[0] == domain)
+                logger.warning("target %r does not exist (known %s entities: %s)", entity_id, domain, known or "none")
             return [instance] if instance is not None else []
 
         if "target_tag" in action:
