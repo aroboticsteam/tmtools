@@ -13,7 +13,7 @@ import { TeamDetailPage } from './pages/TeamDetail';
 import { RoomsPage } from './pages/Rooms';
 import { ButtonPagesPage } from './pages/ButtonPages';
 import { AnalysisPage } from './pages/Analysis';
-import { RecorderPage } from './pages/Recorder';
+import { PhotoBoothPage } from './pages/PhotoBooth';
 import { CommsPage } from './pages/Comms';
 import { AuditLogPage } from './pages/AuditLog';
 import { SettingsPage } from './pages/Settings';
@@ -48,7 +48,7 @@ export const router = createBrowserRouter([
       { path: 'rooms', element: <RoomsPage /> },
       { path: 'buttons', element: <ButtonPagesPage /> },
       { path: 'analysis', element: <AnalysisPage /> },
-      { path: 'record', element: <RecorderPage /> },
+      { path: 'record', element: <PhotoBoothPage /> },
       { path: 'comms', element: <CommsPage /> },
       { path: 'audit', element: <AuditLogPage /> },
       { path: 'settings', element: <SettingsPage /> },

@@ -6,7 +6,7 @@ import { ChecklistCard } from './ChecklistCard';
 const mutate = vi.fn();
 let canEdit = true;
 const rows = [
-  { team_number: '1234A', inspection: 'IN_PROGRESS', bot_video: true, team_video: false, done: 1, total: 3, complete: false },
+  { team_number: '1234A', inspection: 'IN_PROGRESS', bot_photo: true, team_photo: false, done: 1, total: 3, complete: false },
 ];
 
 vi.mock('../../api/teams', () => ({
@@ -25,8 +25,8 @@ describe('ChecklistCard', () => {
     render(<ChecklistCard teamNumber="1234A" />);
     expect(screen.getByText('Checklist (1/3)')).toBeInTheDocument();
     expect(screen.getByLabelText('Inspection status')).toHaveValue('IN_PROGRESS');
-    expect(screen.getByText('360 robot video')).toBeInTheDocument();
-    expect(screen.getByText('Team video')).toBeInTheDocument();
+    expect(screen.getByText('Robot photo')).toBeInTheDocument();
+    expect(screen.getByText('Team photo')).toBeInTheDocument();
   });
 
   it('saves a new inspection status', async () => {
