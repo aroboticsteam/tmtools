@@ -7,7 +7,16 @@ arrive over `/ws/agent`, uploads go through presigned PUT URLs the server issues
 It is not involved in playback (OBS plays clips from a browser source), and it may
 run on a different machine from OBS.
 
-## Setup
+## Quick setup (macOS / Linux)
+
+```bash
+cd tools/capture_agent && ./setup.sh   # checks ffmpeg/Python, installs, asks for server + key, picks the device, test-records 3 s
+./run.sh                                # start the agent (extra flags are passed through)
+```
+
+`setup.sh` saves the server, key and input to `.agent.env` (mode 600, git-ignored) and writes `run.sh`.
+
+## Setup (manual)
 
 1. Install [ffmpeg](https://ffmpeg.org/) (with `ffprobe`) and Python 3.10+.
 2. `pip install -r requirements.txt`
