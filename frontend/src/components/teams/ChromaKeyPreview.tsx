@@ -55,16 +55,14 @@ export interface ChromaKeyParams {
 }
 
 /**
- * Live WebGL chroma-key preview (plan §5.13/§12 Teams page). Renders the
- * given local video `File` through a chroma-key fragment shader onto a
- * checkerboard-backed canvas so keyed-out (transparent) regions are
- * visible, updating live as `params` change — this never touches the
- * server; the actual keying happens server-side via FFmpeg once "Process &
- * Upload" is clicked (`useUploadTeamVideo`).
+ * Live WebGL chroma-key preview (Teams page / photo booth). Renders the given
+ * local image `File` through a chroma-key fragment shader onto a
+ * checkerboard-backed canvas so keyed-out (transparent) regions are visible,
+ * updating live as `params` change — this never touches the server; the
+ * actual keying happens server-side via FFmpeg once the photo is uploaded.
  */
 export function ChromaKeyPreview({ file, params }: { file: File | null; params: ChromaKeyParams }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
@@ -75,16 +73,20 @@ export function ChromaKeyPreview({ file, params }: { file: File | null; params: 
     const gl = canvas.getContext('webgl');
     if (!gl) return undefined;
 
-    const video = document.createElement('video');
-    video.muted = true;
-    video.loop = true;
-    video.playsInline = true;
-    video.src = URL.createObjectURL(file);
-    videoRef.current = video;
-    void video.play().catch(() => {
-      /* Autoplay can be blocked until user interaction; the preview will
-       * start once the browser allows it (or the user taps the canvas). */
-    });
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    let loaded = false;
+    let raf = 0;
+    image.onload = () => {
+      const scale = Math.min(1, 960 / Math.max(image.naturalWidth, image.naturalHeight));
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+      loaded = true;
+    };
+    image.src = objectUrl;
 
     const program = gl.createProgram()!;
     gl.attachShader(program, compileShader(gl, gl.VERTEX_SHADER, VERTEX_SRC));
@@ -94,11 +96,7 @@ export function ChromaKeyPreview({ file, params }: { file: File | null; params: 
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-      gl.STATIC_DRAW,
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const positionLoc = gl.getAttribLocation(program, 'aPosition');
     gl.enableVertexAttribArray(positionLoc);
     gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
@@ -117,31 +115,23 @@ export function ChromaKeyPreview({ file, params }: { file: File | null; params: 
     const uSimilarity = gl.getUniformLocation(program, 'uSimilarity');
     const uBlend = gl.getUniformLocation(program, 'uBlend');
 
-    let raf = 0;
     function render() {
-      if (!gl || video.readyState < video.HAVE_CURRENT_DATA) {
-        raf = requestAnimationFrame(render);
-        return;
+      if (loaded) {
+        const [r, g, b] = hexToRgb(paramsRef.current.keyColour);
+        gl!.uniform3f(uKeyColor, r, g, b);
+        gl!.uniform1f(uSimilarity, paramsRef.current.similarity);
+        gl!.uniform1f(uBlend, paramsRef.current.blend);
+        gl!.clearColor(0, 0, 0, 0);
+        gl!.clear(gl!.COLOR_BUFFER_BIT);
+        gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
       }
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-
-      const [r, g, b] = hexToRgb(paramsRef.current.keyColour);
-      gl.uniform3f(uKeyColor, r, g, b);
-      gl.uniform1f(uSimilarity, paramsRef.current.similarity);
-      gl.uniform1f(uBlend, paramsRef.current.blend);
-
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       raf = requestAnimationFrame(render);
     }
     render();
 
     return () => {
       cancelAnimationFrame(raf);
-      video.pause();
-      URL.revokeObjectURL(video.src);
+      URL.revokeObjectURL(objectUrl);
     };
   }, [file]);
 
@@ -156,10 +146,10 @@ export function ChromaKeyPreview({ file, params }: { file: File | null; params: 
       }}
     >
       {file ? (
-        <canvas ref={canvasRef} width={480} height={270} className="block w-full" />
+        <canvas ref={canvasRef} width={480} height={270} className="mx-auto block max-h-96 w-auto max-w-full" />
       ) : (
         <div className="flex h-40 items-center justify-center text-sm text-vmd-textSubtle">
-          Select a video to preview chroma keying
+          Select or take a photo to preview chroma keying
         </div>
       )}
     </div>

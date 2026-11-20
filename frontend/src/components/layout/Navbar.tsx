@@ -10,7 +10,7 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   LayoutGrid,
-  Video,
+  Camera,
   Radio,
   LogOut,
   Bug,
@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Video',
     icon: Clapperboard,
     items: [
-      { to: '/record', label: 'Record Clips', icon: Video },
+      { to: '/record', label: 'Photo Booth', icon: Camera },
       { to: '/analysis', label: 'Analysis', icon: Clapperboard },
     ],
   },

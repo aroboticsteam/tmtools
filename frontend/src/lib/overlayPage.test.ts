@@ -18,7 +18,7 @@ type Hooks = {
 const FEED = {
   show_robot_name: false,
   teams: {
-    '1A': { team_name: 'Alpha', country: 'United Kingdom', bot_url: 'http://x/1a.webm', team_url: 'http://x/1a-team.webm' },
+    '1A': { team_name: 'Alpha', country: 'United Kingdom', bot_url: 'http://x/1a.png', team_url: 'http://x/1a-team.png' },
     '2B': { team_name: 'Bravo', country: 'Turkey' },
     '3C': { team_name: 'Charlie', country: 'Canada' },
     '4D': { team_name: 'Delta', country: 'Narnia' },
@@ -63,7 +63,7 @@ describe('overlay page layouts (#13)', () => {
     expect(grid.querySelector('.vs')?.textContent).toBe('VS');
     expect(grid.querySelector('.banner')?.textContent).toBe('Q 7');
     expect(grid.querySelectorAll('.flag')).toHaveLength(3); // Narnia has no flag
-    expect(grid.querySelector('video')?.getAttribute('src')).toBe('http://x/1a.webm');
+    expect(grid.querySelector('img')?.getAttribute('src')).toBe('http://x/1a.png');
   });
 
   it('renders IQ as two light-blue cells with no VS', async () => {
@@ -76,7 +76,7 @@ describe('overlay page layouts (#13)', () => {
     expect(grid.querySelector('.vs')).toBeNull();
   });
 
-  it('renders the single-team spotlight with bot, label bar and team clip', async () => {
+  it('renders the single-team spotlight with bot, label bar and team photo', async () => {
     const h = load();
     await h.setSpotlight('1A');
     const grid = document.getElementById('grid')!;
@@ -84,7 +84,7 @@ describe('overlay page layouts (#13)', () => {
     expect(grid.querySelector('.bar .number')?.textContent).toBe('1A');
     expect(grid.querySelector('.bar .name')?.textContent).toBe('Alpha');
     expect(grid.querySelector('.bar .flag')).not.toBeNull();
-    expect(grid.querySelector('.teamvid video')?.getAttribute('src')).toBe('http://x/1a-team.webm');
+    expect(grid.querySelector('.teamvid img')?.getAttribute('src')).toBe('http://x/1a-team.png');
   });
 });
 
