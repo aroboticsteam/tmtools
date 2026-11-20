@@ -26,8 +26,10 @@
 # gets Traefik's 404 (no catch-all). For /admin_login use https://tmtools.BASE.
 #
 # Certificates: cert-init makes a self-signed wildcard (BASE + *.BASE) that Traefik
-# serves; clients must trust it (or accept the warning). ACME/Let's Encrypt is
-# not wired up yet (see docs/PLAN_tmtools-server.md 5.3).
+# serves; clients must trust it (or accept the warning). For a real certificate set
+# TLS_RESOLVER=cloudflare, TLS_CERT_PREFIX=fallback-, CF_DNS_API_TOKEN and ACME_EMAIL (BASE_DOMAIN must be a zone in
+# that Cloudflare account): Traefik then gets a Let's Encrypt wildcard (BASE + *.BASE) with
+# the DNS-01 challenge and serves it by SNI; the self-signed one stays as the fallback.
 #
 # Optional overrides via shell env or a `.env` / `--env-file`:
 #   BASE_DOMAIN            see above. A hostname, not an IP (Authelia cookies).
@@ -39,6 +41,10 @@
 #                          firewall's CA) for the app and cloudflared.
 #   CLOUDFLARE_TUNNEL_TOKEN  token for `--profile tunnel` (public hostname
 #                          comp.BASE -> http://traefik:8081 set in Cloudflare).
+#   TLS_RESOLVER           `cloudflare` turns on the Let's Encrypt wildcard (empty = self-signed only).
+#   TLS_CERT_PREFIX        `fallback-` together with TLS_RESOLVER: default cert that covers no names, so ACME runs.
+#   CF_DNS_API_TOKEN       Cloudflare API token, Zone:Zone:Read + Zone:DNS:Edit on BASE_DOMAIN's zone.
+#   ACME_EMAIL / ACME_CA_SERVER   account email; CA directory (use Let's Encrypt staging to test).
 #   MUMBLE_PASSWORD        server password for `--profile voice`.
 #   VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY / VAPID_SUBJECT   Web Push keys (optional).
 #   DNS_BIND_IP / DNS_ANSWER_IP / DNS_UPSTREAM   `--profile dns` resolver: LAN address to listen on,

@@ -41,8 +41,12 @@ services:
           - tmtools.${BASE_DOMAIN:-vex.localhost}
           - auth.${BASE_DOMAIN:-vex.localhost}
           - s3.${BASE_DOMAIN:-vex.localhost}
+    environment:
+      # Only read when a router asks for the `cloudflare` ACME resolver (TLS_RESOLVER=cloudflare).
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
     volumes:
       - certs:/certs:ro
+      - acme:/acme
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 10s
@@ -57,6 +61,7 @@ services:
 
 volumes:
   certs:
+  acme:
 
 configs:
   cfg_gen_cert:
@@ -88,6 +93,20 @@ configs:
           address: ":8081"
           transport: *transport
 
+      # Optional Let's Encrypt wildcard cert via the Cloudflare DNS-01 challenge. Defined
+      # but unused until TLS_RESOLVER=cloudflare is set in .env (see compose.stack.yml).
+      # Needs CF_DNS_API_TOKEN (Zone:Zone:Read + Zone:DNS:Edit) and a BASE_DOMAIN that is
+      # a zone in that Cloudflare account. ACME_CA_SERVER can point at the staging CA.
+      certificatesResolvers:
+        cloudflare:
+          acme:
+            email: ${ACME_EMAIL:-admin@example.com}
+            storage: /acme/acme.json
+            caServer: ${ACME_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+            dnsChallenge:
+              provider: cloudflare
+              resolvers: ["1.1.1.1:53", "1.0.0.1:53"]
+
       providers:
         file:
           filename: /etc/traefik/dynamic.yml
@@ -102,14 +121,16 @@ configs:
   cfg_dynamic:
     content: |
       tls:
-        certificates:
-          - certFile: /certs/cert.pem
-            keyFile: /certs/key.pem
+        # Default certificate: the self-signed wildcard, served for any SNI without a better
+        # match (including a bare IP). With TLS_RESOLVER=cloudflare the site-home router below
+        # requests a Let's Encrypt cert for BASE and *.BASE, which Traefik then selects by SNI
+        # for every router. Traefik only asks ACME for names no provided certificate covers, so
+        # also set TLS_CERT_PREFIX=fallback- to make the default a cert that covers nothing.
         stores:
           default:
             defaultCertificate:
-              certFile: /certs/cert.pem
-              keyFile: /certs/key.pem
+              certFile: /certs/${TLS_CERT_PREFIX:-}cert.pem
+              keyFile: /certs/${TLS_CERT_PREFIX:-}key.pem
 
       http:
         middlewares:
@@ -144,7 +165,11 @@ configs:
             rule: "Host(`${BASE_DOMAIN:-vex.localhost}`)"
             entryPoints: [websecure]
             service: site-home
-            tls: {}
+            tls:
+              certResolver: "${TLS_RESOLVER:-}"
+              domains:
+                - main: "${BASE_DOMAIN:-vex.localhost}"
+                  sans: ["*.${BASE_DOMAIN:-vex.localhost}"]
           site-stats:
             rule: "Host(`stats.${BASE_DOMAIN:-vex.localhost}`)"
             entryPoints: [websecure]
