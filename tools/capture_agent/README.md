@@ -9,12 +9,20 @@ run on a different machine from OBS.
 
 ## Quick setup (macOS / Linux)
 
+`capture-setup.sh` is one self-contained file (the agent is embedded in it). Copy it to the
+AV laptop and run it from anywhere:
+
 ```bash
-cd tools/capture_agent && ./setup.sh   # checks ffmpeg/Python, installs, asks for server + key, picks the device, test-records 3 s
-./run.sh                                # start the agent (extra flags are passed through)
+bash capture-setup.sh
 ```
 
-`setup.sh` saves the server, key and input to `.agent.env` (mode 600, git-ignored) and writes `run.sh`.
+First run: checks ffmpeg/Python, installs into `~/tmtools-capture` (override with
+`TMTOOLS_CAPTURE_DIR`), asks for the server URL and API key (hidden), lets you pick the capture
+device, test-records 3 s, saves everything to `.agent.env` (mode 600) and starts the agent.
+Every later run reuses the saved setup with no questions, refreshes the agent code and starts
+it. Extra flags go to the agent (`bash capture-setup.sh --keep-local`); `--reconfigure` redoes
+the questions. `~/tmtools-capture/run.sh` starts the agent directly. After editing `agent.py`
+run `python3 tools/capture_agent/build_setup.py` to re-embed it (a test checks they match).
 
 ## Setup (manual)
 
