@@ -3,6 +3,16 @@
 # Regenerated only when BASE_DOMAIN or EXTRA_CA_FILE changes.
 set -eu
 host="${BASE_DOMAIN:-vex.localhost}"
+# Fallback certificate for TLS_CERT_PREFIX=fallback- (Let's Encrypt mode): it deliberately
+# does NOT cover BASE_DOMAIN, otherwise Traefik sees the names as already provided and
+# never asks the ACME resolver for a certificate.
+if [ ! -f /certs/fallback-cert.pem ]; then
+  apk add --no-cache openssl >/dev/null
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+    -keyout /certs/fallback-key.pem -out /certs/fallback-cert.pem \
+    -subj "/O=TMTools/CN=tmtools-fallback" -addext "subjectAltName=DNS:tmtools-fallback.invalid"
+  chmod 644 /certs/fallback-*.pem
+fi
 marker="$host:$(cksum < /extra-ca.pem)"
 if [ -f /certs/cert.pem ] && [ "$(cat /certs/host 2>/dev/null)" = "$marker" ]; then
   echo "certificate for $host already present"; exit 0
