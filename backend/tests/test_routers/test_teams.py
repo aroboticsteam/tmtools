@@ -154,142 +154,6 @@ async def test_update_team_rejects_unknown_fields(client, seeded_team):
     assert resp.status_code == 422
 
 
-async def test_video_status_reflects_db_state(client, seeded_team):
-    resp = await client.get(f"/api/v1/teams/{seeded_team}/video/status")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["video_processing_status"] == "NONE"
-    assert body["video_360_s3_key"] is None
-
-
-async def test_video_status_404_when_missing(client):
-    resp = await client.get(f"/api/v1/teams/does-not-exist-{uuid.uuid4().hex}/video/status")
-    assert resp.status_code == 404
-
-
-async def test_upload_video_rejects_bad_extension(client, seeded_team):
-    resp = await client.post(
-        f"/api/v1/teams/{seeded_team}/video",
-        files={"file": ("video.avi", b"not a real video", "video/avi")},
-        data={"key_colour": "#00B140", "similarity": "0.1", "blend": "0.05"},
-    )
-    assert resp.status_code == 400
-
-
-async def test_batch_videos_returns_null_for_unprocessed_teams(client, seeded_team):
-    resp = await client.get(f"/api/v1/teams/batch/videos?teams={seeded_team},nonexistent")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["videos"][seeded_team] is None
-    assert body["videos"]["nonexistent"] is None
-
-
-async def test_batch_videos_empty_teams_param(client):
-    resp = await client.get("/api/v1/teams/batch/videos?teams=")
-    assert resp.status_code == 200
-    assert resp.json()["videos"] == {}
-
-
-@pytest.mark.skipif(
-    shutil.which("ffmpeg") is None, reason="ffmpeg not installed"
-)
-async def test_upload_video_end_to_end_real_ffmpeg_and_s3(client, seeded_team, tmp_path):
-    """Full pipeline through the real HTTP endpoint: upload -> background
-    task runs real FFmpeg -> real S3 (MinIO) multipart upload -> DB updated
-    to DONE with a fetchable processed video key. Skipped if MinIO/S3 isn't
-    configured (checked indirectly via the status settling to DONE/FAILED;
-    if S3 is unreachable the background task will mark FAILED and this test
-    fails loudly rather than silently skipping, since S3 is expected to be
-    up per the task's compose stack)."""
-    input_path = tmp_path / "input.mp4"
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=0x00B140:s=320x240:d=0.3",
-            "-vf", "format=yuv420p", str(input_path),
-        ],
-        check=True, capture_output=True,
-    )
-
-    with open(input_path, "rb") as f:
-        resp = await client.post(
-            f"/api/v1/teams/{seeded_team}/video",
-            files={"file": ("input.mp4", f.read(), "video/mp4")},
-            data={"key_colour": "#00B140", "similarity": "0.15", "blend": "0.05"},
-        )
-    assert resp.status_code == 202
-    assert resp.json()["video_processing_status"] == "PROCESSING"
-
-    # The background task runs on the app's own event loop after the
-    # response is sent; poll the status endpoint until it settles.
-    status = "PROCESSING"
-    for _ in range(60):
-        status_resp = await client.get(f"/api/v1/teams/{seeded_team}/video/status")
-        status = status_resp.json()["video_processing_status"]
-        if status in ("DONE", "FAILED"):
-            break
-        await asyncio.sleep(0.5)
-
-    assert status == "DONE", f"video processing did not complete successfully (status={status})"
-
-    final = await client.get(f"/api/v1/teams/{seeded_team}/video/status")
-    assert final.json()["video_360_s3_key"] == f"teams/{seeded_team}/video/processed.webm"
-
-    batch = await client.get(f"/api/v1/teams/batch/videos?teams={seeded_team}")
-    url = batch.json()["videos"][seeded_team]
-    assert url is not None and "processed.webm" in url
-
-    # Clean up the S3 objects this test created.
-    from backend.modules.media import s3
-
-    await s3.delete_object(f"teams/{seeded_team}/video/raw.mp4")
-    await s3.delete_object(f"teams/{seeded_team}/video/processed.webm")
-
-
-@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
-async def test_raw_video_persisted_even_when_processing_fails(seeded_team, tmp_path):
-    """Regression test (code-review finding): if FFmpeg processing fails
-    after the raw upload already succeeded, `raw_video_s3_key` must still be
-    persisted — otherwise the raw video is orphaned in S3 with no DB
-    reference, defeating Appendix A.5's "kept in S3 permanently... allows
-    re-processing" guarantee. Invokes the background task body directly
-    with an out-of-range `similarity` so `process_video` reliably fails
-    validation after the (concurrent) raw upload has already completed.
-    """
-    from backend.core.db import async_session_factory
-    from backend.modules.media import s3
-    from backend.routers.teams import _process_and_upload_video
-
-    input_path = tmp_path / "input.mp4"
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=0x00B140:s=320x240:d=0.3",
-            "-vf", "format=yuv420p", str(input_path),
-        ],
-        check=True, capture_output=True,
-    )
-
-    raw_key = s3.raw_video_key(seeded_team, "mp4")
-    try:
-        await _process_and_upload_video(
-            team_number=seeded_team,
-            input_path=str(input_path),
-            ext="mp4",
-            key_colour="#00B140",
-            similarity=99.0,  # invalid — out of [0.0, 1.0], guaranteed ProcessingError
-            blend=0.05,
-            tmp_dir=str(tmp_path),
-        )
-
-        assert await s3.object_exists(raw_key) is True
-
-        async with async_session_factory() as session:
-            team = await session.get(TeamProfile, seeded_team)
-            assert team.video_processing_status == "FAILED"
-            assert team.raw_video_s3_key == raw_key
-    finally:
-        await s3.delete_object(raw_key)
-
-
 async def test_update_inspection_status_and_checklist(client, seeded_team):
     resp = await client.put(f"/api/v1/teams/{seeded_team}", json={"inspection_status": "PASSED"})
     assert resp.status_code == 200
@@ -299,7 +163,7 @@ async def test_update_inspection_status_and_checklist(client, seeded_team):
     row = next(r for r in listing.json() if r["team_number"] == seeded_team)
     assert row["inspection"] == "PASSED"
     assert (row["done"], row["total"], row["complete"]) == (1, 3, False)
-    assert (row["bot_video"], row["team_video"]) == (False, False)
+    assert (row["bot_photo"], row["team_photo"]) == (False, False)
 
 
 async def test_inspection_status_rejects_unknown_value(client, seeded_team):
@@ -308,19 +172,19 @@ async def test_inspection_status_rejects_unknown_value(client, seeded_team):
     assert (await client.get(f"/api/v1/teams/{seeded_team}")).json()["inspection_status"] == "NOT_STARTED"
 
 
-async def test_checklist_reflects_done_clips(client, seeded_team, db_engine):
+async def test_checklist_reflects_done_photos(client, seeded_team, db_engine):
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     from backend.models.team_clip import TeamClip
 
     factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
     async with factory() as session:
-        session.add(TeamClip(team_number=seeded_team, kind="bot", status="DONE"))
-        session.add(TeamClip(team_number=seeded_team, kind="team", status="PROCESSING"))
+        session.add(TeamClip(team_number=seeded_team, kind="bot_photo", status="DONE"))
+        session.add(TeamClip(team_number=seeded_team, kind="team_photo", status="PROCESSING"))
         await session.commit()
     try:
         row = next(r for r in (await client.get("/api/v1/teams/checklist")).json() if r["team_number"] == seeded_team)
-        assert (row["bot_video"], row["team_video"], row["done"]) == (True, False, 1)
+        assert (row["bot_photo"], row["team_photo"], row["done"]) == (True, False, 1)
     finally:
         async with factory() as session:
             await session.execute(delete(TeamClip).where(TeamClip.team_number == seeded_team))

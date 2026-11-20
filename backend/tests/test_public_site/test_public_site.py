@@ -55,7 +55,7 @@ async def client(session_factory, monkeypatch):
     from backend.core.db import get_db
     from backend.core.dependencies import get_redis
     from backend.main import create_app
-    from backend.routers import team_clips
+    from backend.routers import team_photos
 
     redis = fake_aioredis.FakeRedis(server=fakeredis.FakeServer(), decode_responses=True)
     app = create_app()
@@ -66,7 +66,7 @@ async def client(session_factory, monkeypatch):
 
     app.dependency_overrides[get_db] = _db
     app.dependency_overrides[get_redis] = lambda: redis
-    monkeypatch.setattr(team_clips.s3, "generate_presigned_url", AsyncMock(side_effect=lambda key, *a, download_name=None, **kw: f"https://s3.test/{key}" + (f"?dl={download_name}" if download_name else "")))
+    monkeypatch.setattr(team_photos.s3, "generate_presigned_url", AsyncMock(side_effect=lambda key, *a, download_name=None, **kw: f"https://s3.test/{key}" + (f"?dl={download_name}" if download_name else "")))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         c.redis, c.factory = redis, session_factory
         yield c
@@ -113,7 +113,7 @@ async def seed(client):
         session.add(AgendaItem(scope="day", start_time="09:00", title="Opening"))
         session.add(Room(slug="ps-main", name="Main Hall", stream_url="https://www.youtube.com/embed/abc123"))
         session.add(Room(slug="ps-quiet", name="Quiet Room"))
-        session.add(TeamClip(team_number=f"{PREFIX}1A", kind="team", status="DONE", processed_s3_key=f"teams/{PREFIX}1A/clips/team/processed.webm"))
+        session.add(TeamClip(team_number=f"{PREFIX}1A", kind="team_photo", status="DONE", processed_s3_key=f"teams/{PREFIX}1A/photos/team_photo/processed.png"))
         session.add(
             SystemSetting(
                 key="site",
@@ -168,7 +168,7 @@ async def test_teams_list_handles_missing_stats(client):
     assert by[f"{PREFIX}3C"]["qual_rank"] is None and by[f"{PREFIX}3C"]["team_name"] is None
 
 
-async def test_team_detail_schedule_clips_history_and_no_internal_fields(client):
+async def test_team_detail_schedule_photos_history_and_no_internal_fields(client):
     await seed(client)
     resp = await client.get(f"/api/v1/public/site/teams/{PREFIX}1A")
     assert resp.status_code == 200
@@ -178,7 +178,7 @@ async def test_team_detail_schedule_clips_history_and_no_internal_fields(client)
     assert t["current"]["qual_rank"] == 1 and t["current"]["skills_total"] == 40 and t["current"]["avg_points"] == 69.5 and t["current"]["high_score"] == 90
     assert t["season"]["awards"] == 1 and t["season"]["events_attended"] == 1 and t["season"]["world_skills_rank"] == 12
     assert [m["label"] for m in t["schedule"]] == ["Q1", "Q2"]
-    assert t["clips"] == {"bot": None, "team": f"https://s3.test/teams/{PREFIX}1A/clips/team/processed.webm"}
+    assert t["photos"] == {"bot": None, "team": f"https://s3.test/teams/{PREFIX}1A/photos/team_photo/processed.png"}
 
 
 async def test_team_detail_unknown_404_and_sparse_team_ok(client):
@@ -243,16 +243,16 @@ async def test_rankings_sort_divisions_numerically_then_by_rank(client):
     assert [r["team"] for r in d["rankings"]] == [f"{PREFIX}3C", f"{PREFIX}2B", f"{PREFIX}1A"]  # division 2 before 10
 
 
-async def test_team_downloads_are_save_as_links_for_each_clip(client):
+async def test_team_downloads_are_save_as_links_for_each_photo(client):
     await seed(client)
     async with client.factory() as session:
-        session.add(TeamClip(team_number=f"{PREFIX}1A", kind="bot", status="DONE",
-                             raw_s3_key=f"teams/{PREFIX}1A/clips/bot/raw.mov", processed_s3_key=f"teams/{PREFIX}1A/clips/bot/processed.webm"))
+        session.add(TeamClip(team_number=f"{PREFIX}1A", kind="bot_photo", status="DONE",
+                             raw_s3_key=f"teams/{PREFIX}1A/photos/bot_photo/raw.jpg", processed_s3_key=f"teams/{PREFIX}1A/photos/bot_photo/processed.png"))
         await session.commit()
     t = (await client.get(f"/api/v1/public/site/teams/{PREFIX}1A")).json()
     # The original upload is preferred over the processed clip, with a friendly file name.
-    assert t["downloads"]["bot"] == {"url": f"https://s3.test/teams/{PREFIX}1A/clips/bot/raw.mov?dl={PREFIX}1A-360.mov", "name": f"{PREFIX}1A-360.mov"}
-    assert t["downloads"]["team"] == {"url": f"https://s3.test/teams/{PREFIX}1A/clips/team/processed.webm?dl={PREFIX}1A-team.webm", "name": f"{PREFIX}1A-team.webm"}
+    assert t["downloads"]["bot"] == {"url": f"https://s3.test/teams/{PREFIX}1A/photos/bot_photo/raw.jpg?dl={PREFIX}1A-robot.jpg", "name": f"{PREFIX}1A-robot.jpg"}
+    assert t["downloads"]["team"] == {"url": f"https://s3.test/teams/{PREFIX}1A/photos/team_photo/processed.png?dl={PREFIX}1A-team.png", "name": f"{PREFIX}1A-team.png"}
     sparse = (await client.get(f"/api/v1/public/site/teams/{PREFIX}3C")).json()
     assert sparse["downloads"] == {"bot": None, "team": None}
 
@@ -294,7 +294,7 @@ async def test_overview_has_no_bus_tracker_even_if_stored(client):
 
 async def test_site_page_markers(client):
     page = (await client.get("/site")).text
-    assert "Checklist (" not in page and "360 robot video" not in page.replace("360° robot video", "") and "['bus'" not in page and "bus_tracker" not in page
+    assert "Checklist (" not in page and "360° robot video" not in page and "Robot photo" in page and "['bus'" not in page and "bus_tracker" not in page
     assert "Welcome to " in page and "'hero'" in page  # hero with the welcome overlay
     assert "Top 50 qualification rankings" in page and "Top 50 skills" in page
     assert "Season history" in page and "'hist'" in page and "Download" in page

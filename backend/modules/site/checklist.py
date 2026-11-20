@@ -1,9 +1,9 @@
-"""Per-team checklist (issue #43): inspection, 360 bot video, team video.
+"""Per-team checklist (issue #43): inspection, bot photo, team photo.
 
 Pure helpers so the admin API and the public site agree on what counts as
-done. A video counts when its processed clip is `DONE`; the 360 bot video also
-counts the legacy processed `video_360` upload, matching the overlay fallback
-in `routers/team_clips.py`.
+done. A photo counts when its processed (chroma-keyed) image is `DONE`. Older
+video rows (kinds "bot"/"team") and the legacy `video_360` upload no longer
+count.
 """
 from __future__ import annotations
 
@@ -16,21 +16,18 @@ INSPECTION_STATUSES = ("NOT_STARTED", "IN_PROGRESS", "PASSED")
 TOTAL_ITEMS = 3
 
 
-def checklist_for(profile: TeamProfile, clips: dict[str, TeamClip]) -> dict[str, Any]:
-    bot_clip = clips.get("bot")
-    team_clip = clips.get("team")
-    bot_done = bool(
-        (bot_clip is not None and bot_clip.status == "DONE")
-        or (profile.video_360_s3_key and profile.video_processing_status == "DONE")
-    )
-    team_done = bool(team_clip is not None and team_clip.status == "DONE")
+def checklist_for(profile: TeamProfile, photos: dict[str, TeamClip]) -> dict[str, Any]:
+    bot = photos.get("bot_photo")
+    team = photos.get("team_photo")
+    bot_done = bot is not None and bot.status == "DONE"
+    team_done = team is not None and team.status == "DONE"
     inspection = profile.inspection_status or "NOT_STARTED"
     done = int(inspection == "PASSED") + int(bot_done) + int(team_done)
     return {
         "team_number": profile.team_number,
         "inspection": inspection,
-        "bot_video": bot_done,
-        "team_video": team_done,
+        "bot_photo": bot_done,
+        "team_photo": team_done,
         "done": done,
         "total": TOTAL_ITEMS,
         "complete": done == TOTAL_ITEMS,

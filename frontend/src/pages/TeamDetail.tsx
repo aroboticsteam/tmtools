@@ -7,7 +7,7 @@ import { usePermission } from '../hooks/usePermission';
 import { PageHeader, Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input, Label, Textarea } from '../components/ui/Input';
-import { VideoUploader } from '../components/teams/VideoUploader';
+import { PhotoUploader } from '../components/teams/PhotoUploader';
 import { ChecklistCard } from '../components/teams/ChecklistCard';
 import { TeamRecordingsCard } from '../components/teams/TeamRecordingsCard';
 import { TeamAlertCard } from '../components/teams/TeamAlertCard';
@@ -146,9 +146,9 @@ export function TeamDetailPage() {
 
         <Card>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">
-            Robot 360 Video
+            Robot &amp; Team Photos
           </h2>
-          <VideoUploader teamNumber={number} />
+          <PhotoUploader teamNumber={number} />
         </Card>
       </div>
       {canAlert && <TeamAlertCard key={number} initialTeams={number} />}
