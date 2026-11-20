@@ -66,6 +66,7 @@ $(sed 's/^/          /' oidc_key.pem)
         client_secret: "$client_hash"
         public: false
         authorization_policy: one_factor
+        consent_mode: implicit  # first-party: no "allow access?" screen on every sign-in
         redirect_uris:
           - "https://tmtools.$base/auth/callback"
           - "http://tmtools.$base/auth/callback"
