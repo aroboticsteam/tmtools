@@ -26,6 +26,7 @@ from backend.modules.automation.engine import (
     AutomationEngine,
     _CompiledAutomation,
     _CompiledScript,
+    _DotDict,
     eval_bool,
     parse_hms,
     render_value,
@@ -479,3 +480,124 @@ async def test_run_actions_renders_button_context(engine, patch_loader):
     result = await engine.run_actions(actions, uuid.uuid4(), {"button": "Flash"})
     assert result["status"] == "success"
     assert osc.calls == [("send", {"address": "/x", "args": ["Flash"]})]
+
+
+# ── field-aware automations must degrade gracefully (live failure: "Unknown ZerOS preset name 'Field None Stop'") ──
+
+
+def _lighting_automation(actions, trigger_event="audienceDisplayChanged", entity="vex_tm.main") -> _CompiledAutomation:
+    return _CompiledAutomation(
+        id=uuid.uuid4(),
+        alias="lights",
+        triggers=[{"platform": "state", "entity_id": entity, "event_type": trigger_event}],
+        conditions=[],
+        actions=actions,
+    )
+
+
+COUNTDOWN = [
+    {
+        "service": "zeros.set_preset",
+        "target": "zeros.main",
+        "data": {"preset_name": "Field {{ states('vex_tm.main', 'current_field') }} Countdown"},
+    }
+]
+
+
+async def _run(engine, automation, event):
+    engine._automations = [automation]
+    logged = []
+
+    async def _log(automation_id, trigger_event, status, failed_index, error, action_results=None):
+        logged.append((status, error, action_results))
+
+    async def _noop(*a, **k):
+        return None
+
+    engine._log_run = _log
+    engine._touch_last_triggered = _noop
+    await engine._process_event(event)
+    return logged
+
+
+async def test_current_field_template_uses_known_field(engine, patch_loader):
+    zeros = FakeIntegration(entity_id="zeros.main")
+    patch_loader["zeros.main"] = zeros
+    patch_loader["vex_tm.main"] = FakeIntegration(entity_id="vex_tm.main", state={"current_field": 2})
+    logged = await _run(engine, _lighting_automation(COUNTDOWN), _event("vex_tm.main", "audienceDisplayChanged"))
+    assert zeros.calls == [("set_preset", {"preset_name": "Field 2 Countdown"})]
+    assert logged[0][0] == "success"
+
+
+async def test_unknown_field_skips_action_instead_of_sending_field_none(engine, patch_loader, caplog):
+    zeros = FakeIntegration(entity_id="zeros.main")
+    patch_loader["zeros.main"] = zeros
+    patch_loader["vex_tm.main"] = FakeIntegration(entity_id="vex_tm.main", state={"current_field": None})
+    logged = await _run(engine, _lighting_automation(COUNTDOWN), _event("vex_tm.main", "audienceDisplayChanged"))
+    assert zeros.calls == []  # never "Field None Countdown"
+    status, error, results = logged[0]
+    assert status == "success" and error is None
+    assert results[0]["status"] == "skipped"
+    assert any("Skipping action 0" in r.message for r in caplog.records)
+
+
+async def test_payload_field_none_skips_and_missing_key_does_not_raise(engine, patch_loader):
+    zeros = FakeIntegration(entity_id="zeros.main")
+    patch_loader["zeros.main"] = zeros
+    actions = [
+        {"service": "zeros.set_preset", "target": "zeros.main", "data": {"preset_name": "Field {{ trigger.payload.fieldID }} Stop"}},
+        {"service": "zeros.set_preset", "target": "zeros.main", "data": {"preset_name": "Field {{ trigger.payload.nope.deeper }} Ready"}},
+    ]
+    auto = _lighting_automation(actions, "matchStopped")
+    logged = await _run(engine, auto, _event("vex_tm.main", "matchStopped", payload={"fieldID": None}))
+    assert zeros.calls == []
+    assert [r["status"] for r in logged[0][2]] == ["skipped", "skipped"]
+    # With a field present the same automation sends the real preset names.
+    logged = await _run(engine, auto, _event("vex_tm.main", "matchStopped", payload={"fieldID": 1}))
+    assert zeros.calls[0] == ("set_preset", {"preset_name": "Field 1 Stop"})
+
+
+async def test_whole_expression_none_is_still_passed_through(engine, patch_loader):
+    """`match: '{{ trigger.payload.match }}'` style data keeps working when the key is absent (None)."""
+    cap = FakeIntegration(entity_id="capture.main")
+    patch_loader["capture.main"] = cap
+    action = {"service": "capture.start_recording", "target": "capture.main", "data": {"match": "{{ trigger.payload.match }}"}}
+    ok, err = await engine._do_service_action(action, {"trigger": _DotDict({"payload": _DotDict({})})})
+    assert ok is True and cap.calls[0][1] == {"match": None}
+
+
+async def test_states_unknown_entity_falls_back_to_only_instance_of_domain(engine, patch_loader, caplog):
+    patch_loader["vex_tm.main"] = FakeIntegration(entity_id="vex_tm.main", state={"current_field": 3})
+    ctx = engine._context_globals(await engine._build_state_cache())
+    assert ctx["states"]("vex_tm.avimac", "current_field") == 3  # renamed/stale reference
+    assert ctx["states"]("vex_tm", "current_field") == 3  # bare domain
+    assert any("no such entity" in r.message for r in caplog.records)
+    # Ambiguous domain or other domain: no guessing.
+    patch_loader["vex_tm.second"] = FakeIntegration(entity_id="vex_tm.second", state={"current_field": 9})
+    ctx = engine._context_globals(await engine._build_state_cache())
+    assert ctx["states"]("vex_tm.avimac", "current_field") is None
+    assert ctx["states"]("nothing.here", "x") is None
+
+
+async def test_target_and_trigger_fall_back_to_only_instance_of_domain(engine, patch_loader):
+    ptz = FakeIntegration(entity_id="ptz.birddog")
+    patch_loader["ptz.birddog"] = ptz
+    patch_loader["vex_tm.main"] = FakeIntegration(entity_id="vex_tm.main")
+    assert engine._resolve_targets({"target": "ptz.main"}, {}) == [ptz]
+    assert engine._resolve_targets({"target": "obs.main"}, {}) == []
+    spec = {"platform": "state", "entity_id": "vex_tm.avimac", "event_type": "matchStopped"}
+    assert engine._trigger_matches(spec, _event("vex_tm.main", "matchStopped")) is True
+    assert engine._trigger_matches(spec, _event("vex_tm.other", "matchStopped")) is False
+
+
+async def test_inline_condition_error_halts_chain_without_failing(engine, patch_loader):
+    zeros = FakeIntegration(entity_id="zeros.main")
+    patch_loader["zeros.main"] = zeros
+    actions = [
+        {"condition": "{{ {1: 1}[trigger.payload.fieldID | int] == 1 }}"},
+        {"service": "zeros.set_preset", "target": "zeros.main", "data": {}},
+    ]
+    ok, err, _, _, results = await engine._execute_action_chain(
+        actions, {"trigger": _DotDict({"payload": _DotDict({"fieldID": None})})}
+    )
+    assert ok is True and zeros.calls == []
