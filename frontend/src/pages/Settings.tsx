@@ -288,6 +288,26 @@ export function SettingsPage() {
         <MatchRecordingsCard canEdit={canEdit} />
 
         <Card>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Download public site</h2>
+          <p className="mb-3 text-sm text-vmd-textMuted">
+            A static copy of the public competitor site (rankings, schedule, results and every team page) as a zip you
+            can publish on Cloudflare Pages. Download it after the final match so it holds the final results; it shows
+            the data as of the moment you click.
+          </p>
+          {canEdit ? (
+            <a
+              href="/api/v1/site/export.zip"
+              download="competition-site.zip"
+              className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-vmd-textStrong px-3.5 py-1.5 text-sm font-medium text-black hover:bg-white"
+            >
+              Download site (.zip)
+            </a>
+          ) : (
+            <p className="text-sm text-vmd-textMuted">You need permission to edit settings to download it.</p>
+          )}
+        </Card>
+
+        <Card>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Stream overlay</h2>
           <div className="flex items-center justify-between">
             <Label>Show robot names on the overlay</Label>
