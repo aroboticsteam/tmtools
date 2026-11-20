@@ -403,3 +403,93 @@ async def test_current_field_follows_field_events_only(redis_client):
     await integration._handle_ws_message(json.dumps({"type": "fieldActivated", "fieldID": 3}))
     assert (await integration.get_state())["current_field"] == 3
     await integration.teardown()  # cancels the post-match schedule refresh matchStopped started
+
+
+# ── field resolution (matchID/match tuple -> fieldID learnt from fieldMatchAssigned) ──
+# Payload shapes below are the real ones seen on the live TM (match tuple, `fieldID: null` on matchStopped after the
+# queue was cleared, field-less audienceDisplayChanged); team numbers are not part of these events.
+
+
+async def _published(integration):
+    sent = []
+
+    async def publish(channel, body):
+        sent.append(json.loads(body)["payload"])
+
+    integration._redis = MagicMock(publish=publish)
+    return sent
+
+
+def _tuple(match, rnd="PRACTICE", division=1):
+    return {"division": division, "session": 1, "round": rnd, "match": match, "instance": 1}
+
+
+async def _send(integration, **event):
+    await integration._handle_ws_message(json.dumps(event))
+
+
+async def test_field_resolved_after_assignment_for_events_without_field(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="fieldMatchAssigned", fieldID=1, match=_tuple(0))
+    await _send(integration, type="audienceDisplayChanged", display="IN_MATCH")
+    await _send(integration, type="matchStopped", fieldID=None)
+    await _send(integration, type="matchStarted")
+    assert [p.get("fieldID") for p in sent] == [1, 1, 1, 1]
+    assert sent[1]["fieldIDSource"] == "current"
+    assert sent[1]["display"] == "IN_MATCH"
+
+
+async def test_queue_clear_then_match_stopped_keeps_last_field(redis_client):
+    """Live sequence: fieldMatchAssigned{fieldID:null, match:{}} then matchStopped{fieldID:null}."""
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="fieldMatchAssigned", fieldID=1, match=_tuple(0))
+    await _send(integration, type="fieldMatchAssigned", fieldID=None, match={})
+    await _send(integration, type="matchStopped", fieldID=None)
+    assert sent[1]["fieldID"] is None  # the clear itself is left alone
+    assert sent[2]["fieldID"] == 1
+    assert (await integration.get_state())["current_field"] == 1
+
+
+async def test_two_fields_interleaved_resolve_by_matchid_and_tuple(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="fieldMatchAssigned", fieldID=1, matchID=101, match=_tuple(1, "QUAL"))
+    await _send(integration, type="fieldMatchAssigned", fieldID=2, matchID=102, match=_tuple(2, "QUAL"))
+    await _send(integration, type="matchStopped", matchID=101)  # field 1 even though field 2 is current
+    await _send(integration, type="matchStopped", matchID="102")  # str id still joins
+    await _send(integration, type="matchStopped", match=_tuple(1, "QUAL"))  # tuple only
+    assert [p["fieldID"] for p in sent[2:]] == [1, 2, 1]
+    assert {p["fieldIDSource"] for p in sent[2:]} == {"match"}
+    assert sent[2]["matchNum"] == 1 and sent[2]["round"] == "QUAL"
+
+
+async def test_round_and_match_num_resolve_field(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="fieldMatchAssigned", fieldID=1, match=_tuple(5, "QUAL"))
+    await _send(integration, type="fieldMatchAssigned", fieldID=2, match=_tuple(6, "QUAL"))
+    await _send(integration, type="matchStopped", round="QUAL", matchNum=5)
+    assert sent[2]["fieldID"] == 1
+
+
+async def test_event_before_any_assignment_is_left_unresolved_then_resolves(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="matchStopped", matchID=7)  # seen before its assignment
+    assert sent[0].get("fieldID") is None
+    assert (await integration.get_state())["current_field"] is None
+    await _send(integration, type="fieldMatchAssigned", fieldID=3, matchID=7, match=_tuple(7, "QUAL"))
+    await _send(integration, type="matchStopped", matchID=7)
+    assert sent[2]["fieldID"] == 3
+    assert (await integration.get_state())["current_match"]["matchNum"] == 7
+
+
+async def test_explicit_event_field_wins_and_does_not_move_current_on_stop(redis_client):
+    integration = VexTmIntegration("vex_tm.test", _make_config(), redis_client, None)
+    sent = await _published(integration)
+    await _send(integration, type="fieldMatchAssigned", fieldID=1, matchID=1, match=_tuple(1))
+    await _send(integration, type="matchStopped", fieldID=2, matchID=1)
+    assert sent[1]["fieldID"] == 2
+    assert (await integration.get_state())["current_field"] == 1
