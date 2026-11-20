@@ -14,7 +14,7 @@ import subprocess
 import pytest
 
 from backend.core.exceptions import ProcessingError
-from backend.modules.media.processor import _build_ffmpeg_args, _hex_to_ffmpeg_colour, process_video
+from backend.modules.media.processor import _build_ffmpeg_args, _build_image_ffmpeg_args, _hex_to_ffmpeg_colour, process_image, process_video
 
 pytestmark = pytest.mark.asyncio
 
@@ -183,3 +183,31 @@ async def test_process_clip_downscales_tall_source_and_caps_duration(tmp_path):
     stream = _probe_stream(output_path)
     assert (stream["width"], stream["height"]) == (1080, 1080)
     assert float(stream["_format"]["duration"]) <= 12.5
+
+
+def test_build_image_args_key_strip_metadata_and_cap():
+    args = _build_image_ffmpeg_args("in.jpg", "out.png", "#00B140", 0.1, 0.05)
+    vf = args[args.index("-vf") + 1]
+    assert "colorkey=0x00B140:0.1:0.05" in vf and vf.endswith("format=rgba") and "min(2000,iw)" in vf
+    assert args[args.index("-map_metadata") + 1] == "-1"
+    assert args[args.index("-frames:v") + 1] == "1" and args[-1] == "out.png"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+async def test_process_image_keys_background_to_alpha(tmp_path):
+    src = tmp_path / "in.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=0x0000FF:s=64x64,drawbox=x=16:y=16:w=32:h=32:color=red:t=fill",
+         "-frames:v", "1", str(src)],
+        check=True, capture_output=True,
+    )
+    out = tmp_path / "out.png"
+    await process_image(str(src), str(out), "#0000FF", 0.1, 0.05)  # a blue key works too
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(out), "-f", "rawvideo", "-pix_fmt", "rgba", "-"], capture_output=True, check=True).stdout
+    assert raw[3] == 0                      # corner (blue) transparent
+    assert raw[(32 * 64 + 32) * 4 + 3] == 255  # centre (red) opaque
+
+
+async def test_process_image_validates_inputs(tmp_path):
+    with pytest.raises(ProcessingError):
+        await process_image("/nonexistent.jpg", str(tmp_path / "o.png"), "#00B140", 0.1, 0.05)

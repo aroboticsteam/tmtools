@@ -149,8 +149,8 @@ async def show_team(
     db: Annotated[AsyncSession, Depends(get_db)],
     redis_client: Any = Depends(get_redis),
 ) -> None:
-    """Finals "team spotlight": tells the overlay to show one team (team clip
-    + robot 360 + info) instead of the match grid; `team: null` reverts."""
+    """Finals "team spotlight": tells the overlay to show one team (team photo
+    + bot photo + info) instead of the match grid; `team: null` reverts."""
     row = await _get_or_404(db, entity_id)
     msg = EventBusMessage(
         entity_id=entity_id,
@@ -263,16 +263,6 @@ def _team_object(number: str, profile: TeamProfile | None) -> dict[str, Any]:
     }
 
 
-async def _video_url_for(profile: TeamProfile | None) -> str | None:
-    if profile is None or not profile.video_360_s3_key or profile.video_processing_status != "DONE":
-        return None
-    try:
-        return await s3.generate_presigned_url(profile.video_360_s3_key)
-    except ProcessingError:
-        logger.exception("Failed to presign video URL for team %s", profile.team_number)
-        return None
-
-
 @router.get(
     "/{entity_id}/preview",
     dependencies=[Depends(require_permission("overlays:read"))],
@@ -288,8 +278,8 @@ async def preview_overlay(
 
     Resolution: overlay -> `field_set_id` -> the bound `vex_tm` instance's
     last `fieldMatchAssigned` event (see `_find_upcoming_match_for_field_set`)
-    -> team profile + presigned video URL join (same pattern as
-    `routers/teams.py`'s `GET /batch/videos`).
+    -> team profile + presigned photo URL join (same data as
+    `GET /api/v1/teams/batch/photos`).
 
     When no match is currently queued (or this node isn't the leader, so no
     live `vex_tm` instance state is reachable), returns the same
@@ -314,10 +304,12 @@ async def preview_overlay(
         "high_potential": _resolve_high_potential(request, last_event),
     }
 
+    photo_urls = await photo_urls_for(db, red_numbers + blue_numbers)
     teams = [
         {
             "team_number": number,
-            "video_url": await _video_url_for(profiles_by_number.get(number)),
+            "bot_url": photo_urls[number]["bot_photo"],
+            "team_url": photo_urls[number]["team_photo"],
         }
         for number in red_numbers + blue_numbers
     ]

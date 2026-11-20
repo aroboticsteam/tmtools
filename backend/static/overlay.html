@@ -41,7 +41,7 @@
 
   /* Clip areas: the clip keeps its own square ratio, never cropped. */
   .clip { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
-  .clip video { width: 100%; height: 100%; object-fit: contain; background: transparent; }
+  .clip img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
   .clip .placeholder { font-size: 56px; font-weight: 700; letter-spacing: 0.06em; color: var(--gold); text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 
   /* Match banner (top centre) */
@@ -157,7 +157,7 @@
   }
 
   // Merges the match payload's team entry (string or enriched object) with
-  // the public overlay feed's display info + clip URLs.
+  // the public overlay feed's display info + photo URLs.
   function normalizeTeam(team, feed) {
     var obj = (typeof team === "string") ? { team_number: team } : (team || {});
     var number = obj.team_number || obj.number || "";
@@ -169,8 +169,8 @@
       location: info.location || null,
       country: info.country || null,
       rank: (info.qual_rank != null ? info.qual_rank : obj.rank) || null,
-      bot_url: info.bot_url || obj.video_url || null,
-      team_url: info.team_url || null,
+      bot_url: info.bot_url || obj.bot_url || null,
+      team_url: info.team_url || obj.team_url || null,
       robot_name: info.robot_name || null
     };
   }
@@ -185,8 +185,8 @@
   function buildClip(url, fallbackText) {
     var box = el("div", "clip");
     if (url) {
-      var v = document.createElement("video");
-      v.src = url; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+      var v = document.createElement("img");
+      v.src = url; v.alt = "";
       box.appendChild(v);
     } else if (fallbackText) {
       box.appendChild(el("div", "placeholder", fallbackText));
