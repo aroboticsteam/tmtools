@@ -53,7 +53,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 import yaml
-from jinja2 import TemplateError
+from jinja2 import TemplateError, Undefined
+from jinja2.exceptions import UndefinedError
 from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy import func, select, update
 
@@ -129,6 +130,21 @@ def _build_jinja_env() -> SandboxedEnvironment:
 _JINJA_ENV = _build_jinja_env()
 
 
+class _SkipAction(Exception):
+    """Raised while rendering an action when a template interpolates a missing value (``None`` / undefined) into
+    text, e.g. ``"Field {{ states('vex_tm.main','current_field') }} Countdown"`` while no field is known yet. The
+    action is skipped (logged, recorded as ``skipped``) instead of being sent with a literal "Field None Countdown"."""
+
+
+def _strict_finalize(value: Any) -> Any:
+    if value is None or isinstance(value, Undefined):
+        raise _SkipAction("a template value is empty")
+    return value
+
+
+_STRICT_JINJA_ENV = _JINJA_ENV.overlay(finalize=_strict_finalize)
+
+
 def parse_hms(value: Any) -> int | float:
     """Parses a `"HH:MM:SS"` duration string (plan §5.8/§7's `delay`/
     `remaining` fields) into total seconds. A bare `int`/`float` is passed
@@ -143,7 +159,7 @@ def parse_hms(value: Any) -> int | float:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def render_value(value: Any, context: dict[str, Any]) -> Any:
+def render_value(value: Any, context: dict[str, Any], strict: bool = False) -> Any:
     """Renders a single YAML-parsed value against `context`.
 
     A string that is *entirely* one `{{ ... }}` expression (ignoring
@@ -154,19 +170,30 @@ def render_value(value: Any, context: dict[str, Any]) -> Any:
     `bool`. A string containing template markup mixed with other text is
     rendered as a plain string (Home-Assistant-style). Anything else
     (dict/list/non-string scalars) is walked recursively / returned as-is.
+
+    With `strict=True` (service action rendering) a mixed-text template that would print ``None``/undefined raises
+    `_SkipAction`; a whole-expression value keeps its native type (including ``None``).
     """
     if isinstance(value, str):
-        match = _FULL_EXPR_RE.match(value)
-        if match:
-            compiled = _JINJA_ENV.compile_expression(match.group(1).strip(), undefined_to_none=False)
-            return compiled(**context)
-        if "{{" in value or "{%" in value:
-            return _JINJA_ENV.from_string(value).render(**context)
+        try:
+            match = _FULL_EXPR_RE.match(value)
+            if match:
+                compiled = _JINJA_ENV.compile_expression(match.group(1).strip(), undefined_to_none=False)
+                result = compiled(**context)
+                # A missing key would otherwise leak a jinja `Undefined` object into service data (not serialisable).
+                return None if isinstance(result, Undefined) else result
+            if "{{" in value or "{%" in value:
+                env = _STRICT_JINJA_ENV if strict else _JINJA_ENV
+                return env.from_string(value).render(**context)
+        except UndefinedError as exc:
+            if strict:
+                raise _SkipAction(f"template reads a missing value ({exc})") from None
+            raise
         return value
     if isinstance(value, dict):
-        return {k: render_value(v, context) for k, v in value.items()}
+        return {k: render_value(v, context, strict) for k, v in value.items()}
     if isinstance(value, list):
-        return [render_value(v, context) for v in value]
+        return [render_value(v, context, strict) for v in value]
     return value
 
 
@@ -434,7 +461,7 @@ class AutomationEngine:
     def _trigger_matches(self, spec: dict[str, Any], event: EventBusMessage) -> bool:
         platform = spec.get("platform")
         if platform == "state":
-            if "entity_id" in spec and spec["entity_id"] != event.entity_id:
+            if "entity_id" in spec and not self._trigger_entity_ok(spec["entity_id"], event):
                 return False
             if "event_type" in spec and spec["event_type"] != event.type:
                 return False
@@ -455,6 +482,18 @@ class AutomationEngine:
                     return False
             return True
         return False
+
+    def _trigger_entity_ok(self, wanted: Any, event: EventBusMessage) -> bool:
+        if wanted == event.entity_id:
+            return True
+        try:
+            ids = [i.entity_id for i in loader.get_all_instances()]
+        except Exception:
+            return False
+        if wanted in ids:
+            return False
+        # Trigger names an entity that no longer exists: fall back to the domain's only instance.
+        return self._domain_fallback(str(wanted), ids) == event.entity_id
 
     def _match_name_ok(self, spec: dict[str, Any], event: EventBusMessage) -> bool:
         """Optional fnmatch-style match-name pattern filter (ported concept
@@ -496,13 +535,33 @@ class AutomationEngine:
             return None
         return self._timer_field_by_entity.get(entity_id)
 
+    @staticmethod
+    def _domain_fallback(entity_id: str, candidates: list[str]) -> str | None:
+        """An automation may name an entity that does not exist (renamed/deleted, or just the domain: `vex_tm`).
+        If it is not a known entity and exactly one candidate shares its domain, use that one; otherwise None."""
+        domain = str(entity_id).split(".", 1)[0]
+        same = [c for c in candidates if c.split(".", 1)[0] == domain]
+        return same[0] if len(same) == 1 else None
+
     def _context_globals(self, state_cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        def _state_of(entity_id: str) -> dict[str, Any]:
+            if entity_id not in state_cache:
+                alias = self._domain_fallback(entity_id, list(state_cache))
+                if alias is None:
+                    logger.warning(
+                        "states(%r): no such entity (known: %s); returning empty state", entity_id, sorted(state_cache)
+                    )
+                    return {}
+                logger.warning("states(%r): no such entity; using the only %s instance %r", entity_id, alias.split(".")[0], alias)
+                entity_id = alias
+            return state_cache.get(entity_id, {}) or {}
+
         def states_fn(entity_id: str, attr: str | None = None) -> Any:
-            state = state_cache.get(entity_id, {}) or {}
+            state = _state_of(entity_id)
             return state if attr is None else state.get(attr)
 
         def is_state_fn(entity_id: str, value: Any) -> bool:
-            state = state_cache.get(entity_id, {}) or {}
+            state = _state_of(entity_id)
             current = state.get("state", state)
             return current == value
 
@@ -602,7 +661,12 @@ class AutomationEngine:
                     break
                 if "condition" in action:
                     executed += 1
-                    if not eval_bool(action["condition"], context):
+                    try:
+                        cond_ok = eval_bool(action["condition"], context)
+                    except Exception:
+                        logger.exception("Inline condition %r raised while evaluating; treating as not-met", action["condition"])
+                        cond_ok = False
+                    if not cond_ok:
                         action_results.append({"index": idx, "status": "success", "error": None})
                         break
                     action_results.append({"index": idx, "status": "success", "error": None})
@@ -625,6 +689,13 @@ class AutomationEngine:
                 if not ok and first_failure_idx is None:
                     first_failure_idx = idx
                     first_failure_err = err
+            except _SkipAction as exc:
+                logger.warning(
+                    "Skipping action %d (%r): %s (e.g. no current field known yet); nothing was sent to any device",
+                    idx, action, exc,
+                )
+                executed += 1
+                action_results.append({"index": idx, "status": "skipped", "error": f"skipped: {exc}"})
             except Exception as exc:  # never let one bad action kill the whole chain/engine
                 logger.exception("Unhandled error executing action %d", idx)
                 executed += 1
@@ -763,10 +834,10 @@ class AutomationEngine:
         return True, None
 
     async def _do_service_action(self, action: dict[str, Any], context: dict[str, Any]) -> tuple[bool, str | None]:
-        service_full = render_value(action["service"], context)
+        service_full = render_value(action["service"], context, strict=True)
         _, _, service_name = str(service_full).partition(".")
         service_name = service_name or str(service_full)
-        data = render_value(action.get("data", {}), context)
+        data = render_value(action.get("data", {}), context, strict=True)
         if not isinstance(data, dict):
             data = {}
 
@@ -800,8 +871,15 @@ class AutomationEngine:
 
     def _resolve_targets(self, action: dict[str, Any], context: dict[str, Any]) -> list[Any]:
         if "target" in action:
-            entity_id = render_value(action["target"], context)
+            entity_id = render_value(action["target"], context, strict=True)
             instance = loader.get_instance(str(entity_id))
+            if instance is None:
+                alias = self._domain_fallback(str(entity_id), [i.entity_id for i in loader.get_all_instances()])
+                if alias is not None:
+                    logger.warning(
+                        "target %r does not exist; using the only %s instance %r", entity_id, alias.split(".")[0], alias
+                    )
+                    instance = loader.get_instance(alias)
             return [instance] if instance is not None else []
 
         if "target_tag" in action:
