@@ -111,7 +111,7 @@
   h2[style] { font-size: clamp(1.4rem, 4vw, 2rem); letter-spacing: .04em; }
   .strip .stat span { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 600; }
 
-  .vids .card > b, .vids b { display: block; } .vids video { width: 100%; }
+  .vids .card > b, .vids b { display: block; } .vids img, .vids video { width: 100%; max-width: 100%; border-radius: 10px; }
   .vids { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .btn { display: inline-flex; align-items: center; background: var(--iq); color: #fff; border-radius: 8px; padding: .6rem 1.15rem; font-weight: 600; margin-top: .7rem; } .btn:hover { text-decoration: none; filter: brightness(1.12); }
   .hist { display: grid; gap: 1rem; }
@@ -403,18 +403,18 @@
     g.appendChild(kv('Season', [['Events attended', t.season.events_attended], ['Awards', t.season.awards], ['Skills rank (season)', t.season.world_skills_rank]]));
     box.appendChild(g);
 
-    var dls = t.downloads || {}, clips = t.clips || {};
-    var kinds = [['bot', '360° robot video'], ['team', 'Team video']].filter(function (k) { return (dls[k[0]] && dls[k[0]].url) || clips[k[0]]; });
+    var dls = t.downloads || {}, photos = t.photos || {};
+    var kinds = [['bot', 'Robot photo'], ['team', 'Team photo']].filter(function (k) { return (dls[k[0]] && dls[k[0]].url) || photos[k[0]]; });
     if (kinds.length) {
-      box.appendChild(el('h2', null, 'Videos'));
+      box.appendChild(el('h2', null, 'Photos'));
       var vids = el('div', 'vids');
       kinds.forEach(function (k) {
-        var dl = dls[k[0]], clip = clips[k[0]];
+        var dl = dls[k[0]], photo = photos[k[0]];
         var w = el('div', 'card'); w.appendChild(el('b', null, k[1]));
-        var src = clip || (dl && dl.url);
-        if (src) { var v = el('video'); v.src = src; v.controls = true; v.loop = true; v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.style.marginTop = '.6rem'; w.appendChild(v); }
+        var src = photo || (dl && dl.url);
+        if (src) { var v = el('img'); v.src = src; v.alt = k[1]; v.loading = 'lazy'; v.style.marginTop = '.6rem'; w.appendChild(v); }
         var a = el('a', 'btn', '⬇ Download ' + k[1].toLowerCase());
-        if (dl && dl.url) { a.href = dl.url; a.setAttribute('download', dl.name || ''); } else { a.href = clip; a.setAttribute('download', t.team_number + '-' + k[0] + '.webm'); }
+        if (dl && dl.url) { a.href = dl.url; a.setAttribute('download', dl.name || ''); } else { a.href = photo; a.setAttribute('download', t.team_number + '-' + k[0] + '.png'); }
         w.appendChild(a); vids.appendChild(w);
       });
       box.appendChild(vids);

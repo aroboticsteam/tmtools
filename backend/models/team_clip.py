@@ -1,5 +1,6 @@
-"""ORM model for recorded green-screen clips (issues #1/#12): up to two per
-team — the "bot" and the "team" in front of the green screen."""
+"""ORM model for the chroma-keyed team photos: up to two rows per team, kinds
+"bot_photo" and "team_photo" (table name `team_clips` kept from the earlier video
+version, so no migration; old rows with kind "bot"/"team" are simply ignored)."""
 from __future__ import annotations
 
 from datetime import datetime

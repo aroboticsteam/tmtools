@@ -5,8 +5,10 @@ Owns: S3 multipart upload, presigned URL generation, raw/processed key
 conventions, download.
 
 Key naming convention (must be followed exactly, per Appendix C.2):
-    raw videos:       teams/{team_number}/video/raw.{ext}
-    processed videos:  teams/{team_number}/video/processed.webm
+    raw photos:        teams/{team_number}/photos/{kind}/raw.{ext}
+    processed photos:  teams/{team_number}/photos/{kind}/processed.png
+    (videos of earlier versions stay under teams/{n}/video/ and teams/{n}/clips/;
+    nothing references them any more and nothing deletes them.)
 
 May import from: `backend.core` (settings for S3 credentials, env-var
 fallback), `backend.models.settings` + `backend.core.db` (the `system_settings`
@@ -39,17 +41,6 @@ _MULTIPART_CHUNK_SIZE = 8 * 1024 * 1024
 _session = aioboto3.Session()
 
 
-def raw_video_key(team_number: str, ext: str) -> str:
-    """Return the canonical S3 key for a team's raw uploaded video."""
-    ext = ext.lstrip(".").lower()
-    return f"teams/{team_number}/video/raw.{ext}"
-
-
-def processed_video_key(team_number: str) -> str:
-    """Return the canonical S3 key for a team's processed (chroma-keyed) video."""
-    return f"teams/{team_number}/video/processed.webm"
-
-
 def team_logo_key(team_number: str, ext: str) -> str:
     return f"teams/{team_number}/logo.{ext.lstrip('.').lower()}"
 
@@ -59,17 +50,17 @@ def site_image_key(name: str) -> str:
     return f"site/images/{name}"
 
 
-CLIP_KINDS = ("bot", "team")
+PHOTO_KINDS = ("bot_photo", "team_photo")
 
 
-def clip_raw_key(team_number: str, kind: str, ext: str) -> str:
-    """S3 key for a team's raw recorded clip (`kind` is "bot" or "team")."""
-    return f"teams/{team_number}/clips/{kind}/raw.{ext.lstrip('.').lower()}"
+def photo_raw_key(team_number: str, kind: str, ext: str) -> str:
+    """S3 key for a team's raw uploaded photo (`kind` is "bot_photo" or "team_photo")."""
+    return f"teams/{team_number}/photos/{kind}/raw.{ext.lstrip('.').lower()}"
 
 
-def clip_processed_key(team_number: str, kind: str) -> str:
-    """S3 key for a team's processed (chroma-keyed, transparent) clip."""
-    return f"teams/{team_number}/clips/{kind}/processed.webm"
+def photo_processed_key(team_number: str, kind: str) -> str:
+    """S3 key for a team's processed (chroma-keyed, transparent) PNG."""
+    return f"teams/{team_number}/photos/{kind}/processed.png"
 
 
 class _ResolvedS3Config:
