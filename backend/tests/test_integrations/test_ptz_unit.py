@@ -127,3 +127,30 @@ async def test_service_validation_and_errors(redis_client, camera):
     with pytest.raises(IntegrationError):
         await integ.call_service("home", {})
     assert (await integ.get_state())["connected"] is False
+
+
+def test_setup_and_commands_work_under_uvloop():
+    """The Docker image runs uvicorn on uvloop, which has no `loop.sock_sendto`; the integration
+    used it and was permanently DEGRADED (NotImplementedError in setup())."""
+    uvloop = pytest.importorskip("uvloop")
+
+    async def run():
+        cam = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        cam.bind(("127.0.0.1", 0))
+        cam.setblocking(False)
+        try:
+            integration = PtzIntegration(
+                "ptz.test", {"host": "127.0.0.1", "port": cam.getsockname()[1], "camera_address": 1}, None, None
+            )
+            assert type(asyncio.get_running_loop()).__module__.startswith("uvloop")
+            await integration.setup()
+            await integration.call_service("recall_preset", {"preset": 3})
+            loop = asyncio.get_running_loop()
+            first = await asyncio.wait_for(loop.sock_recv(cam, 1024), 2)  # sequence reset
+            second = await asyncio.wait_for(loop.sock_recv(cam, 1024), 2)  # the preset recall
+            assert first and second
+            await integration.teardown()
+        finally:
+            cam.close()
+
+    uvloop.run(run())
