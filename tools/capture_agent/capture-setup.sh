@@ -40,6 +40,11 @@ cat > run.sh <<'RUN'
 set -euo pipefail
 cd "$(dirname "$0")"
 set -a; . ./.agent.env; set +a
+# Python on macOS often has no CA bundle (CERTIFICATE_VERIFY_FAILED); use certifi's. A custom SSL_CERT_FILE in .agent.env wins.
+: "${SSL_CERT_FILE:=$(.venv/bin/python -c 'import certifi; print(certifi.where())')}"
+export SSL_CERT_FILE
+# TEMPORARY: TLS certificate verification is off (CERTIFICATE_VERIFY_FAILED on the venue network). Set CAPTURE_INSECURE=0 in .agent.env to turn it back on.
+export CAPTURE_INSECURE="${CAPTURE_INSECURE:-1}"
 exec .venv/bin/python agent.py "$@"
 RUN
 chmod 700 run.sh
@@ -60,11 +65,11 @@ ok "$("$PY" --version) ($PY)"
 say "2/6  Install the agent into $DIR"
 [ -f "$SELF" ] && grep -q '^__AGENT_PY_BELOW__$' "$SELF" || die "this copy of the script has no embedded agent (truncated download?)"
 awk 'f{print} /^__AGENT_PY_BELOW__$/{f=1}' "$SELF" > agent.py
-printf 'httpx>=0.27\nwebsockets>=13\n' > requirements.txt
+printf 'httpx>=0.27\nwebsockets>=13\ncertifi\n' > requirements.txt
 .venv/bin/python --version >/dev/null 2>&1 || rm -rf .venv
 [ -d .venv ] || "$PY" -m venv .venv || die "could not create a virtualenv (Linux: sudo apt install python3-venv)"
 .venv/bin/pip install -q --disable-pip-version-check -r requirements.txt
-.venv/bin/python -c 'import httpx, websockets' && ok "agent and dependencies installed in $DIR"
+.venv/bin/python -c 'import httpx, websockets, certifi' && ok "agent and dependencies installed in $DIR"
 
 if [ -f "$ENV_FILE" ] && [ "$RECONFIGURE" = 0 ] && [ -n "$(saved TMTOOLS_AGENT_KEY)" ] && [ -n "$(saved CAPTURE_INPUT)" ]; then
   say "Using the saved setup ($(saved TMTOOLS_SERVER)); run with --reconfigure to change it"
@@ -212,6 +217,7 @@ class Settings:
     ffmpeg: str = "ffmpeg"
     reencode: bool = True
     video_bitrate: str = "15M"
+    insecure: bool = False  # skip TLS certificate verification (temporary workaround; also CAPTURE_INSECURE=1)
     keep_local: bool = False  # keep recordings on disk after upload (default: delete once uploaded)
     agent_id: str = field(default_factory=lambda: f"agent-{uuid.uuid4().hex[:6]}")
 
@@ -336,7 +342,8 @@ class UploadQueue:
     wait behind a match file. Failed jobs retry with backoff and survive restarts."""
 
     def __init__(self, work_dir: Path, client: httpx.AsyncClient, retry_delays: tuple[float, ...] = RETRY_DELAYS,
-                 keep_local: bool = False) -> None:
+                 keep_local: bool = False, verify: bool = True) -> None:
+        self.verify = verify
         self.file = work_dir / "queue.json"
         self.keep_local = keep_local
         self.client = client
@@ -417,7 +424,7 @@ class UploadQueue:
         headers = dict(grant.get("headers") or {})
         headers["Content-Length"] = str(path.stat().st_size)
         # The presigned URL points at the object store, not the TMTools server.
-        async with httpx.AsyncClient(timeout=None) as store:
+        async with httpx.AsyncClient(timeout=None, verify=self.verify) as store:
             (await store.put(grant["url"], content=chunks(), headers=headers)).raise_for_status()
         complete: dict[str, Any] = {"kind": job.kind}
         if job.duration_s is not None:
@@ -441,9 +448,10 @@ class CaptureAgent:
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self.settings = settings
         self.client = client or httpx.AsyncClient(
-            base_url=settings.server.rstrip("/"), headers={"Authorization": f"Bearer {settings.key}"}, timeout=60
+            base_url=settings.server.rstrip("/"), headers={"Authorization": f"Bearer {settings.key}"}, timeout=60,
+            verify=not settings.insecure,
         )
-        self.queue = UploadQueue(settings.work_dir, self.client, keep_local=settings.keep_local)
+        self.queue = UploadQueue(settings.work_dir, self.client, keep_local=settings.keep_local, verify=not settings.insecure)
         self.recorder: Recorder | None = None
         self.send: Callable[[dict[str, Any]], Any] = self._drop
         self._tasks: set[asyncio.Task[None]] = set()
@@ -523,9 +531,18 @@ class CaptureAgent:
         self.queue.start()
         url = self.settings.server.rstrip("/").replace("http", "ws", 1) + "/ws/agent"
         attempt = 0
+        ssl_ctx = None
+        if self.settings.insecure and url.startswith("wss://"):
+            import ssl
+
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+        if self.settings.insecure:
+            log.warning("TLS certificate verification is DISABLED (--insecure)")
         while True:
             try:
-                async with websockets.connect(url, additional_headers={"Authorization": f"Bearer {self.settings.key}"}) as ws:
+                async with websockets.connect(url, additional_headers={"Authorization": f"Bearer {self.settings.key}"}, ssl=ssl_ctx) as ws:
                     attempt = 0
 
                     async def send(msg: dict[str, Any]) -> None:
@@ -571,6 +588,8 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     p.add_argument("--video-bitrate", default="15M")
     p.add_argument("--keep-local", action="store_true", default=os.environ.get("CAPTURE_KEEP_LOCAL") == "1",
                    help="keep recordings on disk after they are uploaded (default: delete them once the server has confirmed the upload)")
+    p.add_argument("--insecure", action="store_true", default=os.environ.get("CAPTURE_INSECURE") == "1",
+                   help="do not verify the server TLS certificate (temporary workaround for CERTIFICATE_VERIFY_FAILED)")
     p.add_argument("--agent-id", default=os.environ.get("CAPTURE_AGENT_ID"))
     a = p.parse_args(argv)
     missing = [n for n in ("server", "key", "input") if not getattr(a, n)]
@@ -579,7 +598,7 @@ def parse_args(argv: list[str] | None = None) -> Settings:
     kwargs: dict[str, Any] = {}
     if a.agent_id:
         kwargs["agent_id"] = a.agent_id
-    return Settings(a.server, a.key, shlex.split(a.input), Path(a.work_dir), a.ffmpeg, a.reencode, a.video_bitrate, a.keep_local, **kwargs)
+    return Settings(a.server, a.key, shlex.split(a.input), Path(a.work_dir), a.ffmpeg, a.reencode, a.video_bitrate, keep_local=a.keep_local, insecure=a.insecure, **kwargs)
 
 
 async def _main(settings: Settings) -> None:
