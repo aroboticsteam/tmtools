@@ -89,33 +89,60 @@ fi
 [ -n "$KEY" ] || die "an API key is required"
 
 say "4/6  Capture device"
-INPUT=""
+DEVSPEC=""; INPUT=""
 if [ "$OS" = Darwin ]; then
   LIST="$(ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 || true)"
-  echo "  Video devices:"; echo "$LIST" | awk '/video devices:/{v=1;next} /audio devices:/{v=0} v' | sed 's/^.*\] \[/    [/'
-  echo "  Audio devices:"; echo "$LIST" | awk '/audio devices:/{a=1;next} a' | sed 's/^.*\] \[/    [/'
+  echo "  Video devices:"; echo "$LIST" | awk '/video devices:/{v=1;next} /audio devices:/{v=0} v' | grep '\] \[' | sed 's/^.*\] \[/    [/'
+  echo "  Audio devices:"; echo "$LIST" | awk '/audio devices:/{a=1;next} a' | grep '\] \[' | sed 's/^.*\] \[/    [/'
   read -r -p "  Video device number (e.g. the Blackmagic/ATEM capture): " V
   read -r -p "  Audio device number, or 'none' [none]: " A; A="${A:-none}"
   case "$V" in ''|*[!0-9]*) die "video device must be a number" ;; esac
-  INPUT="-f avfoundation -framerate 30 -i \"$V:$A\""
+  DEVSPEC="$V:$A"
 else
   echo "  Video devices:"; ls /dev/video* 2>/dev/null | sed 's/^/    /' || true
   read -r -p "  Video device [/dev/video0]: " V; V="${V:-/dev/video0}"
   [ -e "$V" ] || die "$V does not exist"
   INPUT="-f v4l2 -i $V"
 fi
-ok "ffmpeg input: $INPUT"
 
 say "5/6  Test recording (3 s)"
-TEST="$(mktemp -t tmtools-capture-test.XXXXXX).mkv"
-# shellcheck disable=SC2086  # INPUT is a deliberate word-split ffmpeg argument string
-if eval ffmpeg -hide_banner -loglevel error -y $INPUT -t 3 -c:v libx264 -preset veryfast -pix_fmt yuv420p "$TEST" && [ -s "$TEST" ]; then
-  ok "recorded $(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$TEST" | tr ',' ' ') (width height fps)"
-  rm -f "$TEST"
+LAST_ERR=""
+# Records 3 s from the ffmpeg input string in $1; keeps ffmpeg's complaint in LAST_ERR; shows the result on success.
+try_input() {
+  local t rc; t="$(mktemp -t tmtools-capture-test.XXXXXX)"; rm -f "$t"; t="$t.mkv"
+  # shellcheck disable=SC2086  # $1 is a deliberate word-split ffmpeg argument string
+  LAST_ERR="$(eval ffmpeg -hide_banner -loglevel error -y $1 -t 3 -c:v libx264 -preset veryfast -pix_fmt yuv420p "\"$t\"" 2>&1)"
+  rc=$?
+  if [ $rc -eq 0 ] && [ -s "$t" ]; then
+    ok "recorded $(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$t" | tr ',' ' ') (width height fps)"
+    rm -f "$t"; return 0
+  fi
+  rm -f "$t"; return 1
+}
+FOUND=0
+if [ "$OS" = Darwin ]; then
+  # Capture cards only accept the frame rates their current signal uses (29.97, 25, 59.94, ...), and a wrong one is
+  # reported as "Could not lock device for configuration", so try the usual ones (then with the UYVY pixel format).
+  for PF in "" "-pixel_format uyvy422"; do
+    for FR in 30 29.97 25 24 23.976 60 59.94 50 15; do
+      INPUT="-f avfoundation $PF -framerate $FR -i \"$DEVSPEC\""
+      echo "  trying ${PF:+$PF, }$FR fps ..."
+      if try_input "$INPUT"; then FOUND=1; break 2; fi
+    done
+  done
 else
-  rm -f "$TEST"
-  die "the test recording failed. On macOS, allow your terminal under System Settings -> Privacy & Security -> Camera, then re-run."
+  try_input "$INPUT" && FOUND=1
 fi
+if [ "$FOUND" = 0 ]; then
+  echo "  ffmpeg said: $(printf '%s' "$LAST_ERR" | tail -3)"
+  if [ "$OS" = Darwin ]; then
+    echo "  What the device supports:"
+    ffmpeg -hide_banner -f avfoundation -framerate 1 -i "$DEVSPEC" 2>&1 | grep -E 'Supported modes|@\[|[0-9]+x[0-9]+@' | sed 's/^.*\] /    /' || true
+    die "no frame rate worked. Check: (1) no other app is using the device (close OBS, QuickTime, Zoom, Photo Booth), (2) System Settings -> Privacy & Security -> Camera allows your terminal, (3) the right video device number, (4) the capture card actually has a signal. Then re-run with --reconfigure."
+  fi
+  die "the test recording failed. Check the device and that nothing else is using it, then re-run with --reconfigure."
+fi
+ok "ffmpeg input: $INPUT"
 
 say "6/6  Save"
 umask 077

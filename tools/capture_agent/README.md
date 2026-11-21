@@ -20,7 +20,7 @@ First run: checks ffmpeg/Python, installs into `~/tmtools-capture` (override wit
 `TMTOOLS_CAPTURE_DIR`), asks for the server URL and API key (hidden), lets you pick the capture
 device, test-records 3 s, saves everything to `.agent.env` (mode 600) and starts the agent.
 Every later run reuses the saved setup with no questions, refreshes the agent code and starts
-it. Extra flags go to the agent (`bash capture-setup.sh --keep-local`); `--reconfigure` redoes
+it. On macOS the script tries several frame rates until one works (capture cards only accept their signal's rate). Extra flags go to the agent (`bash capture-setup.sh --keep-local`); `--reconfigure` redoes
 the questions. `~/tmtools-capture/run.sh` starts the agent directly. After editing `agent.py`
 run `python3 tools/capture_agent/build_setup.py` to re-embed it (a test checks they match).
 
