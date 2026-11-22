@@ -39,6 +39,7 @@ future wave doesn't have to rediscover it.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import fnmatch
@@ -68,8 +69,8 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
-CONFIG_CHANGE_CHANNEL = "tmtools:config_change"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
+CONFIG_CHANGE_CHANNEL = REDIS_PREFIX + "config_change"
 
 # Config-change resource types that should trigger a hot reload of the
 # engine's compiled automations/scripts (plan §3.2-style hot reload, applied
@@ -793,7 +794,7 @@ class AutomationEngine:
                 timestamp=time.time(),
                 payload={"team": team},
             )
-            await self._redis.publish("tmtools:events", event.model_dump_json())
+            await self._redis.publish(REDIS_PREFIX + "events", event.model_dump_json())
         return True, None
 
     async def _do_http_action(self, action: dict[str, Any], context: dict[str, Any]) -> tuple[bool, str | None]:

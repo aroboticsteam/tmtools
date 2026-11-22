@@ -33,9 +33,7 @@ and [`docs/API.md`](docs/API.md) for the generated REST API reference.
 | [`backend/`](backend/) | FastAPI app: leader election, the integration loader + clients (VEX TM/Spotify/ATEM/ZerOS/OBS/WLED/OSC/PTZ), the automation engine, REST routers, WebSocket fan-out |
 | [`frontend/`](frontend/) | React + Vite admin SPA |
 | [`alembic/`](alembic/) | Postgres schema migrations |
-| [`k8s/`](k8s/) | Kubernetes manifests for the real k3s deployment |
 | [`docs/`](docs/) | Generated API reference, Authentik/OIDC setup guide, third-party hardware/API reference docs |
-| [`local-testing/`](local-testing/) | Throwaway local Traefik + Authelia stack for exercising real OIDC login — **not** the real infrastructure (that's `k8s/`) |
 | [`tools/`](tools/) | One-off operational scripts |
 
 ## Running it locally
@@ -43,7 +41,7 @@ and [`docs/API.md`](docs/API.md) for the generated REST API reference.
 ### Backend + frontend on the host
 
 ```bash
-docker compose up -d postgres redis minio   # backend/frontend run on the host, not in this compose file
+docker compose up -d postgres redis minio   # run from the deployment repo's compose.yml; backend/frontend run on the host
 
 cd backend && python3 -m venv .venv-backend && source .venv-backend/bin/activate
 pip install -r requirements.txt
@@ -61,6 +59,8 @@ bucket yourself (e.g. via the MinIO console at `http://localhost:9001`).
 
 ### Or: full stack in Docker
 
+Compose files live in the separate [`deployment`](https://github.com/aroboticsteam/deployment) repo (private). From a checkout of it:
+
 ```bash
 docker compose up -d
 ```
@@ -69,8 +69,7 @@ This builds and runs the `app` service from this repo's `Dockerfile`
 instead of running backend/frontend on the host, and handles the two
 manual steps above automatically: `compose.yml`'s `migrate` service runs
 `alembic upgrade head` and its `bucket-init` service creates `S3_BUCKET` in
-MinIO if it doesn't already exist, both before `app` starts (mirroring
-`k8s/deployment.yaml`'s `migrate` init container for the real deployment).
+MinIO if it doesn't already exist, both before `app` starts (the real deployment runs the same steps).
 
 ### Logging in
 
@@ -78,7 +77,7 @@ Visit `http://localhost:5173`, and use the emergency admin login at
 `/admin_login` (username `admin_local`, password from the
 `ADMIN_LOCAL_PASSWORD` env var) — no OIDC provider is required for this
 path. To exercise a real OIDC login instead, see
-[`local-testing/README.md`](local-testing/README.md).
+the `local-testing/` README in the `deployment` repo.
 
 ## Rooms & notifications
 
