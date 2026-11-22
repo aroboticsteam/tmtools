@@ -34,7 +34,7 @@ python3 -m venv .venv-backend && source .venv-backend/bin/activate
 pip install -r requirements.txt
 
 # from the repo root:
-docker compose up -d postgres redis minio
+docker compose up -d postgres redis minio   # compose.yml is in the deployment repo
 alembic upgrade head
 ```
 

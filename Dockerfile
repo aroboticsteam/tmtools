@@ -12,8 +12,7 @@
 # `npm ci && npm run build` in `frontend/`, and its build output (a static
 # `dist/`) is copied into the backend stage at `backend/static/frontend/`,
 # which `backend/main.py` mounts and serves — same origin as the API, per
-# the Traefik IngressRoute in `k8s/ingress.yaml` fronting a single `tmtools`
-# service/port for both.
+# a reverse proxy fronting a single service/port for both.
 FROM node:20-slim AS frontend-builder
 
 WORKDIR /app/frontend
@@ -61,17 +60,16 @@ COPY --from=frontend-builder /app/frontend/dist backend/static/frontend/
 # Drop root after all install/copy steps are done. The app only talks to
 # Postgres/Redis/S3 over the network and writes media temp files via
 # Python's tempfile module (defaults to world-writable /tmp), so no extra
-# writable dirs are needed. UID/GID 1000 matches k8s/deployment.yaml's
-# securityContext.
+# writable dirs are needed. UID/GID 1000 is the conventional non-root id.
 RUN groupadd --system --gid 1000 tmtools && useradd --system --uid 1000 --gid tmtools --no-create-home tmtools
 RUN chown -R tmtools:tmtools /app
 USER tmtools
 
 # Exactly 1 worker per pod (Appendix B.1, critical) — multiple workers
 # would each independently run their own LeaderElection/TimerManager/
-# AutomationEngine/Loader instance inside the SAME pod, causing duplicate
+# AutomationEngine/Loader instance inside the SAME container, causing duplicate
 # `tmtools:events` publishers and dual-command integration conflicts. HA is
-# achieved via multiple k8s replicas (see k8s/deployment.yaml), each with
+# achieved via multiple replicas, each with
 # its own single-worker process contending for the one Redis leader lock.
 EXPOSE 8000
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

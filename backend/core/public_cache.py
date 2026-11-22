@@ -19,6 +19,8 @@ is left alone.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import asyncio
 import base64
 import json
@@ -39,7 +41,7 @@ PREFIX = "/api/v1/public/site/"
 SKIP_PREFIXES = ("/api/v1/public/site/image/",)
 MAX_ENTRIES = 512
 MAX_BODY_BYTES = 2 * 1024 * 1024
-REDIS_PREFIX = "tmtools:pubcache:"
+REDIS_PREFIX = REDIS_PREFIX + "pubcache:"
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 REDIS_TIMEOUT_SECONDS = 0.25
 

@@ -16,7 +16,7 @@ name: Docker
 # Each image is built for linux/amd64 and linux/arm64 natively (one job per
 # arch, on GitHub's own amd64/arm64 runners — no QEMU emulation) and merged
 # into a single multi-arch manifest, so `docker pull` on an arm64 host (e.g.
-# an Apple Silicon dev machine, or an arm64 k8s node) doesn't fail.
+# an Apple Silicon dev machine, or an arm64 server) doesn't fail.
 
 on:
   schedule:
