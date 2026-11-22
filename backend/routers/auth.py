@@ -222,7 +222,7 @@ def _set_session_cookie(response: Response, signed_value: str) -> None:
         samesite="lax",
         secure=True,  # `Secure` is evaluated by the browser against the page's own origin
         # scheme, not the backend's internal transport — the app is only ever exposed over
-        # HTTPS (k8s/ingress.yaml's `websecure` entrypoint), so this must always be True.
+        # HTTPS (the reverse proxy's TLS entrypoint), so this must always be True.
     )
 
 
