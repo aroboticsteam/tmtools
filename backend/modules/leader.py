@@ -15,6 +15,7 @@ May import from: `backend/core/` (Redis) only.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import logging
 import random
@@ -28,7 +29,7 @@ from backend.core.ntfy import send_ntfy_notification
 
 logger = logging.getLogger(__name__)
 
-LOCK_KEY = "tmtools:leader:lock"
+LOCK_KEY = REDIS_PREFIX + "leader:lock"
 LOCK_TTL_SECONDS = 30
 RENEW_INTERVAL_SECONDS = 10
 MAX_BACKOFF_SECONDS = 300  # 5 minutes

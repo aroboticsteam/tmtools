@@ -15,6 +15,7 @@ Staff (OIDC permissions `notifications:*`):
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 from typing import Annotated, Any
 
@@ -60,7 +61,7 @@ async def _rate_limit(request: Request, redis: Any, scope: str) -> None:
     # proxy itself appended (earlier ones are client-supplied and spoofable).
     forwarded = request.headers.get("x-forwarded-for", "")
     ip = forwarded.split(",")[-1].strip() or (request.client.host if request.client else "unknown")
-    key = f"tmtools:ratelimit:{scope}:{ip}"
+    key = REDIS_PREFIX + f"ratelimit:{scope}:{ip}"
     try:
         count = await redis.incr(key)
         if count == 1:

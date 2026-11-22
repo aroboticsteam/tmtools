@@ -7,6 +7,7 @@ consuming the stream).
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import json
 import logging
@@ -19,7 +20,7 @@ from backend.core.command_bus import CommandBus, CommandError
 
 logger = logging.getLogger(__name__)
 
-STATE_KEY_PREFIX = "tmtools:integration:state:"
+STATE_KEY_PREFIX = REDIS_PREFIX + "integration:state:"
 STATE_TTL_SECONDS = 10
 STATE_MIRROR_INTERVAL_SECONDS = 2.0
 

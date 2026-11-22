@@ -37,6 +37,8 @@ execution machinery, not authoritative state.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import asyncio
 import contextlib
 import json
@@ -55,8 +57,8 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
-CONFIG_CHANGE_CHANNEL = "tmtools:config_change"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
+CONFIG_CHANGE_CHANNEL = REDIS_PREFIX + "config_change"
 
 TICK_INTERVAL_SECONDS = 1.0
 
@@ -68,7 +70,7 @@ PHASE_MATCH_COMPLETE = "match_complete"
 
 
 def _state_key(entity_id: str) -> str:
-    return f"tmtools:timer:{entity_id}:state"
+    return REDIS_PREFIX + f"timer:{entity_id}:state"
 
 
 @dataclass

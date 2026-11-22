@@ -8,6 +8,7 @@ switches, depending on settings) pick up what was playing.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import re
 import time
@@ -15,7 +16,7 @@ from typing import Any
 
 from backend.schemas.events import EventBusMessage
 
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 ENTITY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 BUCKET_PREFIX = "replay:"
 STATE_TTL_S = 6 * 3600
@@ -25,7 +26,7 @@ ACTIONS = ("pause", "resume", "rate", "seek", "stop", "restart")
 
 
 def _state_key(entity_id: str) -> str:
-    return f"tmtools:replay:{entity_id}:state"
+    return REDIS_PREFIX + f"replay:{entity_id}:state"
 
 
 async def get_state(redis: Any, entity_id: str) -> dict[str, Any]:

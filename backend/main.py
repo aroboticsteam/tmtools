@@ -34,6 +34,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.brand import PRODUCT_NAME
 from backend.core.db import async_session_factory, check_db_connection, engine, get_db
 from backend.core.redis import check_redis_connection, redis_client
 from backend.core.command_bus import CommandBus
@@ -306,7 +307,7 @@ def create_app() -> FastAPI:
         raise RuntimeError("SECRET_KEY is not set. Refusing to start.")
 
     app = FastAPI(
-        title="TMTools",
+        title=PRODUCT_NAME,
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -337,7 +338,7 @@ def create_app() -> FastAPI:
         when the *response itself* indicates the instance can't serve
         traffic acceptably; DB-only ("degraded") status is still reported
         with a 200-compatible payload plus an explicit `status` field, but we
-        still return 503 to k8s readiness when DB is unreachable (Postgres is
+        still return 503 to readiness probes when DB is unreachable (Postgres is
         the source of truth and required), while a Redis-only outage keeps
         the pod marked ready and "degraded".
         """
