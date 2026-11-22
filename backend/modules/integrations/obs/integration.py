@@ -23,6 +23,7 @@ import contextlib
 import logging
 from typing import Any
 
+import websocket
 from obswebsocket import exceptions as obs_exceptions
 from obswebsocket import obsws
 from obswebsocket import requests as obs_requests
@@ -31,6 +32,12 @@ from backend.core.exceptions import IntegrationError
 from backend.modules.integrations.base import Integration
 
 logger = logging.getLogger(__name__)
+
+#: Errors that mean the socket to OBS is dead or stale (a `BrokenPipeError` after OBS restarted shows up as
+#: an `OSError`, a closed socket as websocket-client's exception).
+_STALE_ERRORS = (obs_exceptions.MessageTimeout, obs_exceptions.ConnectionFailure, OSError, websocket.WebSocketException)
+#: Seconds between liveness probes of the OBS socket (0 disables; `liveness_interval_seconds` in the config).
+LIVENESS_INTERVAL_S = 30.0
 
 DEFAULT_PORT = 4455  # obs-websocket protocol v5 default (OBS 28+); 4444 is legacy v4.
 SCENES_KEY_TMPL = "tmtools:integration:{entity_id}:scenes"
@@ -42,6 +49,7 @@ class ObsIntegration(Integration):
         self._obs: obsws | None = None
         self._scene_list: list[str] = []
         self._current_scene: str | None = None
+        self._liveness_task: asyncio.Task | None = None
 
     async def setup(self) -> None:
         host = self.config.get("host")
@@ -58,8 +66,44 @@ class ObsIntegration(Integration):
         self._obs = obs
 
         await self.refresh_scenes()
+        interval = float(self.config.get("liveness_interval_seconds", LIVENESS_INTERVAL_S) or 0)
+        if interval > 0 and self._liveness_task is None:
+            self._liveness_task = asyncio.create_task(self._liveness_loop(interval))
+
+    async def _liveness_loop(self, interval: float) -> None:
+        """Probe the socket so a stale connection (OBS restarted, laptop slept) is replaced before an automation
+        needs it, instead of failing the first call with `Broken pipe`."""
+        while True:
+            await asyncio.sleep(interval)
+            if self._obs is None:
+                continue
+            try:
+                await asyncio.to_thread(self._obs.call, obs_requests.GetVersion())
+            except asyncio.CancelledError:
+                raise
+            except _STALE_ERRORS:
+                logger.warning("obs[%s]: liveness probe failed; reconnecting", self.entity_id)
+                await self._on_connection_error()
+            except Exception:
+                logger.exception("obs[%s]: liveness probe error", self.entity_id)
+
+    async def _call(self, request: Any, what: str) -> Any:
+        """Send one request; on a stale socket reconnect and retry once."""
+        for attempt in (1, 2):
+            try:
+                return await asyncio.to_thread(self._obs.call, request)
+            except _STALE_ERRORS as exc:
+                if attempt == 2:
+                    raise IntegrationError(f"obs[{self.entity_id}]: {what} failed: {exc}") from exc
+                if not await self._on_connection_error():
+                    raise IntegrationError(f"obs[{self.entity_id}]: {what} failed: {exc}") from exc
 
     async def teardown(self) -> None:
+        if self._liveness_task is not None:
+            self._liveness_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._liveness_task
+            self._liveness_task = None
         try:
             if self._obs is not None:
                 await asyncio.to_thread(self._obs.disconnect)
@@ -98,11 +142,7 @@ class ObsIntegration(Integration):
             raise ValueError("switch_scene requires 'scene_name'")
         if self._obs is None:
             raise IntegrationError(f"obs[{self.entity_id}]: not connected")
-        try:
-            resp = await asyncio.to_thread(self._obs.call, obs_requests.SetCurrentProgramScene(sceneName=scene_name))
-        except (obs_exceptions.MessageTimeout, obs_exceptions.ConnectionFailure) as exc:
-            await self._on_connection_error()
-            raise IntegrationError(f"obs[{self.entity_id}]: switch_scene failed: {exc}") from exc
+        resp = await self._call(obs_requests.SetCurrentProgramScene(sceneName=scene_name), "switch_scene")
         self._raise_if_rejected(resp, f"switch_scene(scene_name={scene_name!r})")
         self._current_scene = scene_name
         return {"ok": True, "scene_name": scene_name}
@@ -113,11 +153,7 @@ class ObsIntegration(Integration):
             raise ValueError("trigger_hotkey requires 'hotkey_name'")
         if self._obs is None:
             raise IntegrationError(f"obs[{self.entity_id}]: not connected")
-        try:
-            resp = await asyncio.to_thread(self._obs.call, obs_requests.TriggerHotkeyByName(hotkeyName=hotkey_name))
-        except (obs_exceptions.MessageTimeout, obs_exceptions.ConnectionFailure) as exc:
-            await self._on_connection_error()
-            raise IntegrationError(f"obs[{self.entity_id}]: trigger_hotkey failed: {exc}") from exc
+        resp = await self._call(obs_requests.TriggerHotkeyByName(hotkeyName=hotkey_name), "trigger_hotkey")
         self._raise_if_rejected(resp, f"trigger_hotkey(hotkey_name={hotkey_name!r})")
         return {"ok": True, "hotkey_name": hotkey_name}
 
@@ -147,7 +183,7 @@ class ObsIntegration(Integration):
                 "but OBS declined it, e.g. an unknown scene/hotkey name)"
             )
 
-    async def _on_connection_error(self) -> None:
+    async def _on_connection_error(self) -> bool:
         # obs-websocket-py raises websocket-client's ConnectionClosedException
         # (wrapped here as MessageTimeout/ConnectionFailure) when the server
         # disconnects — mark DEGRADED and best-effort reconnect in the
@@ -168,10 +204,12 @@ class ObsIntegration(Integration):
                 await self.refresh_scenes()
             except Exception:
                 logger.warning("obs[%s]: reconnect after connection error failed", self.entity_id)
-                return
+                return False
             # Reconnect succeeded — clear the DEGRADED status so the loader's
             # CONNECTED status (set when setup() first ran) isn't left stuck.
             await self.report_status("CONNECTED")
+            return True
+        return False
 
     async def get_state(self) -> dict[str, Any]:
         return {
