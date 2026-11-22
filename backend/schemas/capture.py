@@ -49,6 +49,8 @@ class StartRecordingRequest(BaseModel):
     round: str | None = Field(default=None, max_length=40)
     instance: int | None = None
     match_num: int | None = None
+    #: Field whose last assigned match is used when no round/match number is given.
+    field_id: int | str | None = None
     red_teams: list[Any] = Field(default_factory=list, max_length=8)
     blue_teams: list[Any] = Field(default_factory=list, max_length=8)
 
