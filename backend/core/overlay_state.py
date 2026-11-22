@@ -15,13 +15,14 @@ problem must never break the event fan-out or the socket.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-KEY_PREFIX = "tmtools:overlay:state:"
+KEY_PREFIX = REDIS_PREFIX + "overlay:state:"
 KINDS = ("match", "team")
 TTL_SECONDS = 24 * 60 * 60
 

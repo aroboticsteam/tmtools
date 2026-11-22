@@ -9,6 +9,7 @@ reads its config, next match and agendas, and can message the desk.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import logging
 import re
@@ -68,11 +69,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["comms"])
 
-SCHEDULE_KEY_PATTERN = "tmtools:tm:*:schedule"
-SCREEN_KEY = "tmtools:station:{slug}:screen"
-LAST_KEY = "tmtools:station:{slug}:last"
+SCHEDULE_KEY_PATTERN = REDIS_PREFIX + "tm:*:schedule"
+SCREEN_KEY = REDIS_PREFIX + "station:{slug}:screen"
+LAST_KEY = REDIS_PREFIX + "station:{slug}:last"
 TIMER_KEY = station_timer.STATION_TIMER_KEY
-PIN_FAIL_KEY = "tmtools:station:{slug}:pinfail"
+PIN_FAIL_KEY = REDIS_PREFIX + "station:{slug}:pinfail"
 MAX_PIN_FAILURES = 10
 PIN_LOCK_SECONDS = 600
 DEFAULT_SCREEN = "messages"

@@ -15,6 +15,7 @@ break whatever triggered it.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import json
 import logging
@@ -33,9 +34,9 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 #: Operator alerts (the ones that also go to ntfy) fan out to staff push over this.
-STAFF_ALERTS_CHANNEL = "tmtools:staff_alerts"
+STAFF_ALERTS_CHANNEL = REDIS_PREFIX + "staff_alerts"
 
 ROOM_NOTICE_EVENT = "room_notice"
 NOTIFICATIONS_ENTITY_ID = "notifications"
