@@ -65,3 +65,29 @@ python agent.py --server https://tm.example.com --key tmt_... --input "-f avfoun
 ## Tests
 
 `backend/tests/test_capture/test_agent_tool.py` records a synthetic `lavfi` source and uploads it to the real object store through the real API.
+
+## TLS verification (`CERTIFICATE_VERIFY_FAILED`)
+
+`capture-setup.sh` currently starts the agent with `CAPTURE_INSECURE=1` (certificate checks off) as a
+stopgap for a `CERTIFICATE_VERIFY_FAILED` seen on a venue network. **That default is unchanged and
+deliberately not decided here.** The cause was not reproduced on that network; the usual ones, in order:
+
+1. **Python has no CA bundle** (python.org builds on macOS). The script already points
+   `SSL_CERT_FILE` at `certifi`'s bundle, which fixes this case.
+2. **The network intercepts TLS** (a captive proxy or firewall re-signs HTTPS with its own CA, which
+   no system trusts). Check who signed what the agent sees:
+   `openssl s_client -connect <server-host>:443 -showcerts </dev/null | grep -E 'issuer|subject'`.
+   If the issuer is the venue's, trust that CA instead of disabling checks: put its PEM path in
+   `.agent.env` as `SSL_CERT_FILE=/path/ca.pem` (a bundle that also contains the normal roots) and set
+   `CAPTURE_INSECURE=0`.
+3. **The server presents a self-signed or incomplete chain** (a LAN stack without a real certificate).
+   Same fix: trust that CA, or serve a proper chain.
+
+To turn verification on now: add `CAPTURE_INSECURE=0` to `.agent.env`.
+
+## Capture device
+
+The setup script saves the device by **name** (the numbers shift when OBS Virtual Camera or another
+camera starts or stops). If recording cannot open it, the agent reports "capture device busy" (another
+app is using it, no signal, wrong frame rate) or "capture device missing" (unplugged or renamed; re-run
+`bash capture-setup.sh --reconfigure`). A name containing `:` can only be saved by number.

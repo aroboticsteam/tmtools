@@ -99,10 +99,30 @@ if [ "$OS" = Darwin ]; then
   LIST="$(ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 || true)"
   echo "  Video devices:"; echo "$LIST" | awk '/video devices:/{v=1;next} /audio devices:/{v=0} v' | grep '\] \[' | sed 's/^.*\] \[/    [/'
   echo "  Audio devices:"; echo "$LIST" | awk '/audio devices:/{a=1;next} a' | grep '\] \[' | sed 's/^.*\] \[/    [/'
-  read -r -p "  Video device number (e.g. the Blackmagic/ATEM capture): " V
-  read -r -p "  Audio device number, or 'none' [none]: " A; A="${A:-none}"
-  case "$V" in ''|*[!0-9]*) die "video device must be a number" ;; esac
-  DEVSPEC="$V:$A"
+  # Devices are saved by NAME: the numbers shift when something else registers a camera (e.g. OBS Virtual Camera
+  # starting or stopping), which silently pointed the agent at the wrong device.
+  dev_name() { # $1 = video|audio, $2 = index -> device name
+    echo "$LIST" | awk -v sec="$1" '/video devices:/{s="video";next} /audio devices:/{s="audio";next} s==sec' \
+      | sed -n 's/^.*\] \[\([0-9][0-9]*\)\] \(.*\)$/\1|\2/p' | awk -F'|' -v n="$2" '$1==n{print $2; exit}'
+  }
+  dev_exists() { # $1 = video|audio, $2 = name
+    echo "$LIST" | awk -v sec="$1" '/video devices:/{s="video";next} /audio devices:/{s="audio";next} s==sec' \
+      | sed -n 's/^.*\] \[[0-9][0-9]*\] \(.*\)$/\1/p' | grep -Fxq -- "$2"
+  }
+  read -r -p "  Video device number or name (e.g. the Blackmagic/ATEM capture): " V
+  read -r -p "  Audio device number or name, or 'none' [none]: " A; A="${A:-none}"
+  case "$V" in ''|*[!0-9]*) VN="$V" ;; *) VN="$(dev_name video "$V")" ;; esac
+  [ -n "$VN" ] && dev_exists video "$VN" || die "no video device '$V' in the list above (device missing, or in use by another app)"
+  if [ "$A" = none ]; then AN=none; else
+    case "$A" in *[!0-9]*) AN="$A" ;; *) AN="$(dev_name audio "$A")" ;; esac
+    [ -n "$AN" ] && dev_exists audio "$AN" || die "no audio device '$A' in the list above"
+  fi
+  ok "video: $VN   audio: $AN"
+  # ffmpeg splits the device spec at the first ':', so a name containing one can only be given by number.
+  case "$VN" in *:*) case "$V" in ''|*[!0-9]*) die "device name '$VN' contains ':'; give its number instead" ;; esac
+    echo "  note: '$VN' contains ':' so it is saved by number and can shift if other cameras appear."; VN="$V" ;; esac
+  case "$AN" in *:*) case "$A" in ''|*[!0-9]*) die "audio name '$AN' contains ':'; give its number instead" ;; esac; AN="$A" ;; esac
+  DEVSPEC="$VN:$AN"
 else
   echo "  Video devices:"; ls /dev/video* 2>/dev/null | sed 's/^/    /' || true
   read -r -p "  Video device [/dev/video0]: " V; V="${V:-/dev/video0}"
@@ -143,7 +163,7 @@ if [ "$FOUND" = 0 ]; then
   if [ "$OS" = Darwin ]; then
     echo "  What the device supports:"
     ffmpeg -hide_banner -f avfoundation -framerate 1 -i "$DEVSPEC" 2>&1 | grep -E 'Supported modes|@\[|[0-9]+x[0-9]+@' | sed 's/^.*\] /    /' || true
-    die "no frame rate worked. Check: (1) no other app is using the device (close OBS, QuickTime, Zoom, Photo Booth), (2) System Settings -> Privacy & Security -> Camera allows your terminal, (3) the right video device number, (4) the capture card actually has a signal. Then re-run with --reconfigure."
+    die "no frame rate worked. Check: (1) no other app is using the device (close OBS, QuickTime, Zoom, Photo Booth), (2) System Settings -> Privacy & Security -> Camera allows your terminal, (3) the right video device, (4) the capture card actually has a signal. Then re-run with --reconfigure."
   fi
   die "the test recording failed. Check the device and that nothing else is using it, then re-run with --reconfigure."
 fi
@@ -209,6 +229,21 @@ RETRY_DELAYS = (2, 5, 10, 30, 60)
 
 
 @dataclass
+
+def explain_ffmpeg_error(err: str) -> str:
+    """Turn ffmpeg's complaint about opening the capture device into something an operator can act on."""
+    low = err.lower()
+    if any(k in low for k in ("could not lock device", "resource busy", "device or resource busy", "input/output error")):
+        hint = ("capture device busy: another app is probably using it (close OBS, QuickTime, Zoom, Photo Booth), "
+                "or the card has no signal / a different frame rate")
+    elif any(k in low for k in ("not found", "no such file", "no such device", "cannot open video device",
+                                "error opening input", "selected video device")):
+        hint = ("capture device missing: it is unplugged or renamed. Re-run capture-setup.sh --reconfigure "
+                "and pick it again")
+    else:
+        hint = "ffmpeg exited immediately"
+    return f"{hint}. ffmpeg said: {err.strip()}"
+
 class Settings:
     server: str
     key: str
@@ -261,7 +296,7 @@ class Recorder:
         await asyncio.sleep(0.3)
         if self.proc.returncode is not None:
             err = (await self.proc.stderr.read()).decode(errors="replace")[-400:] if self.proc.stderr else ""
-            raise RuntimeError(f"ffmpeg exited immediately: {err.strip()}")
+            raise RuntimeError(explain_ffmpeg_error(err))
 
     @property
     def elapsed_ms(self) -> int:

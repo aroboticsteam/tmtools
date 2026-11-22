@@ -42,6 +42,21 @@ RETRY_DELAYS = (2, 5, 10, 30, 60)
 
 
 @dataclass
+
+def explain_ffmpeg_error(err: str) -> str:
+    """Turn ffmpeg's complaint about opening the capture device into something an operator can act on."""
+    low = err.lower()
+    if any(k in low for k in ("could not lock device", "resource busy", "device or resource busy", "input/output error")):
+        hint = ("capture device busy: another app is probably using it (close OBS, QuickTime, Zoom, Photo Booth), "
+                "or the card has no signal / a different frame rate")
+    elif any(k in low for k in ("not found", "no such file", "no such device", "cannot open video device",
+                                "error opening input", "selected video device")):
+        hint = ("capture device missing: it is unplugged or renamed. Re-run capture-setup.sh --reconfigure "
+                "and pick it again")
+    else:
+        hint = "ffmpeg exited immediately"
+    return f"{hint}. ffmpeg said: {err.strip()}"
+
 class Settings:
     server: str
     key: str
@@ -94,7 +109,7 @@ class Recorder:
         await asyncio.sleep(0.3)
         if self.proc.returncode is not None:
             err = (await self.proc.stderr.read()).decode(errors="replace")[-400:] if self.proc.stderr else ""
-            raise RuntimeError(f"ffmpeg exited immediately: {err.strip()}")
+            raise RuntimeError(explain_ffmpeg_error(err))
 
     @property
     def elapsed_ms(self) -> int:
