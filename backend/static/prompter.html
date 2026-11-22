@@ -127,6 +127,12 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  #start-error {
+    margin-top: 12px;
+    font-size: clamp(14px, 2.2vw, 18px);
+    color: #fca5a5;
+    min-height: 1.2em;
+  }
 
   /* ── Cues ─────────────────────────────────────────────────────────── */
   #cue-section {
@@ -240,6 +246,7 @@
     <div id="phase-label">Idle</div>
     <div id="countdown-value">--:--</div>
     <button id="start-btn" type="button">Start Countdown</button>
+    <div id="start-error" role="alert"></div>
   </section>
 
   <section id="cue-section">
@@ -348,6 +355,7 @@
     phaseLabel: document.getElementById("phase-label"),
     countdownValue: document.getElementById("countdown-value"),
     startBtn: document.getElementById("start-btn"),
+    startError: document.getElementById("start-error"),
     activeCue: document.getElementById("active-cue"),
     nextCueLabel: document.getElementById("next-cue-label"),
     nextCue: document.getElementById("next-cue"),
@@ -574,6 +582,17 @@
     var payload = msg.payload || msg;
 
     switch (type) {
+      case "error":
+        // The server refused or failed the last request (e.g. start_countdown
+        // without a signed-in session holding prompter:control). Re-enable the
+        // button and say why instead of leaving it dead.
+        var detail = (msg.payload && (msg.payload.detail || msg.payload.error)) || "The server refused the request";
+        if (msg.payload && msg.payload.error === "forbidden") {
+          detail += ". Sign in to the admin UI on this device with a prompter:control role, then reload.";
+        }
+        el.startError.textContent = detail;
+        el.startBtn.disabled = false;
+        break;
       case "timer_state":
       case "timer_started":
       case "timer_milestone":
@@ -600,6 +619,7 @@
   el.startBtn.addEventListener("click", function () {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     el.startBtn.disabled = true;
+    el.startError.textContent = "";
     ws.send(JSON.stringify({ type: "start_countdown", entity_id: CONFIG.entityId }));
   });
 
