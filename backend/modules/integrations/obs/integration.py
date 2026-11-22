@@ -18,6 +18,7 @@ like the synchronous `PyATEMMax` client in the `atem` integration: every
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import logging
@@ -40,7 +41,7 @@ _STALE_ERRORS = (obs_exceptions.MessageTimeout, obs_exceptions.ConnectionFailure
 LIVENESS_INTERVAL_S = 30.0
 
 DEFAULT_PORT = 4455  # obs-websocket protocol v5 default (OBS 28+); 4444 is legacy v4.
-SCENES_KEY_TMPL = "tmtools:integration:{entity_id}:scenes"
+SCENES_KEY_TMPL = REDIS_PREFIX + "integration:{entity_id}:scenes"
 
 
 class ObsIntegration(Integration):

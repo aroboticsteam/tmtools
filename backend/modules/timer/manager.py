@@ -37,6 +37,8 @@ execution machinery, not authoritative state.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import asyncio
 import contextlib
 import json
@@ -55,8 +57,8 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
-CONFIG_CHANGE_CHANNEL = "tmtools:config_change"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
+CONFIG_CHANGE_CHANNEL = REDIS_PREFIX + "config_change"
 
 TICK_INTERVAL_SECONDS = 1.0
 
@@ -68,7 +70,7 @@ PHASE_MATCH_COMPLETE = "match_complete"
 
 
 def _state_key(entity_id: str) -> str:
-    return f"tmtools:timer:{entity_id}:state"
+    return REDIS_PREFIX + f"timer:{entity_id}:state"
 
 
 @dataclass
@@ -547,23 +549,24 @@ class TimerManager:
         await self._handle_match_stopped(data)
 
     async def _handle_match_stopped(self, event: dict[str, Any]) -> None:
-        """Match a `matchStopped` event to bound timer instance(s).
+        """Complete the timers of the field set whose match just stopped.
 
-        The canonical `matchStopped` payload (plan §C.4) carries `fieldID`
-        but not `field_set_id`; a `vex_tm` integration instance = one field
-        set (plan §B.5), so in principle we should resolve the firing
-        entity_id's `field_set_id` via `backend.loader.get_instance(...)`
-        and match on `(field_set_id, field_id)`. The Loader is being built
-        in a parallel Wave 2 worktree and may not be import-able yet, so we
-        fall back to matching on `field_id` alone (sufficient for the
-        common single-field-set event) when it isn't available. This is a
-        known gap — see this module's docstring and the PR description.
+        Timers belong to a **field set**, not to one field: the `vex_tm`
+        integration that emitted `matchStopped` is bound to a `field_set_id`
+        (plan §B.5), and every enabled timer of that field set that is in
+        `match_running` moves to `match_complete`, whatever its own
+        `field_id` is (a timer decoupled from its originating field must
+        still finish). Timers already in `match_complete` are left alone.
+
+        Fallback: when the field set cannot be resolved (Loader unavailable,
+        unknown entity), match on the event's `fieldID` against `field_id`
+        as before. Caveat: with several fields running at once in one field
+        set, any field's stop completes all running timers of that set.
         """
-        field_id = event.get("payload", {}).get("fieldID")
-        if field_id is None:
-            return
-
         field_set_id = await self._resolve_field_set_id(event.get("entity_id"))
+        field_id = event.get("payload", {}).get("fieldID")
+        if field_set_id is None and field_id is None:
+            return
 
         for entity_id, cfg in list(self._configs.items()):
             if not cfg.enabled:
@@ -572,9 +575,10 @@ class TimerManager:
                 # disabled instances), but skip it defensively in case it
                 # was disabled mid-flight after already starting.
                 continue
-            if cfg.field_id != field_id:
-                continue
-            if field_set_id is not None and cfg.field_set_id != field_set_id:
+            if field_set_id is not None:
+                if cfg.field_set_id != field_set_id:
+                    continue
+            elif cfg.field_id != field_id:
                 continue
             state = await self._read_state(entity_id)
             if state.get("phase") == PHASE_MATCH_RUNNING:

@@ -8,6 +8,7 @@ otherwise delegating to `backend.loader.get_instance(...).call_service(...)`
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import logging
 import time
@@ -137,7 +138,7 @@ async def _publish_config_change(redis_client: Any, entity_id: str, action: str,
         payload={"resource_type": "integration_instance", "entity_id": entity_id, "action": action},
     )
     try:
-        await redis_client.publish("tmtools:config_change", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "config_change", msg.model_dump_json())
     except Exception:
         logger.exception("Failed to publish config_change for %s", entity_id)
 
@@ -145,7 +146,7 @@ async def _publish_config_change(redis_client: Any, entity_id: str, action: str,
 async def _mirrored_state(redis_client: Any, entity_id: str) -> Any | None:
     """The leader's copy of an integration's `get_state()` (see `StateMirror`), or None."""
     try:
-        raw = await redis_client.get(f"tmtools:integration:state:{entity_id}")
+        raw = await redis_client.get(REDIS_PREFIX + f"integration:state:{entity_id}")
         return json.loads(raw) if raw else None
     except Exception:  # noqa: BLE001 - Redis trouble means "no mirrored state"
         return None

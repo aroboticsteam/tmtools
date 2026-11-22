@@ -8,10 +8,11 @@ Nothing here owns timer state; the old ad-hoc station timers are gone.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import time
 from typing import Any
 
-STATION_TIMER_KEY = "tmtools:station:{slug}:timer"
+STATION_TIMER_KEY = REDIS_PREFIX + "station:{slug}:timer"
 BINDING_TTL_SECONDS = 24 * 3600
 PHASE_IDLE = "idle"
 PHASE_COUNTDOWN = "countdown"
@@ -19,7 +20,7 @@ PHASE_COUNTDOWN = "countdown"
 
 def timer_state_key(entity_id: str) -> str:
     """Must match `backend/modules/timer/manager.py::_state_key`."""
-    return f"tmtools:timer:{entity_id}:state"
+    return REDIS_PREFIX + f"timer:{entity_id}:state"
 
 
 def display_state(

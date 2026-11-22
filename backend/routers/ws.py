@@ -15,6 +15,7 @@ this module never imports `backend.modules.timer.manager`.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import json
@@ -48,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["websocket"])
 
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 TIMER_EVENT_TYPES = {"timer_started", "timer_milestone", "timer_finished", "timer_stopped"}
 
 #: Bookkeeping bucket key for `/ws/events` connections (not entity-scoped,

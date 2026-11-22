@@ -209,13 +209,26 @@ function MatchTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canControl, setup.keys]);
 
+  // A refused or failed OBS scene switch (e.g. the role lacks `video:control`) must not look like a dead button.
+  const switchScene = (scene: string) => {
+    if (!setup.obsEntity) return;
+    callService.mutate(
+      { entityId: setup.obsEntity, service: 'switch_scene', data: { scene_name: scene } },
+      {
+        onSuccess: () => pushToast(`Switched OBS to "${scene}"`, 'success'),
+        onError: (err) =>
+          pushToast(`Could not switch OBS to "${scene}": ${err instanceof Error ? err.message : 'unknown error'}`, 'error'),
+      },
+    );
+  };
+
   const sendToProgram = (kind: 'moment' | 'recording', id: string) => {
     play.mutate(
       { kind, id, rate: speed },
       {
         onSuccess: () => {
           if (setup.obsEntity && setup.replayScene) {
-            callService.mutate({ entityId: setup.obsEntity, service: 'switch_scene', data: { scene_name: setup.replayScene } });
+            switchScene(setup.replayScene);
           }
         },
         onError: (err) => pushToast(err instanceof Error ? err.message : 'Could not send to program', 'error'),
@@ -226,13 +239,16 @@ function MatchTab({
   const backToProgram = () => {
     control.mutate({ action: 'stop' });
     if (setup.obsEntity && setup.programScene) {
-      callService.mutate({ entityId: setup.obsEntity, service: 'switch_scene', data: { scene_name: setup.programScene } });
+      switchScene(setup.programScene);
     }
   };
 
   const flashLed = () => {
     if (!setup.wledEntity) return;
-    callService.mutate({ entityId: setup.wledEntity, service: 'flash', data: {} });
+    callService.mutate(
+      { entityId: setup.wledEntity, service: 'flash', data: {} },
+      { onError: (err) => pushToast(`LED flash failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error') },
+    );
   };
 
   return (

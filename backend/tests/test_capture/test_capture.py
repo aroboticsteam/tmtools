@@ -367,3 +367,29 @@ async def test_rest_replay_permissions(client, agent):
     assert (await client.get("/api/v1/capture/replay/main")).status_code == 200
     assert (await client.post("/api/v1/capture/replay/main/control", json={"action": "stop"})).status_code == 403
     assert (await client.post("/api/v1/capture/replay/main/play", json={"kind": "recording", "id": str(uuid.uuid4())})).status_code == 403
+
+
+async def test_fill_from_field_uses_the_fields_last_assigned_match():
+    import json as _json
+
+    from backend.core import field_state
+
+    r = fake_aioredis.FakeRedis(decode_responses=True)
+    await r.hset(
+        field_state.STATE_KEY,
+        "2",
+        _json.dumps({"type": "fieldMatchAssigned", "entity_id": "vex_tm.main", "timestamp": 1,
+                     "payload": {"fieldID": 2, "round": 2, "matchNum": 7, "redTeams": ["1A"], "blueTeams": ["2B"]}}),
+    )
+    filled = await service.fill_from_field(r, {"field_id": 2})
+    info = service.parse_match(filled)
+    assert info["alliances"] == {"red": ["1A"], "blue": ["2B"]}
+    assert info["match_key"].endswith(":2:1:7")
+
+    # Explicit match info wins and is untouched.
+    explicit = {"field_id": 2, "round": 1, "match_num": 3}
+    assert await service.fill_from_field(r, explicit) == explicit
+
+    # No assignment for the field -> a clear error rather than a bogus recording.
+    with pytest.raises(ValueError, match="field 9"):
+        await service.fill_from_field(r, {"field_id": 9})
