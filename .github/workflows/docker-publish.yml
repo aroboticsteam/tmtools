@@ -9,9 +9,13 @@ name: Docker
 #   ghcr.io/<repo>:backend   the API with the built SPA bundled in (Dockerfile `backend` target)
 #   ghcr.io/<repo>:frontend  just the built SPA behind nginx        (Dockerfile `frontend` target)
 #
-# Every tag is also mirrored to registry.example.net/vex-tm-tools (same tags) when
-# the MIRROR_REGISTRY_USERNAME / MIRROR_REGISTRY_PASSWORD repo secrets are set,
-# for hosts that cannot reach ghcr.io (e.g. behind a TLS-inspecting proxy).
+# Every tag is also mirrored to <MIRROR_REGISTRY>/<MIRROR_IMAGE_NAME> (same tags)
+# for hosts that cannot reach ghcr.io (e.g. behind a TLS-inspecting proxy). It is
+# configured per repository, never in code:
+#   repo variable  MIRROR_REGISTRY          registry host (e.g. registry.example.net)
+#   repo variable  MIRROR_IMAGE_NAME        optional, defaults to the repo name
+#   repo secrets   MIRROR_REGISTRY_USERNAME / MIRROR_REGISTRY_PASSWORD
+# The mirror step is skipped unless the variable and both secrets are set.
 #
 # Each image is built for linux/amd64 and linux/arm64 natively (one job per
 # arch, on GitHub's own amd64/arm64 runners — no QEMU emulation) and merged
@@ -34,8 +38,8 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
   # Secondary registry the merged manifests are mirrored to (see header).
-  MIRROR_REGISTRY: registry.example.net
-  MIRROR_IMAGE_NAME: vex-tm-tools
+  MIRROR_REGISTRY: ${{ vars.MIRROR_REGISTRY }}
+  MIRROR_IMAGE_NAME: ${{ vars.MIRROR_IMAGE_NAME || github.event.repository.name }}
 
 jobs:
   build:
@@ -168,14 +172,14 @@ jobs:
 
       # Copy the finished multi-arch manifest (all tags) to the mirror
       # registry. Skipped when its credentials are not configured.
-      - name: Mirror to ${{ env.MIRROR_REGISTRY }}
+      - name: Mirror to the secondary registry
         env:
           MIRROR_USER: ${{ secrets.MIRROR_REGISTRY_USERNAME }}
           MIRROR_PASS: ${{ secrets.MIRROR_REGISTRY_PASSWORD }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          if [ -z "$MIRROR_USER" ] || [ -z "$MIRROR_PASS" ]; then
-            echo "MIRROR_REGISTRY_* secrets not set; skipping mirror"
+          if [ -z "$MIRROR_REGISTRY" ] || [ -z "$MIRROR_USER" ] || [ -z "$MIRROR_PASS" ]; then
+            echo "MIRROR_REGISTRY variable or MIRROR_REGISTRY_* secrets not set; skipping mirror"
             exit 0
           fi
           echo "$MIRROR_PASS" | docker login "$MIRROR_REGISTRY" -u "$MIRROR_USER" --password-stdin

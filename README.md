@@ -1,6 +1,6 @@
 # VEX TM Tools
 
-[![Tests](https://github.com/aroboticsteam/vex-tm-tools/actions/workflows/tests.yml/badge.svg)](https://github.com/aroboticsteam/vex-tm-tools/actions/workflows/tests.yml)
+[![Tests](https://github.com/aroboticsteam/tmtools/actions/workflows/tests.yml/badge.svg)](https://github.com/aroboticsteam/tmtools/actions/workflows/tests.yml)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](backend/requirements.txt)
 [![Node 20](https://img.shields.io/badge/node-20-339933)](frontend/package.json)
 [![Coverage >= 80%](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](.github/workflows/tests.yml)
