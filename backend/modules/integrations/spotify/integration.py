@@ -19,6 +19,7 @@ Per §C.7.3:
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import logging
@@ -38,8 +39,8 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_BASE_URL = "https://api.spotify.com/v1"
 PLAYBACK_POLL_INTERVAL_SECONDS = 5
 
-ACCESS_TOKEN_KEY_TMPL = "tmtools:integration:{entity_id}:spotify_access_token"
-REFRESH_TOKEN_KEY_TMPL = "tmtools:integration:{entity_id}:spotify_refresh_token"
+ACCESS_TOKEN_KEY_TMPL = REDIS_PREFIX + "integration:{entity_id}:spotify_access_token"
+REFRESH_TOKEN_KEY_TMPL = REDIS_PREFIX + "integration:{entity_id}:spotify_refresh_token"
 
 
 class SpotifyIntegration(Integration):

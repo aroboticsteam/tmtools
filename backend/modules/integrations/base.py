@@ -17,6 +17,8 @@ integration modules). Must NOT import from `loader/`, `routers/`, `models/`,
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import logging
 from typing import Any, Awaitable, Callable
 
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 # key format. Previously this template was duplicated verbatim across
 # loader.py and three of the five integration files, which risked drifting
 # out of sync on a future rename.
-STATUS_KEY_TMPL = "tmtools:integration:{entity_id}:status"
+STATUS_KEY_TMPL = REDIS_PREFIX + "integration:{entity_id}:status"
 
 
 class Integration:

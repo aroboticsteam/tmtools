@@ -21,6 +21,7 @@ self-signed test JWT instead of hitting a real issuer.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 import secrets
 import time
@@ -55,7 +56,7 @@ router = APIRouter(tags=["auth"])
 
 #: Redis key holding the short-lived OIDC `state` -> PKCE `code_verifier`
 #: mapping generated at /auth/login and consumed at /auth/callback.
-OIDC_STATE_KEY_TMPL = "tmtools:oidc_state:{state}"
+OIDC_STATE_KEY_TMPL = REDIS_PREFIX + "oidc_state:{state}"
 OIDC_STATE_TTL_SECONDS = 600  # 10 minutes — long enough for an IdP round trip.
 
 ADMIN_LOCAL_USER_ID = "admin_local"

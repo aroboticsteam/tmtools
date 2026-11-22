@@ -33,6 +33,7 @@ frozen per plan §C.2:
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import importlib.util
@@ -55,15 +56,15 @@ from backend.modules.integrations.base import STATUS_KEY_TMPL, Integration
 logger = logging.getLogger(__name__)
 
 INTEGRATIONS_DIR = Path(__file__).parent / "modules" / "integrations"
-CONFIG_CHANGE_CHANNEL = "tmtools:config_change"
-EVENTS_CHANNEL = "tmtools:events"
+CONFIG_CHANGE_CHANNEL = REDIS_PREFIX + "config_change"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 
 # Appendix A.11's Integration Debug Log: last-100-raw-events ring buffer per
 # integration instance, keyed the same way as `STATUS_KEY_TMPL` (see
 # `_events_debug_log_listener` below). A generous 7-day TTL is used instead
 # of no TTL at all so a long-deleted/renamed entity's debug log doesn't
 # linger in Redis forever with nothing left to clean it up.
-DEBUG_LOG_KEY_TMPL = "tmtools:integration:{entity_id}:debug_log"
+DEBUG_LOG_KEY_TMPL = REDIS_PREFIX + "integration:{entity_id}:debug_log"
 DEBUG_LOG_MAX_ENTRIES = 100
 DEBUG_LOG_TTL_SECONDS = 7 * 24 * 3600
 

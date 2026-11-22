@@ -5,6 +5,7 @@ Thin CRUD router over `overlay_instances`, plus a preview endpoint. Per
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 import time
 from typing import Annotated, Any
@@ -53,7 +54,7 @@ async def _publish_config_change(redis_client: Any, entity_id: str, action: str,
         payload={"resource_type": "overlay_instance", "entity_id": entity_id, "action": action},
     )
     try:
-        await redis_client.publish("tmtools:config_change", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "config_change", msg.model_dump_json())
     except Exception:
         logger.exception("Failed to publish config_change for %s", entity_id)
 
@@ -160,7 +161,7 @@ async def show_team(
         payload={"team": body.team.upper() if body.team else None},
     )
     try:
-        await redis_client.publish("tmtools:events", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "events", msg.model_dump_json())
     except Exception:
         logger.exception("Failed to publish overlay_show_team for %s", entity_id)
         raise HTTPException(status_code=503, detail="Event bus unavailable")
