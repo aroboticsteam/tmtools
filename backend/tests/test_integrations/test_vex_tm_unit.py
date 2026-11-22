@@ -6,6 +6,7 @@ real network I/O.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -493,3 +494,44 @@ async def test_explicit_event_field_wins_and_does_not_move_current_on_stop(redis
     await _send(integration, type="matchStopped", fieldID=2, matchID=1)
     assert sent[1]["fieldID"] == 2
     assert (await integration.get_state())["current_field"] == 1
+
+
+class _SilentWs:
+    """An open TM WebSocket that never delivers anything (the 'CONNECTED but dead' case)."""
+
+    def __init__(self):
+        self.close = AsyncMock()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await asyncio.Event().wait()
+
+
+async def test_receive_loop_reconnects_when_the_socket_goes_silent(redis_client, monkeypatch):
+    import backend.modules.integrations.vex_tm.integration as mod
+
+    config = _make_config()
+    config["ws_idle_timeout_seconds"] = 0.05
+    integration = VexTmIntegration("vex_tm.test", config, redis_client, None)
+    reports = _status_recorder(integration)
+    monkeypatch.setattr(mod.asyncio, "sleep", AsyncMock())
+
+    attempts = {"n": 0}
+    silent = _SilentWs()
+
+    async def open_ws():
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            return silent
+        integration._shutdown.set()
+        raise ConnectionError("stop")
+
+    integration._open_ws = open_ws
+    await integration._receive_loop()
+
+    assert attempts["n"] == 2  # the silent socket was dropped and a new one opened
+    silent.close.assert_awaited()
+    assert reports[0] == ("CONNECTED", True)
+    assert reports[1][0] == "DEGRADED"
