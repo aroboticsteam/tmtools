@@ -337,7 +337,7 @@ def create_app() -> FastAPI:
         when the *response itself* indicates the instance can't serve
         traffic acceptably; DB-only ("degraded") status is still reported
         with a 200-compatible payload plus an explicit `status` field, but we
-        still return 503 to k8s readiness when DB is unreachable (Postgres is
+        still return 503 to readiness probes when DB is unreachable (Postgres is
         the source of truth and required), while a Redis-only outage keeps
         the pod marked ready and "degraded".
         """
