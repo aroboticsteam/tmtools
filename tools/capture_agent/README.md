@@ -9,12 +9,20 @@ run on a different machine from OBS.
 
 ## Quick setup (macOS / Linux)
 
+`capture-setup.sh` is one self-contained file (the agent is embedded in it). Copy it to the
+AV laptop and run it from anywhere:
+
 ```bash
-cd tools/capture_agent && ./setup.sh   # checks ffmpeg/Python, installs, asks for server + key, picks the device, test-records 3 s
-./run.sh                                # start the agent (extra flags are passed through)
+bash capture-setup.sh
 ```
 
-`setup.sh` saves the server, key and input to `.agent.env` (mode 600, git-ignored) and writes `run.sh`.
+First run: checks ffmpeg/Python, installs into `~/tmtools-capture` (override with
+`TMTOOLS_CAPTURE_DIR`), asks for the server URL and API key (hidden), lets you pick the capture
+device, test-records 3 s, saves everything to `.agent.env` (mode 600) and starts the agent.
+Every later run reuses the saved setup with no questions, refreshes the agent code and starts
+it. On macOS the script tries several frame rates until one works (capture cards only accept their signal's rate). Extra flags go to the agent (`bash capture-setup.sh --keep-local`); `--reconfigure` redoes
+the questions. `~/tmtools-capture/run.sh` starts the agent directly. After editing `agent.py`
+run `python3 tools/capture_agent/build_setup.py` to re-embed it (a test checks they match).
 
 ## Setup (manual)
 
@@ -57,3 +65,29 @@ python agent.py --server https://tm.example.com --key tmt_... --input "-f avfoun
 ## Tests
 
 `backend/tests/test_capture/test_agent_tool.py` records a synthetic `lavfi` source and uploads it to the real object store through the real API.
+
+## TLS verification (`CERTIFICATE_VERIFY_FAILED`)
+
+`capture-setup.sh` currently starts the agent with `CAPTURE_INSECURE=1` (certificate checks off) as a
+stopgap for a `CERTIFICATE_VERIFY_FAILED` seen on a venue network. **That default is unchanged and
+deliberately not decided here.** The cause was not reproduced on that network; the usual ones, in order:
+
+1. **Python has no CA bundle** (python.org builds on macOS). The script already points
+   `SSL_CERT_FILE` at `certifi`'s bundle, which fixes this case.
+2. **The network intercepts TLS** (a captive proxy or firewall re-signs HTTPS with its own CA, which
+   no system trusts). Check who signed what the agent sees:
+   `openssl s_client -connect <server-host>:443 -showcerts </dev/null | grep -E 'issuer|subject'`.
+   If the issuer is the venue's, trust that CA instead of disabling checks: put its PEM path in
+   `.agent.env` as `SSL_CERT_FILE=/path/ca.pem` (a bundle that also contains the normal roots) and set
+   `CAPTURE_INSECURE=0`.
+3. **The server presents a self-signed or incomplete chain** (a LAN stack without a real certificate).
+   Same fix: trust that CA, or serve a proper chain.
+
+To turn verification on now: add `CAPTURE_INSECURE=0` to `.agent.env`.
+
+## Capture device
+
+The setup script saves the device by **name** (the numbers shift when OBS Virtual Camera or another
+camera starts or stops). If recording cannot open it, the agent reports "capture device busy" (another
+app is using it, no signal, wrong frame rate) or "capture device missing" (unplugged or renamed; re-run
+`bash capture-setup.sh --reconfigure`). A name containing `:` can only be saved by number.
