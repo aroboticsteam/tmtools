@@ -228,8 +228,6 @@ HEARTBEAT_S = 15
 RETRY_DELAYS = (2, 5, 10, 30, 60)
 
 
-@dataclass
-
 def explain_ffmpeg_error(err: str) -> str:
     """Turn ffmpeg's complaint about opening the capture device into something an operator can act on."""
     low = err.lower()
@@ -244,6 +242,7 @@ def explain_ffmpeg_error(err: str) -> str:
         hint = "ffmpeg exited immediately"
     return f"{hint}. ffmpeg said: {err.strip()}"
 
+@dataclass
 class Settings:
     server: str
     key: str
