@@ -46,7 +46,7 @@ body {
   overflow-y: scroll;
 }
 
-/* example.com Glassmorphism Cards */
+/* Glassmorphism Cards */
 .vmd-card {
   background: var(--color-surface);
   backdrop-filter: blur(10px) saturate(155%);
