@@ -15,6 +15,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.core import field_state
 from backend.core.exceptions import IntegrationError
 from backend.models.capture import CaptureMoment, CaptureRecording
 from backend.modules.capture import hub, keys
@@ -114,8 +115,31 @@ async def _drop_objects(keys_: list[str]) -> int:
     return deleted
 
 
+async def fill_from_field(redis: Any, params: dict[str, Any]) -> dict[str, Any]:
+    """When the request names a field (`field_id` / `fieldID`) but no round and
+    match number, take the match last assigned to that field from the field
+    state. This is what lets a start triggered by a field-less event (the
+    audience display going to `IN_MATCH`) or by a `matchStarted` that carries
+    only `fieldID` still tag the recording. Explicit values always win."""
+    field = params.get("field_id", params.get("fieldID"))
+    tup = params.get("match") if isinstance(params.get("match"), dict) else {}
+    have_round = tup.get("round", params.get("round")) is not None
+    have_match = tup.get("match", params.get("match_num", params.get("matchNum"))) is not None
+    if field in (None, "") or (have_round and have_match):
+        return params
+    entry = (await field_state.snapshot(redis))["matches"].get(str(field))
+    payload = entry.get("payload") if isinstance(entry, dict) else None
+    if not isinstance(payload, dict):
+        raise ValueError(f"No match is assigned to field {field}")
+    filled = dict(params)
+    for key in ("match", "round", "instance", "matchNum", "redTeams", "blueTeams", "division", "session"):
+        if payload.get(key) is not None and filled.get(key) is None:
+            filled[key] = payload[key]
+    return filled
+
+
 async def start_recording(redis: Any, session_factory: SessionFactory, params: dict[str, Any]) -> dict[str, Any]:
-    info = parse_match(params)
+    info = parse_match(await fill_from_field(redis, params))
     if await hub.get_presence(redis) is None:
         raise IntegrationError("The capture agent is not connected")
 
