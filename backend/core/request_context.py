@@ -11,7 +11,7 @@ from backend.core.audit import current_request_ip
 
 def _client_ip(scope: Scope) -> str | None:
     """Prefers the leftmost `X-Forwarded-For` entry (this stack sits behind
-    Traefik, per `local-testing/docker-compose.proxy.yml` / prod's ingress)
+    Traefik, per the deployment repo's local-testing proxy / prod's ingress)
     and falls back to the raw ASGI client address."""
     for name, value in scope.get("headers") or []:
         if name == b"x-forwarded-for":
