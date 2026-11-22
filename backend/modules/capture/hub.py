@@ -8,6 +8,7 @@ is a short-TTL Redis key the agent's heartbeat keeps alive.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import time
 from typing import Any
@@ -15,8 +16,8 @@ from typing import Any
 from backend.core.exceptions import IntegrationError
 from backend.schemas.events import EventBusMessage
 
-EVENTS_CHANNEL = "tmtools:events"
-PRESENCE_KEY = "tmtools:capture:agent"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
+PRESENCE_KEY = REDIS_PREFIX + "capture:agent"
 PRESENCE_TTL_S = 45
 #: Bucket in the WebSocket `ConnectionManager` holding the agent's socket.
 AGENT_BUCKET = "capture:agent"

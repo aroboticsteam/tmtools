@@ -20,6 +20,7 @@ forwarded to staff push). Only the leader runs it (started/stopped from
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import json
@@ -59,8 +60,8 @@ from backend.modules.notifications.logic import (
 logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 10
-SCHEDULE_KEY_PATTERN = "tmtools:tm:*:schedule"
-ASSIGNED_HASH_KEY = "tmtools:notif:assigned"
+SCHEDULE_KEY_PATTERN = REDIS_PREFIX + "tm:*:schedule"
+ASSIGNED_HASH_KEY = REDIS_PREFIX + "notif:assigned"
 SETTINGS_KEY = "notifications"
 
 #: Room-display toast length for automatic alerts.

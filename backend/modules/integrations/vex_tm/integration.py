@@ -24,6 +24,7 @@ poller both run as ``asyncio.Task``s created in ``setup()`` and cancelled in
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import contextlib
 import hashlib
@@ -46,12 +47,12 @@ from backend.schemas.events import EventBusMessage
 logger = logging.getLogger(__name__)
 
 DEFAULT_AUTH_URL = "https://auth.vextm.dwabtech.com/oauth2/token"
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 # Teams found in the polled schedule, for the scraper to create profiles for
 # (kept off `tmtools:events` so it doesn't show up in the live feed/automations).
-TEAMS_DISCOVERED_CHANNEL = "tmtools:tm_teams_discovered"
-TOKEN_KEY_TMPL = "tmtools:tm:{entity_id}:token"
-SCHEDULE_KEY_TMPL = "tmtools:tm:{entity_id}:schedule"
+TEAMS_DISCOVERED_CHANNEL = REDIS_PREFIX + "tm_teams_discovered"
+TOKEN_KEY_TMPL = REDIS_PREFIX + "tm:{entity_id}:token"
+SCHEDULE_KEY_TMPL = REDIS_PREFIX + "tm:{entity_id}:schedule"
 
 MAX_BACKOFF_SECONDS = 300  # 5 minutes, per plan §3.7
 
