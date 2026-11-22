@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
+import asyncio
+
 import fakeredis.aioredis
 import pytest
 from obswebsocket import exceptions as obs_exceptions
@@ -50,7 +52,12 @@ class TriggerHotkeyByName(FakeRequest):
     pass
 
 
+class GetVersion(FakeRequest):
+    pass
+
+
 class FakeObsRequestsModule:
+    GetVersion = GetVersion
     GetSceneList = GetSceneList
     SetCurrentProgramScene = SetCurrentProgramScene
     TriggerHotkeyByName = TriggerHotkeyByName
@@ -106,6 +113,7 @@ def patch_obsws(monkeypatch):
     GetSceneList.fail_with = None
     SetCurrentProgramScene.fail_with = None
     TriggerHotkeyByName.fail_with = None
+    GetVersion.fail_with = None
     GetSceneList.reject = False
     SetCurrentProgramScene.reject = False
     TriggerHotkeyByName.reject = False
@@ -327,3 +335,46 @@ async def test_teardown_never_raises(redis_client):
     bad.disconnect.side_effect = RuntimeError("boom")
     integration._obs = bad
     await integration.teardown()  # must not raise
+
+
+async def test_stale_socket_is_reconnected_and_the_call_retried(redis_client):
+    """A `Broken pipe` from a socket OBS dropped (restart, sleep) is healed by one reconnect + retry."""
+    integration = ObsIntegration("obs.test", _make_config(), redis_client, None)
+    await integration.setup()
+    try:
+        SetCurrentProgramScene.fail_with = BrokenPipeError("Broken pipe")
+        original = integration._obs.reconnect
+
+        def reconnect():
+            original()
+            SetCurrentProgramScene.fail_with = None
+
+        integration._obs.reconnect = reconnect
+        result = await integration.call_service("switch_scene", {"scene_name": "BRB"})
+        assert result["ok"] is True
+        assert integration._obs.reconnect_calls == 1
+    finally:
+        SetCurrentProgramScene.fail_with = None
+        await integration.teardown()
+
+
+async def test_liveness_loop_reconnects_a_dead_socket(redis_client):
+    integration = ObsIntegration("obs.test", _make_config(liveness_interval_seconds=0.05), redis_client, None)
+    await integration.setup()
+    try:
+        GetVersion.fail_with = BrokenPipeError("Broken pipe")
+        original = integration._obs.reconnect
+
+        def reconnect():
+            original()
+            GetVersion.fail_with = None
+
+        integration._obs.reconnect = reconnect
+        for _ in range(100):
+            if integration._obs.reconnect_calls:
+                break
+            await asyncio.sleep(0.05)
+        assert integration._obs.reconnect_calls == 1
+    finally:
+        GetVersion.fail_with = None
+        await integration.teardown()

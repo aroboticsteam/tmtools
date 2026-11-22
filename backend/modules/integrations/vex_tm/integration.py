@@ -47,6 +47,9 @@ from backend.schemas.events import EventBusMessage
 logger = logging.getLogger(__name__)
 
 DEFAULT_AUTH_URL = "https://auth.vextm.dwabtech.com/oauth2/token"
+#: Seconds without any TM WebSocket message before the receive loop reconnects (0 disables;
+#: `ws_idle_timeout_seconds` in the config). Guards against a socket that stays open but goes silent.
+WS_IDLE_TIMEOUT_S = 600.0
 EVENTS_CHANNEL = REDIS_PREFIX + "events"
 # Teams found in the polled schedule, for the scraper to create profiles for
 # (kept off `tmtools:events` so it doesn't show up in the live feed/automations).
@@ -436,7 +439,20 @@ class VexTmIntegration(Integration):
             self._ws = ws
             await self._report_ws_status("CONNECTED")
             try:
-                async for raw in ws:
+                idle = float(self.config.get("ws_idle_timeout_seconds", WS_IDLE_TIMEOUT_S) or 0)
+                messages = ws.__aiter__()
+                while True:
+                    # A socket that stays open but stops delivering events (seen at a live event, status still
+                    # CONNECTED) is only detectable by silence: reconnect after `idle` seconds without a message.
+                    try:
+                        raw = await asyncio.wait_for(messages.__anext__(), timeout=idle if idle > 0 else None)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "vex_tm[%s]: no WS message for %.0fs; reconnecting", self.entity_id, idle
+                        )
+                        break
                     await self._handle_ws_message(raw)
             except websockets.exceptions.ConnectionClosed as exc:
                 logger.info("vex_tm[%s]: WS closed (%s), reconnecting", self.entity_id, exc)
