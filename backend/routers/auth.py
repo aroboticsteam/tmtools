@@ -21,6 +21,7 @@ self-signed test JWT instead of hitting a real issuer.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 import secrets
 import time
@@ -55,7 +56,7 @@ router = APIRouter(tags=["auth"])
 
 #: Redis key holding the short-lived OIDC `state` -> PKCE `code_verifier`
 #: mapping generated at /auth/login and consumed at /auth/callback.
-OIDC_STATE_KEY_TMPL = "tmtools:oidc_state:{state}"
+OIDC_STATE_KEY_TMPL = REDIS_PREFIX + "oidc_state:{state}"
 OIDC_STATE_TTL_SECONDS = 600  # 10 minutes — long enough for an IdP round trip.
 
 ADMIN_LOCAL_USER_ID = "admin_local"
@@ -221,7 +222,7 @@ def _set_session_cookie(response: Response, signed_value: str) -> None:
         samesite="lax",
         secure=True,  # `Secure` is evaluated by the browser against the page's own origin
         # scheme, not the backend's internal transport — the app is only ever exposed over
-        # HTTPS (k8s/ingress.yaml's `websecure` entrypoint), so this must always be True.
+        # HTTPS (the reverse proxy's TLS entrypoint), so this must always be True.
     )
 
 

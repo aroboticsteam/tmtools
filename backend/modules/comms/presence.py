@@ -7,14 +7,15 @@ a page was last heard from.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-CONNS_KEY = "tmtools:station:{slug}:conns"
-SEEN_KEY = "tmtools:station:{slug}:seen"
+CONNS_KEY = REDIS_PREFIX + "station:{slug}:conns"
+SEEN_KEY = REDIS_PREFIX + "station:{slug}:seen"
 _CONNS_TTL = 90
 _SEEN_TTL = 7 * 24 * 3600
 

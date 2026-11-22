@@ -17,14 +17,16 @@ Both expire after `TTL_SECONDS` without an update, so a finished event does not 
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import json
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-STATE_KEY = "tmtools:field:state"
-EVENTS_PREFIX = "tmtools:field:events:"
+STATE_KEY = REDIS_PREFIX + "field:state"
+EVENTS_PREFIX = REDIS_PREFIX + "field:events:"
 MAX_EVENTS = 5
 TTL_SECONDS = 24 * 60 * 60
 

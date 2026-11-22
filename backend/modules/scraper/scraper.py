@@ -33,6 +33,8 @@ that is a coordination decision for the maintainers, not made here.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
+
 import asyncio
 import json
 import logging
@@ -58,10 +60,10 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 # Published by the vex_tm integration after each schedule poll (see
 # `_fetch_and_cache_schedule`): {"entity_id": ..., "teams": [...]}.
-TEAMS_DISCOVERED_CHANNEL = "tmtools:tm_teams_discovered"
+TEAMS_DISCOVERED_CHANNEL = REDIS_PREFIX + "tm_teams_discovered"
 TEAM_PROFILE_CACHE_TTL = 60 * 60 * 24  # 24h, per plan §5.11 / §8.
 # The VEX Events API is strictly rate-limited, so the resolved "current
 # season" id for a program is cached rather than re-fetched on every team
@@ -92,11 +94,11 @@ VE_INCOMPLETE_RETRY_GAP_SECONDS = 300
 
 
 def _team_cache_key(team_number: str) -> str:
-    return f"tmtools:team:{team_number}:profile"
+    return REDIS_PREFIX + f"team:{team_number}:profile"
 
 
 def _tm_token_key(entity_id: str) -> str:
-    return f"tmtools:tm:{entity_id}:token"
+    return REDIS_PREFIX + f"tm:{entity_id}:token"
 
 
 
@@ -611,7 +613,7 @@ class Scraper:
         `CURRENT_SEASON_CACHE_TTL`) since this only needs to change once a
         season, not once per team fetch, and the API is strictly
         rate-limited."""
-        cache_key = f"tmtools:re:season:{program_id}"
+        cache_key = REDIS_PREFIX + f"re:season:{program_id}"
         cached = await self._redis.get(cache_key)
         if cached:
             try:

@@ -18,6 +18,7 @@ helpers shared across routers live in `backend/core/`).
 """
 from __future__ import annotations
 
+from backend.core.brand import SESSION_COOKIE_NAME, REDIS_PREFIX
 import json
 import secrets
 import time
@@ -27,8 +28,7 @@ from itsdangerous import BadSignature, URLSafeSerializer
 
 from backend.core.settings import settings
 
-SESSION_COOKIE_NAME = "tmtools_session"
-SESSION_KEY_TMPL = "tmtools:session:{session_id}"
+SESSION_KEY_TMPL = REDIS_PREFIX + "session:{session_id}"
 SESSION_TTL_SECONDS = 24 * 60 * 60  # 24h, per Appendix B.1/B.9
 
 _ADMIN_LOCAL_USER_ID = "admin_local"

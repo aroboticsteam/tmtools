@@ -17,6 +17,7 @@ rather than importing `require_permission` directly at every route.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 from typing import Any
 from uuid import UUID
@@ -96,7 +97,7 @@ async def _publish_config_change(
         payload={"resource_type": "timer_instance", "entity_id": entity_id, "action": action},
     )
     try:
-        await redis_client.publish("tmtools:config_change", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "config_change", msg.model_dump_json())
     except Exception:
         # Config-change notification is best-effort; the DB write already
         # succeeded and a future reload()/restart will pick it up.
