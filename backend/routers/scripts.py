@@ -10,6 +10,7 @@ engine directly since script CRUD has no execution semantics of its own.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import time
 from typing import Any
 from uuid import UUID
@@ -45,7 +46,7 @@ async def _publish_config_change(redis_client: Any, script_id: str, action: str)
         payload={"resource_type": "script", "entity_id": script_id, "action": action},
     )
     try:
-        await redis_client.publish("tmtools:config_change", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "config_change", msg.model_dump_json())
     except Exception:
         pass
 

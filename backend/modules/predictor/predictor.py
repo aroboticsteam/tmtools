@@ -37,6 +37,7 @@ detailed dict for internal/test use only, and by this comment.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import json
 import logging
@@ -54,10 +55,10 @@ from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
-EVENTS_CHANNEL = "tmtools:events"
+EVENTS_CHANNEL = REDIS_PREFIX + "events"
 DEFAULT_HIGH_POTENTIAL_THRESHOLD_PCT = 15
-OPR_CACHE_KEY = "tmtools:predictor:opr"
-FLAGS_CACHE_KEY = "tmtools:predictor:flags"
+OPR_CACHE_KEY = REDIS_PREFIX + "predictor:opr"
+FLAGS_CACHE_KEY = REDIS_PREFIX + "predictor:flags"
 
 
 def match_id_for(division_id: Any, match_num: Any) -> str:

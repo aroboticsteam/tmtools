@@ -34,6 +34,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.brand import PRODUCT_NAME
 from backend.core.db import async_session_factory, check_db_connection, engine, get_db
 from backend.core.redis import check_redis_connection, redis_client
 from backend.core.command_bus import CommandBus
@@ -306,7 +307,7 @@ def create_app() -> FastAPI:
         raise RuntimeError("SECRET_KEY is not set. Refusing to start.")
 
     app = FastAPI(
-        title="TMTools",
+        title=PRODUCT_NAME,
         version="1.0.0",
         lifespan=lifespan,
     )

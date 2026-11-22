@@ -18,6 +18,7 @@ a real session/JWT/API-key check without touching any route signature here.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import logging
 import time
 from typing import Any
@@ -96,7 +97,7 @@ async def _publish_config_change(redis_client: Any, resource_type: str, entity_i
         payload={"resource_type": resource_type, "entity_id": entity_id, "action": action},
     )
     try:
-        await redis_client.publish("tmtools:config_change", msg.model_dump_json())
+        await redis_client.publish(REDIS_PREFIX + "config_change", msg.model_dump_json())
     except Exception:
         pass
 

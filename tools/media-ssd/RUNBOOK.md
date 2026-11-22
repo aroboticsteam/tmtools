@@ -1,4 +1,4 @@
-# Encrypted recording SSD runbook (tmtools-server)
+# Encrypted recording SSD runbook (event server; written for the now-decommissioned event Pi)
 
 Script: `media-ssd.sh` (copy to the Pi, e.g. `/root/media-ssd.sh`, `chmod +x`). Run as root. Add `--dry-run` to any subcommand to print commands only.
 Prereqs on the Pi (already installed 2026-11-20): `cryptsetup 2.7.5`, `parted`, `smartmontools`. dm_crypt loads, aes-xts uses ARM CE (`xts-aes-ce`), ~1.4 GiB/s, so encryption is not a bottleneck for 15 Mbps recordings.
@@ -45,7 +45,7 @@ Procedure (from `/var/lib/tmtools/stack`; verify the compose invocation used on 
    and remove `garage_data:` from the top-level `volumes:` (or leave it; unused). Keep a backup: `cp core.yml core.yml.bak-ssd-<date>`.
    Optional guard so docker does not create the dir on the SD card if the SSD is missing: use long syntax `- type: bind, source: /mnt/media/garage, target: /var/lib/garage/data, bind: {create_host_path: false}`. (The `chattr +i` on the mountpoint also protects against this.)
 5. `docker compose ... up -d garage` (garage-init will re-run its idempotent init).
-6. Verify: `docker exec tmtools-stack-garage-1 /garage status` (DataAvail should now show the SSD size), `docker exec tmtools-stack-garage-1 /garage bucket list` (bucket `tmtools` present), and an S3 listing/object GET through the normal endpoint. Check `df -h /mnt/media` grows with new uploads.
+6. Verify: `docker exec tmtools-stack-garage-1 /garage status` (DataAvail should now show the SSD size), `docker exec tmtools-stack-garage-1 /garage bucket list` (the TMTools bucket is present; the event Pi's bucket predated the rename and used the legacy codename), and an S3 listing/object GET through the normal endpoint. Check `df -h /mnt/media` grows with new uploads.
 7. After a few days of confirmed good operation, `docker volume rm tmtools-stack_garage_data` to reclaim SD space.
 
 Rollback: stop garage, restore `core.yml.bak-ssd-*`, `up -d garage` (old volume still intact until step 7).
