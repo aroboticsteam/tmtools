@@ -388,3 +388,55 @@ async def test_start_countdown_rejects_disabled_instance(db_session_factory, red
     finally:
         await manager.stop()
         await _cleanup_timers(db_session_factory, [entity_id])
+
+
+async def test_match_stopped_completes_every_timer_in_the_field_set(redis_client):
+    """A timer whose own field_id differs from the stopped match's field
+    still completes when it belongs to the same field set; other field
+    sets are untouched."""
+    from backend.modules.timer.manager import _TimerConfig
+
+    manager = TimerManager(redis_client, session_factory=None, tick_interval=FAST_TICK)
+
+    def cfg(eid: str, field_set_id: int, field_id: int) -> _TimerConfig:
+        return _TimerConfig(
+            entity_id=eid, display_name=eid, field_set_id=field_set_id,
+            field_id=field_id, tags=[], enabled=True, duration_s=5,
+        )
+
+    manager._configs = {
+        "t.same_field": cfg("t.same_field", 1, 7),
+        "t.decoupled": cfg("t.decoupled", 1, 99),
+        "t.other_set": cfg("t.other_set", 2, 7),
+    }
+    completed: list[str] = []
+
+    async def fake_read_state(entity_id):
+        return {"phase": PHASE_MATCH_RUNNING}
+
+    async def fake_complete(entity_id, _cfg):
+        completed.append(entity_id)
+
+    async def fake_resolve(_entity_id):
+        return 1
+
+    manager._read_state = fake_read_state
+    manager._complete_match = fake_complete
+    manager._resolve_field_set_id = fake_resolve
+
+    await manager._handle_match_stopped(
+        {"entity_id": "vex_tm.division_1", "type": "matchStopped", "payload": {"fieldID": 7}}
+    )
+    assert sorted(completed) == ["t.decoupled", "t.same_field"]
+
+    # Unresolvable field set -> falls back to the event's fieldID.
+    completed.clear()
+
+    async def no_set(_entity_id):
+        return None
+
+    manager._resolve_field_set_id = no_set
+    await manager._handle_match_stopped(
+        {"entity_id": "vex_tm.division_1", "type": "matchStopped", "payload": {"fieldID": 7}}
+    )
+    assert sorted(completed) == ["t.other_set", "t.same_field"]
