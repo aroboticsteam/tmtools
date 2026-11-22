@@ -10,7 +10,7 @@ Talks to the FastAPI backend in [`../backend/`](../backend/).
 - **Server state:** TanStack Query v5 — all REST calls go through hooks in `src/api/`, never raw `fetch` in a page/component
 - **Client/live state:** Zustand — `src/stores/auth.ts`, `ws.ts`, `ui.ts`
 - **Realtime:** a custom `useWebSocket` hook (`src/hooks/`) with exponential-backoff reconnect, feeding the `ws` store
-- **Styling:** Tailwind CSS with the example.com design tokens (`src/index.css`, `tailwind.config.js`)
+- **Styling:** Tailwind CSS with the glassmorphism design tokens (`src/index.css`, `tailwind.config.js`)
 
 REST-fetched data and WebSocket-pushed data are kept in separate stores by
 design (plan §C.8) — a WS event may only trigger a TanStack Query
