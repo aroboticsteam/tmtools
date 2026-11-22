@@ -2,7 +2,7 @@
 """Generate a VAPID keypair for Web Push (team/staff notifications).
 
 Prints `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` lines ready to drop into the
-environment (or the k8s secret). Generate once per deployment and keep the
+environment (or your secrets store). Generate once per deployment and keep the
 private key secret; changing it invalidates every existing subscription.
 
     python tools/generate_vapid_keys.py

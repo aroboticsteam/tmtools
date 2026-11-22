@@ -4,7 +4,7 @@ Two independent pieces:
 
 1. **Screens and messages** (built into TMTools): the desk operator pushes
    messages/screens to iPads from **Comms** in the admin UI.
-2. **Voice**: a [Mumble](https://www.mumble.info/) server (`k8s/mumble.yaml`).
+2. **Voice**: a [Mumble](https://www.mumble.info/) server (the `mumble` profile of the stack).
    TMTools does not proxy voice.
 
 ## Setting up iPads
@@ -30,7 +30,7 @@ Two independent pieces:
 
 ## Voice (Mumble)
 
-Deploy `k8s/mumble.yaml` (set the server password secret first), expose
+Enable the stack's `mumble` profile (set the server password first), expose
 `64738/tcp+udp` to the iPads (it is *not* behind the HTTP ingress), then install
 the Mumble client on each iPad (or a compatible app such as Mumla/Mumble for iOS)
 and connect with the server password. Use channels such as *Desk*, *Emcees*, *Floor*.

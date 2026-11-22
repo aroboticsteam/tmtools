@@ -58,8 +58,8 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # One-shot init container mirroring k8s/deployment.yaml's `initContainers:
-  # migrate` (same image, same `alembic upgrade head` command) so a fresh
+  # One-shot init container running `alembic upgrade head`
+  # (same image, same `alembic upgrade head` command) so a fresh
   # `docker compose up` doesn't leave Postgres with zero tables until an
   # operator manually execs in and runs migrations. Runs once per `up` and
   # exits; `app` (and the replicas overlay's `backend`) wait on it via
