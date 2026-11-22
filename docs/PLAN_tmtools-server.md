@@ -37,7 +37,7 @@ Run the whole TMTools stack (`compose.stack.yml`) on one on-site server, with al
 8. It is a **one-day event**: short retention, bounded recording volume, and the focus is surviving that day, not long-term archives.
 9. **Remote playback of match recordings: yes** (design still to be worked out, see 5.5).
 10. **No data migration**: the server starts from a fresh stack (nothing to carry over from the cluster's `tmtools`).
-11. The compose changes go in as a PR to `aroboticsteam/vex-tm-tools`.
+11. The compose changes go in as a PR to `aroboticsteam/tmtools`.
 
 Still to be decided: the domain (#1 in the open questions) and where the Cloudflare token lives (#2).
 
@@ -145,7 +145,7 @@ Goal: during the one-day event, the cluster always holds a copy of the database 
 
 ### 5.8 Image supply and updates
 
-- The server's network blocks ghcr.io; `ghcr.io/aroboticsteam/vex-tm-tools:backend` is not in `registry.example.net`. Add it to the registry mirror job (or pull through the Smoothwall CA) so updates work on site.
+- The server's network blocks ghcr.io; `ghcr.io/aroboticsteam/tmtools:backend` is not in `registry.example.net`. Add it to the registry mirror job (or pull through the Smoothwall CA) so updates work on site.
 - Other images (Traefik, Postgres, Redis, Garage, Authelia, Mumble, cloudflared) come from Docker Hub/other registries: check they are reachable or mirror them too.
 
 ### 5.9 Smoothwall CA
@@ -170,7 +170,7 @@ Goal: during the one-day event, the cluster always holds a copy of the database 
 1. Connect the SSD; format, mount by UUID, create the data directories with the right owners.
 2. Set the static IP; Smoothwall CA on the host and in the containers.
 3. Decide the remaining open questions below (domain, token location, recordings design).
-4. Compose PR to `aroboticsteam/vex-tm-tools`: bind mounts, host-based routing, new URLs, ACME, Mumble, backup image, `cloudflared`; update `source-of-truth.md` (§19, §22.1 #46).
+4. Compose PR to `aroboticsteam/tmtools`: bind mounts, host-based routing, new URLs, ACME, Mumble, backup image, `cloudflared`; update `source-of-truth.md` (§19, §22.1 #46).
 5. Cluster side: the S3 endpoint exposed to the tailnet (and the ACL rule, yours), the `tmtools-pg` restore cluster definition.
 6. Issue the wildcard cert; set up local DNS.
 7. Cloudflare tunnel; test port 7844 first. Ingress backup path.

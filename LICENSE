@@ -1,6 +1,6 @@
 TMTools
 
-Required Notice: Copyright 2025-2026 Vivaan (https://github.com/aroboticsteam/vex-tm-tools)
+Required Notice: Copyright 2025-2026 Vivaan (https://github.com/aroboticsteam/tmtools)
 
 This software is owned by its author(s) named in the Required Notice lines
 above and is licensed, not sold. It is source-available: anyone may run,
@@ -97,7 +97,7 @@ Every copy, fork, modified version and new work based on the software must
 keep all Required Notice lines and this license, and must state prominently
 in its README and in its user interface "About" or equivalent that it is
 "based on TMTools by Vivaan" with a link to
-https://github.com/aroboticsteam/vex-tm-tools.
+https://github.com/aroboticsteam/tmtools.
 
 ### Forks must be open
 
