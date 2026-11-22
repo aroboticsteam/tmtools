@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     APP_PORT: int = Field(default=8000)
     POD_IP: str | None = Field(
         default=None,
-        description="Injected via k8s downward API. Falls back to local IP detection.",
+        description="Optional node address override. Falls back to local IP detection.",
     )
     # ── Web Push (VAPID) — team/staff notifications ─────────────────────
     VAPID_PRIVATE_KEY: str = Field(

@@ -33,7 +33,6 @@ and [`docs/API.md`](docs/API.md) for the generated REST API reference.
 | [`backend/`](backend/) | FastAPI app: leader election, the integration loader + clients (VEX TM/Spotify/ATEM/ZerOS/OBS/WLED/OSC/PTZ), the automation engine, REST routers, WebSocket fan-out |
 | [`frontend/`](frontend/) | React + Vite admin SPA |
 | [`alembic/`](alembic/) | Postgres schema migrations |
-| [`k8s/`](k8s/) | Kubernetes manifests for the real k3s deployment |
 | [`docs/`](docs/) | Generated API reference, Authentik/OIDC setup guide, third-party hardware/API reference docs |
 | [`tools/`](tools/) | One-off operational scripts |
 
@@ -70,8 +69,7 @@ This builds and runs the `app` service from this repo's `Dockerfile`
 instead of running backend/frontend on the host, and handles the two
 manual steps above automatically: `compose.yml`'s `migrate` service runs
 `alembic upgrade head` and its `bucket-init` service creates `S3_BUCKET` in
-MinIO if it doesn't already exist, both before `app` starts (mirroring
-`k8s/deployment.yaml`'s `migrate` init container for the real deployment).
+MinIO if it doesn't already exist, both before `app` starts (the real deployment runs the same steps).
 
 ### Logging in
 

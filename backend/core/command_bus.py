@@ -27,6 +27,7 @@ failures (they become that HTTP status for the caller) and any other exception b
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import asyncio
 import json
 import logging
@@ -38,9 +39,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-STREAM = "tmtools:cmd:stream"
+STREAM = REDIS_PREFIX + "cmd:stream"
 GROUP = "leader"
-REPLY_PREFIX = "tmtools:cmd:reply:"
+REPLY_PREFIX = REDIS_PREFIX + "cmd:reply:"
 STREAM_MAXLEN = 1000
 DEFAULT_TTL_SECONDS = 10.0
 REPLY_TTL_SECONDS = 30

@@ -19,6 +19,7 @@ retry-exhaustion, video processing failure).
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import logging
 from typing import Any
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 _SETTINGS_KEY = "notifications"
 #: Redis channel the leader's `NotificationService` forwards to staff Web Push
 #: (kept as a literal here: `backend/core/` may not import `backend/modules/`).
-STAFF_ALERTS_CHANNEL = "tmtools:staff_alerts"
+STAFF_ALERTS_CHANNEL = REDIS_PREFIX + "staff_alerts"
 _REQUEST_TIMEOUT_SECONDS = 5.0
 
 

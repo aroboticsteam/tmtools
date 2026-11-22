@@ -21,12 +21,12 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from backend.core.brand import API_KEY_PREFIX
 from backend.core.exceptions import TMToolsError
 from backend.core.settings import settings
 
 #: Prefix every generated API key is stamped with (plan Appendix B.7), so
 #: keys are recognisable at a glance / in logs without decoding anything.
-API_KEY_PREFIX = "tmt_"
 
 
 class EncryptionError(TMToolsError):

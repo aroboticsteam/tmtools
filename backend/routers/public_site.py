@@ -9,6 +9,7 @@ team info from the scraper's `team_profiles.cached_stats`.
 """
 from __future__ import annotations
 
+from backend.core.brand import REDIS_PREFIX
 import json
 import logging
 import re
@@ -39,7 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/public/site", tags=["public-site"])
 
 SITE_SETTING_KEY = "site"
-SCHEDULE_KEY_PATTERN = "tmtools:tm:*:schedule"
+SCHEDULE_KEY_PATTERN = REDIS_PREFIX + "tm:*:schedule"
 MAX_MATCHES = 400
 IMAGE_NAME_RE = re.compile(r"^[0-9a-f]{32}\.(png|jpg|gif|webp)$")
 _IMAGE_URL_TTL = 6 * 3600
