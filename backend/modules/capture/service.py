@@ -7,20 +7,26 @@ a session factory so tests can inject fakes.
 from __future__ import annotations
 
 import logging
+import re
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.core import field_state
+from backend.core.brand import REDIS_PREFIX
 from backend.core.exceptions import IntegrationError
 from backend.models.capture import CaptureMoment, CaptureRecording
+from backend.models.integration import IntegrationInstance
 from backend.modules.capture import hub, keys
 from backend.modules.media import s3
 from backend.schemas.capture import MAX_MARK_SECONDS
+from backend.schemas.events import EventBusMessage
 
 logger = logging.getLogger(__name__)
 
@@ -406,3 +412,51 @@ async def wipe(session_factory: SessionFactory, match_type: str | None = None) -
             await session.delete(row)
         await session.commit()
     return {"recordings": len(rows), "objects_deleted": await _drop_objects(object_keys)}
+
+
+async def ensure_integration(redis: Any, session_factory: Callable[[], Any], agent_id: str | None) -> str | None:
+    """Create the `capture` integration the first time an agent connects.
+
+    Automations call `capture.*` services through an integration instance, so
+    without one every capture automation fails. The new instance is named
+    `capture.<agent_id>` after the agent's unique id. Nothing is created when
+    any `capture` integration already exists (e.g. one added by hand), so
+    reconnects and extra agents never produce duplicates. Returns the new
+    entity id, or None when nothing was created.
+    """
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", str(agent_id or "")).strip("-")[:60] or "agent"
+    entity_id = f"capture.{slug}"
+    async with session_factory() as session:
+        existing = await session.execute(
+            select(IntegrationInstance.id).where(IntegrationInstance.domain == "capture").limit(1)
+        )
+        if existing.first() is not None:
+            return None
+        session.add(
+            IntegrationInstance(
+                entity_id=entity_id,
+                domain="capture",
+                display_name=f"Capture agent ({slug})",
+                config={},
+                enabled=True,
+                tags=[],
+            )
+        )
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            return None
+    message = EventBusMessage(
+        entity_id=entity_id,
+        entity_tags=[],
+        type="config_change",
+        timestamp=time.time(),
+        payload={"resource_type": "integration_instance", "entity_id": entity_id, "action": "created"},
+    )
+    try:
+        await redis.publish(REDIS_PREFIX + "config_change", message.model_dump_json())
+    except Exception:
+        logger.exception("capture: failed to announce the new integration %s", entity_id)
+    logger.info("capture: created integration %s for the connecting agent", entity_id)
+    return entity_id

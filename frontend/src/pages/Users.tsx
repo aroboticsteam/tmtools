@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { useReplaceRolePermissions, useRolePermissions } from '../api/settings';
+import { usePermissionCatalog, useReplaceRolePermissions, useRolePermissions } from '../api/settings';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { ALL_PERMISSIONS } from '../stores/auth';
@@ -18,6 +18,8 @@ export function UsersPage() {
   const canEdit = usePermission('settings:edit');
   const pushToast = useUiStore((s) => s.pushToast);
 
+  const { data: catalog } = usePermissionCatalog();
+  const permissionNames = catalog ? catalog.permissions.map((p) => p.name) : [...ALL_PERMISSIONS];
   const [newGroup, setNewGroup] = useState('');
   const [newPermission, setNewPermission] = useState<string>(ALL_PERMISSIONS[0]);
 
@@ -61,7 +63,7 @@ export function UsersPage() {
               <label className="mb-1 block text-xs font-medium text-vmd-textMuted">Permission</label>
               <Select value={newPermission} onChange={(e) => setNewPermission(e.target.value)} className="w-56">
                 <option value="*">* (all permissions)</option>
-                {ALL_PERMISSIONS.map((p) => (
+                {permissionNames.map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>

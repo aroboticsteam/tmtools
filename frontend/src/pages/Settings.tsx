@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
-import { useApiKeys, useCreateApiKey, useRevokeApiKey, useSettings, useUpdateSettings } from '../api/settings';
+import {
+  useApiKeys,
+  useCreateApiKey,
+  usePermissionCatalog,
+  useRevokeApiKey,
+  useSettings,
+  useUpdateSettings,
+} from '../api/settings';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { ALL_PERMISSIONS } from '../stores/auth';
@@ -513,6 +520,7 @@ function ApiKeysSection({ canEdit }: { canEdit: boolean }) {
   const { data: keys } = useApiKeys();
   const createKey = useCreateApiKey();
   const revokeKey = useRevokeApiKey();
+  const { data: catalog } = usePermissionCatalog();
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -601,14 +609,55 @@ function ApiKeysSection({ canEdit }: { canEdit: boolean }) {
               <Label>Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
+            {catalog && catalog.presets.length > 0 && (
+              <div>
+                <Label>Preset</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {catalog.presets.map((preset) => (
+                    <Button
+                      key={preset.id}
+                      type="button"
+                      title={preset.description}
+                      onClick={() => {
+                        setPermissions(preset.permissions);
+                        if (!name) setName(preset.label);
+                      }}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <Label>Permissions</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
-                {ALL_PERMISSIONS.map((p) => (
-                  <label key={p} className="flex items-center gap-1.5">
-                    <input type="checkbox" checked={permissions.includes(p)} onChange={() => togglePermission(p)} />
-                    {p}
-                  </label>
+              <div className="max-h-72 space-y-2 overflow-y-auto text-sm">
+                {(catalog
+                  ? [...new Set(catalog.permissions.map((p) => p.group))].map((group) => ({
+                      group,
+                      items: catalog.permissions.filter((p) => p.group === group),
+                    }))
+                  : [{ group: 'All', items: ALL_PERMISSIONS.map((p) => ({ name: p, group: 'All', description: '' })) }]
+                ).map(({ group, items }) => (
+                  <div key={group}>
+                    <p className="text-xs font-medium text-vmd-textMuted">{group}</p>
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                      {items.map((p) => (
+                        <label key={p.name} className="flex items-start gap-1.5" title={p.description}>
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={permissions.includes(p.name)}
+                            onChange={() => togglePermission(p.name)}
+                          />
+                          <span>
+                            {p.name}
+                            {p.description && <span className="block text-xs text-vmd-textMuted">{p.description}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

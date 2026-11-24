@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.audit import log_action
 from backend.core.dependencies import CurrentPrincipal, get_db, get_redis, require_permission
+from backend.core.permissions import KEY_PRESETS, PERMISSIONS
 from backend.core.security import generate_api_key, hash_api_key
 from backend.core.sessions import delete_sessions_for_user
 from backend.models.integration import ZerosPreset
@@ -105,6 +106,15 @@ async def update_settings(
         changes={key: _redact_settings_value(update.value) for key, update in body.items()},
     )
     return rows
+
+
+# ── permission catalogue ──────────────────────────────────────────────────
+
+
+@router.get("/permissions", dependencies=[Depends(require_permission("settings:read"))])
+async def permission_catalog() -> dict[str, Any]:
+    """Every permission string with a description, and the API key presets."""
+    return {"permissions": PERMISSIONS, "presets": KEY_PRESETS}
 
 
 # ── api_keys (plan §11 / Appendix B.7) ────────────────────────────────────
