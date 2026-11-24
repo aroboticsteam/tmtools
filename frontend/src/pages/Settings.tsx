@@ -305,7 +305,7 @@ export function SettingsPage() {
             <a
               href="/api/v1/site/export.zip"
               download="competition-site.zip"
-              className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-vmd-textStrong px-3.5 py-1.5 text-sm font-medium text-black hover:bg-white"
+              className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-vmd-textStrong px-3.5 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
             >
               Download site (.zip)
             </a>

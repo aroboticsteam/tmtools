@@ -59,7 +59,7 @@ export function TeamsPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((team) => (
           <Link key={team.team_number} to={`/teams/${team.team_number}`}>
-            <Card className="h-full hover:shadow-vmdCardHover">
+            <Card className="h-full hover:border-neutral-400">
               <p className="font-medium text-vmd-textStrong">{team.team_number}</p>
               {team.robot_name && <p className="text-sm text-vmd-textMuted">{team.robot_name}</p>}
               {team.pit_location && <p className="text-xs text-vmd-textSubtle">Pit: {team.pit_location}</p>}
