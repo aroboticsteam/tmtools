@@ -274,6 +274,32 @@ async def test_reconcile_tears_down_removed_and_spins_up_new(redis_client):
         await ldr.teardown_all()
 
 
+async def test_reconcile_purges_cached_state_of_deleted_integration_only(redis_client):
+    factory = FakeSessionFactory(
+        [
+            FakeRow(entity_id="fake_good.gone", domain="fake_good"),
+            FakeRow(entity_id="fake_good.off", domain="fake_good"),
+        ]
+    )
+    ldr = loader_module.Loader(redis=redis_client, session_factory=factory)
+    await ldr.load_all()
+    try:
+        prefix = loader_module.REDIS_PREFIX
+        for eid in ("fake_good.gone", "fake_good.off"):
+            await redis_client.set(prefix + f"tm:{eid}:schedule", "{}")
+            await redis_client.set(prefix + f"tm:{eid}:token", "t")
+
+        # "gone" is deleted; "off" stays in the database but is disabled.
+        factory.rows = [FakeRow(entity_id="fake_good.off", domain="fake_good", enabled=False)]
+        await ldr.reconcile()
+
+        assert await redis_client.exists(prefix + "tm:fake_good.gone:schedule") == 0
+        assert await redis_client.exists(prefix + "tm:fake_good.gone:token") == 0
+        assert await redis_client.exists(prefix + "tm:fake_good.off:schedule") == 1
+    finally:
+        await ldr.teardown_all()
+
+
 async def test_reconcile_respins_instance_when_config_changes(redis_client):
     factory = FakeSessionFactory([FakeRow(entity_id="fake_good.a", domain="fake_good", tags=["x"])])
     ldr = loader_module.Loader(redis=redis_client, session_factory=factory)

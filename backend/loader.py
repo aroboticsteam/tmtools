@@ -255,6 +255,15 @@ class Loader:
 
         await self._set_status(entity_id, "DISCONNECTED")
 
+    async def _purge_entity_state(self, entity_id: str) -> None:
+        """Delete the Redis keys an integration cached under `tm:<entity_id>:`."""
+        try:
+            pattern = REDIS_PREFIX + f"tm:{entity_id}:*"
+            async for key in self._redis.scan_iter(match=pattern):
+                await self._redis.delete(key)
+        except Exception:
+            logger.exception("Failed to purge cached state for '%s'", entity_id)
+
     async def _set_status(self, entity_id: str, status: str) -> None:
         previous = self._status.get(entity_id)
         self._status[entity_id] = status
@@ -387,11 +396,16 @@ class Loader:
         rows = await self._fetch_rows()
         desired: dict[str, IntegrationInstance] = {r.entity_id: r for r in rows if r.enabled}
         desired_ids = set(desired.keys())
+        existing_ids = {r.entity_id for r in rows}
         current_ids = set(self._instances.keys()) | set(self._retry_tasks.keys())
 
         # Removed (deleted or disabled): tear down.
         for entity_id in current_ids - desired_ids:
             await self._tear_down(entity_id)
+            if entity_id not in existing_ids:
+                # Deleted (not just disabled): drop the integration's cached
+                # data too, e.g. the vex_tm schedule and token.
+                await self._purge_entity_state(entity_id)
 
         # New: spin up.
         for entity_id in desired_ids - current_ids:
