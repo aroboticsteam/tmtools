@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Undo2, Zap } from 'lucide-react';
 import {
   useCaptureRecordings,
   useCaptureStatus,
@@ -8,7 +8,7 @@ import {
   useReplayPlay,
   useReplayState,
 } from '../api/capture';
-import { useCallIntegrationService, useIntegrations } from '../api/integrations';
+import { useCallIntegrationService, useIntegrations, useIntegrationState } from '../api/integrations';
 import { useTeams } from '../api/teams';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
@@ -26,8 +26,10 @@ import {
   type DeskSetup,
 } from '../lib/analysis';
 import { Button } from '../components/ui/Button';
-import { Card, PageHeader } from '../components/ui/Card';
-import { Chip } from '../components/ui/Badge';
+import { Card, PageHeader, Section } from '../components/ui/Card';
+import { Badge, Chip } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Segmented, Tabs } from '../components/ui/Tabs';
 import { Input, Label, Select } from '../components/ui/Input';
 import type { CaptureRecording } from '../types/api';
 
@@ -63,70 +65,38 @@ function AnalysisDesk() {
 
   return (
     <div>
-      <PageHeader title="Analysis Desk" subtitle="Match stats, instant-replay marks and replay playout" />
-      <div className="mb-4 flex gap-2" role="tablist">
-        {(['match', 'stats'] as const).map((t) => (
-          <Button key={t} role="tab" aria-selected={tab === t} variant={tab === t ? 'primary' : 'secondary'} onClick={() => setTab(t)}>
-            {t === 'match' ? 'Match' : 'Stats'}
-          </Button>
-        ))}
+      <PageHeader title="Analysis desk" subtitle="Cut clips from live, review moments and send them to air" />
+      <Tabs
+        tabs={[
+          { id: 'match' as Tab, label: 'Match' },
+          { id: 'stats' as Tab, label: 'Stats' },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+      <div className="mt-4">
+        {tab === 'stats' ? (
+          <StatsTab recording={selected} />
+        ) : (
+          <MatchTab
+            ordered={ordered}
+            onSelect={setSelectedId}
+            recording={selected}
+            setup={setup}
+            onSetup={updateSetup}
+            canControl={canControl}
+            agentConnected={!!status?.connected}
+            recordingNow={status?.recording ?? null}
+          />
+        )}
       </div>
-      <MatchNav ordered={ordered} selected={selected} onSelect={setSelectedId} />
-      {tab === 'stats' ? (
-        <StatsTab recording={selected} />
-      ) : (
-        <MatchTab recording={selected} setup={setup} onSetup={updateSetup} canControl={canControl} agentConnected={!!status?.connected} recordingNow={status?.recording ?? null} />
-      )}
     </div>
-  );
-}
-
-function MatchNav({
-  ordered,
-  selected,
-  onSelect,
-}: {
-  ordered: CaptureRecording[];
-  selected: CaptureRecording | null;
-  onSelect: (id: string | null) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const go = (r: CaptureRecording | null) => r && onSelect(r.id);
-  return (
-    <Card className="mb-4 flex flex-wrap items-center gap-2">
-      <Button aria-label="Previous match" onClick={() => go(stepMatch(ordered, selected?.id ?? null, -1))}>
-        <ChevronLeft size={16} />
-      </Button>
-      <span className="min-w-24 text-center text-lg font-semibold text-vmd-textStrong" data-testid="current-match">
-        {selected ? recordingLabel(selected) : 'No match'}
-      </span>
-      <Button aria-label="Next match" onClick={() => go(stepMatch(ordered, selected?.id ?? null, 1))}>
-        <ChevronRight size={16} />
-      </Button>
-      <form
-        className="ml-4 flex items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          go(findByNumber(ordered, query));
-        }}
-      >
-        <Input aria-label="Go to match number" placeholder="Match #" value={query} onChange={(e) => setQuery(e.target.value)} className="w-28" />
-        <Button type="submit">Go</Button>
-      </form>
-      {selected && (
-        <span className="ml-auto flex gap-1">
-          {selected.teams.map((t) => (
-            <Chip key={t}>{t}</Chip>
-          ))}
-        </span>
-      )}
-    </Card>
   );
 }
 
 function StatsTab({ recording }: { recording: CaptureRecording | null }) {
   const { data: teams = [] } = useTeams();
-  if (!recording) return <p className="text-sm text-vmd-textSubtle">Select a match to see its teams.</p>;
+  if (!recording) return <EmptyState title="No match selected">Pick a match on the Match tab to see its teams.</EmptyState>;
   // Stats only: we never show predicted scores or win probabilities here.
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -156,7 +126,61 @@ function StatsTab({ recording }: { recording: CaptureRecording | null }) {
   );
 }
 
+function MatchPicker({
+  ordered,
+  selected,
+  onSelect,
+}: {
+  ordered: CaptureRecording[];
+  selected: CaptureRecording | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const go = (r: CaptureRecording | null) => r && onSelect(r.id);
+  return (
+    <Section title="Match">
+      <div className="space-y-3 p-4">
+        <div className="flex items-center gap-2">
+          <Button aria-label="Previous match" onClick={() => go(stepMatch(ordered, selected?.id ?? null, -1))}>
+            <ChevronLeft size={16} />
+          </Button>
+          <span className="min-w-0 flex-1 text-center text-lg font-semibold text-vmd-textStrong" data-testid="current-match">
+            {selected ? recordingLabel(selected) : 'No match'}
+          </span>
+          <Button aria-label="Next match" onClick={() => go(stepMatch(ordered, selected?.id ?? null, 1))}>
+            <ChevronRight size={16} />
+          </Button>
+        </div>
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            go(findByNumber(ordered, query));
+          }}
+        >
+          <Input aria-label="Go to match number" placeholder="Match #" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Button type="submit">Go</Button>
+        </form>
+        {selected && (
+          <div className="flex flex-wrap gap-1">
+            {selected.teams.map((t) => (
+              <Chip key={t}>{t}</Chip>
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+const MOMENT_STATUS: Record<string, { tone: 'ok' | 'warn' | 'danger'; label: string }> = {
+  READY: { tone: 'ok', label: 'Ready' },
+  ERROR: { tone: 'danger', label: 'Failed' },
+};
+
 function MatchTab({
+  ordered,
+  onSelect,
   recording,
   setup,
   onSetup,
@@ -164,6 +188,8 @@ function MatchTab({
   agentConnected,
   recordingNow,
 }: {
+  ordered: CaptureRecording[];
+  onSelect: (id: string | null) => void;
   recording: CaptureRecording | null;
   setup: DeskSetup;
   onSetup: (patch: Partial<DeskSetup>) => void;
@@ -183,10 +209,18 @@ function MatchTab({
   const [speed, setSpeed] = useState<number>(0.5);
   const isRecording = !!recordingNow;
 
+  // Use the only OBS / WLED instance without making the operator pick it.
+  const obsEntity = setup.obsEntity || (obsList.length === 1 ? obsList[0].entity_id : '');
+  const wledEntity = setup.wledEntity || (wledList.length === 1 ? wledList[0].entity_id : '');
+  const { data: obsState } = useIntegrationState(obsEntity || null);
+  const onAir = typeof obsState?.state?.current_scene === 'string' ? (obsState.state.current_scene as string) : null;
+  // The scene that was on air before the last replay, so "Back to program" returns to it.
+  const [returnScene, setReturnScene] = useState<string | null>(null);
+
   const doMark = (seconds: number) =>
     mark.mutate(seconds, {
-      onSuccess: () => pushToast(`Marked last ${seconds}s`, 'success'),
-      onError: (err) => pushToast(err instanceof Error ? err.message : 'Mark failed', 'error'),
+      onSuccess: () => pushToast(`Saved the last ${seconds} seconds`, 'success'),
+      onError: (err) => pushToast(err instanceof Error ? err.message : 'Could not cut the clip', 'error'),
     });
 
   // Keyboard marks (ignored while typing in a field).
@@ -199,8 +233,8 @@ function MatchTab({
       if (seconds) {
         e.preventDefault();
         mark.mutate(seconds, {
-          onSuccess: () => pushToast(`Marked last ${seconds}s`, 'success'),
-          onError: (err) => pushToast(err instanceof Error ? err.message : 'Mark failed', 'error'),
+          onSuccess: () => pushToast(`Saved the last ${seconds} seconds`, 'success'),
+          onError: (err) => pushToast(err instanceof Error ? err.message : 'Could not cut the clip', 'error'),
         });
       }
     };
@@ -211,11 +245,11 @@ function MatchTab({
 
   // A refused or failed OBS scene switch (e.g. the role lacks `video:control`) must not look like a dead button.
   const switchScene = (scene: string) => {
-    if (!setup.obsEntity) return;
+    if (!obsEntity) return;
     callService.mutate(
-      { entityId: setup.obsEntity, service: 'switch_scene', data: { scene_name: scene } },
+      { entityId: obsEntity, service: 'switch_scene', data: { scene_name: scene } },
       {
-        onSuccess: () => pushToast(`Switched OBS to "${scene}"`, 'success'),
+        onSuccess: () => pushToast(`OBS is now showing "${scene}"`, 'success'),
         onError: (err) =>
           pushToast(`Could not switch OBS to "${scene}": ${err instanceof Error ? err.message : 'unknown error'}`, 'error'),
       },
@@ -227,7 +261,8 @@ function MatchTab({
       { kind, id, rate: speed },
       {
         onSuccess: () => {
-          if (setup.obsEntity && setup.replayScene) {
+          if (obsEntity && setup.replayScene) {
+            if (onAir && onAir !== setup.replayScene) setReturnScene(onAir);
             switchScene(setup.replayScene);
           }
         },
@@ -238,143 +273,205 @@ function MatchTab({
 
   const backToProgram = () => {
     control.mutate({ action: 'stop' });
-    if (setup.obsEntity && setup.programScene) {
-      switchScene(setup.programScene);
+    const target = returnScene ?? (setup.programScene || null);
+    if (obsEntity && target) {
+      switchScene(target);
+      setReturnScene(null);
+    } else if (obsEntity) {
+      pushToast('No program scene to return to. Set one under Setup.', 'error');
     }
   };
 
   const flashLed = () => {
-    if (!setup.wledEntity) return;
+    if (!wledEntity) return;
     callService.mutate(
-      { entityId: setup.wledEntity, service: 'flash', data: {} },
+      { entityId: wledEntity, service: 'flash', data: {} },
       { onError: (err) => pushToast(`LED flash failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error') },
     );
   };
 
+  const speedOptions = SPEEDS.map((s) => ({ id: String(s), label: `${s}×` }));
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Capture</h2>
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-          <Chip>{agentConnected ? 'Agent connected' : 'Agent offline'}</Chip>
-          <Chip>{isRecording ? `Recording ${recordingLabel(recordingNow!)}` : 'Not recording'}</Chip>
+    <div className="flex flex-col gap-4">
+      <section aria-label="Cut a clip from live" className="rounded-xl border-2 border-neutral-900 bg-white p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${isRecording ? 'animate-pulse bg-red-600' : 'bg-neutral-300'}`} />
+            <h2 className="text-[15px] font-semibold text-vmd-textStrong">Cut a clip from live</h2>
+          </div>
+          <div className="flex items-center gap-2 text-[13px] text-vmd-textSubtle">
+            <Badge tone={agentConnected ? 'ok' : 'danger'}>{agentConnected ? 'Agent connected' : 'Agent offline'}</Badge>
+            <span>{isRecording ? `Recording ${recordingLabel(recordingNow!)}` : 'Not recording'}</span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {MARK_LENGTHS.map((s) => (
-            <Button key={s} variant="primary" disabled={!canControl || !isRecording || mark.isPending} onClick={() => doMark(s)}>
-              Mark last {s}s
-            </Button>
+            <button
+              key={s}
+              type="button"
+              aria-label={`Cut last ${s} seconds`}
+              disabled={!canControl || !isRecording || mark.isPending}
+              onClick={() => doMark(s)}
+              className="flex h-[72px] flex-col items-center justify-center rounded-[10px] border border-neutral-900 bg-neutral-900 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 sm:h-20"
+            >
+              <span className="text-[26px] font-semibold leading-8 tracking-tight sm:text-[30px]">{s} s</span>
+              <span className="text-[11px] opacity-70 sm:text-xs">Last {s} seconds</span>
+            </button>
           ))}
         </div>
         <p className="mt-2 text-xs text-vmd-textSubtle">
           Keys: {Object.entries(setup.keys).map(([k, v]) => `${k} = ${v}s`).join(', ')}
         </p>
-        <h2 className="mb-2 mt-5 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Moments</h2>
-        {!recording || recording.moments.length === 0 ? (
-          <p className="text-sm text-vmd-textSubtle">No moments marked for this match.</p>
-        ) : (
-          <ul className="space-y-2">
-            {recording.moments.map((m) => (
-              <li key={m.id} className="flex items-center gap-2 text-sm" aria-label={`Moment ${m.number}`}>
-                <span className="w-24 text-vmd-text">Moment {m.number}</span>
-                <span className="text-vmd-textMuted">{m.length_s}s</span>
-                <Chip>{m.status === 'READY' ? 'Ready' : m.status === 'ERROR' ? 'Failed' : 'Uploading…'}</Chip>
-                <Button
-                  className="ml-auto"
-                  disabled={!canControl || !momentPlayable(m.status) || play.isPending}
-                  onClick={() => sendToProgram('moment', m.id)}
-                  aria-label={`Send moment ${m.number} to program`}
-                >
-                  Send to program
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="flex flex-col gap-4">
+          <Section
+            title="Replay player"
+            description={replay?.playing ? `Playing: ${replay.label ?? ''}${replay.paused ? ' (paused)' : ''}` : 'Nothing playing'}
+          >
+            <div className="flex flex-col gap-3 p-4">
+              <Segmented
+                options={speedOptions}
+                value={String(speed)}
+                onChange={(id) => {
+                  const s = Number(id);
+                  setSpeed(s);
+                  if (replay?.playing) control.mutate({ action: 'rate', value: s });
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: replay?.paused ? 'resume' : 'pause' })}>
+                  {replay?.paused ? <Play size={16} /> : <Pause size={16} />}
+                  {replay?.paused ? 'Resume' : 'Pause'}
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {recording && recording.status === 'READY' && (
-          <Button className="mt-3" disabled={!canControl || play.isPending} onClick={() => sendToProgram('recording', recording.id)}>
-            Send full match to program
-          </Button>
-        )}
-      </Card>
+                <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: 'restart' })}>
+                  <RotateCcw size={16} /> Restart
+                </Button>
+              </div>
+            </div>
+          </Section>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Replay player</h2>
-        <p className="mb-2 text-sm text-vmd-textMuted">
-          {replay?.playing ? `Playing: ${replay.label ?? ''}${replay.paused ? ' (paused)' : ''}` : 'Nothing playing'}
-        </p>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {SPEEDS.map((s) => (
-            <Button
-              key={s}
-              variant={speed === s ? 'primary' : 'secondary'}
-              aria-pressed={speed === s}
-              disabled={!canControl}
-              onClick={() => {
-                setSpeed(s);
-                if (replay?.playing) control.mutate({ action: 'rate', value: s });
-              }}
-            >
-              {s}×
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: replay?.paused ? 'resume' : 'pause' })}>
-            {replay?.paused ? 'Resume' : 'Pause'}
-          </Button>
-          <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: 'restart' })}>
-            Restart
-          </Button>
-          <Button variant="primary" disabled={!canControl} onClick={backToProgram}>
-            Back to program
-          </Button>
-          <Button disabled={!canControl || !setup.wledEntity} onClick={flashLed}>
-            Flash LED
-          </Button>
+          <Section title="Moments in this match">
+            {!recording || recording.moments.length === 0 ? (
+              <EmptyState title="No moments yet">Cut a clip above and it shows up here.</EmptyState>
+            ) : (
+              <ul>
+                {recording.moments.map((m) => {
+                  const st = MOMENT_STATUS[m.status] ?? { tone: 'warn' as const, label: 'Uploading…' };
+                  return (
+                    <li
+                      key={m.id}
+                      aria-label={`Moment ${m.number}`}
+                      className="flex flex-wrap items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-vmd-textStrong">Moment {m.number}</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-vmd-textSubtle">
+                          <span>{m.length_s} s clip</span>
+                          <Badge tone={st.tone}>{st.label}</Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        className="w-full sm:w-auto"
+                        disabled={!canControl || !momentPlayable(m.status) || play.isPending}
+                        onClick={() => sendToProgram('moment', m.id)}
+                        aria-label={`Send moment ${m.number} to program`}
+                      >
+                        Send to program
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {recording && recording.status === 'READY' && (
+              <div className="border-t border-vmd-border p-4">
+                <Button disabled={!canControl || play.isPending} onClick={() => sendToProgram('recording', recording.id)}>
+                  Send full match to program
+                </Button>
+              </div>
+            )}
+          </Section>
         </div>
 
-        <h2 className="mb-2 mt-5 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Setup</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label>Replay player id</Label>
-            <Input aria-label="Replay player id" value={setup.replayId} onChange={(e) => onSetup({ replayId: e.target.value.trim() || DEFAULT_SETUP.replayId })} />
-          </div>
-          <div>
-            <Label>OBS instance</Label>
-            <Select aria-label="OBS instance" value={setup.obsEntity} onChange={(e) => onSetup({ obsEntity: e.target.value })}>
-              <option value="">None</option>
-              {obsList.map((i) => (
-                <option key={i.entity_id} value={i.entity_id}>
-                  {i.display_name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Replay scene</Label>
-            <Input aria-label="Replay scene" value={setup.replayScene} onChange={(e) => onSetup({ replayScene: e.target.value })} />
-          </div>
-          <div>
-            <Label>Program scene (back to)</Label>
-            <Input aria-label="Program scene" value={setup.programScene} onChange={(e) => onSetup({ programScene: e.target.value })} />
-          </div>
-          <div>
-            <Label>WLED instance</Label>
-            <Select aria-label="WLED instance" value={setup.wledEntity} onChange={(e) => onSetup({ wledEntity: e.target.value })}>
-              <option value="">None</option>
-              {wledList.map((i) => (
-                <option key={i.entity_id} value={i.entity_id}>
-                  {i.display_name}
-                </option>
-              ))}
-            </Select>
-          </div>
+        <div className="flex flex-col gap-4">
+          <MatchPicker ordered={ordered} selected={recording} onSelect={onSelect} />
+
+          <Section
+            title="Program"
+            action={
+              obsEntity ? <Badge tone="ok">OBS</Badge> : <Badge tone="neutral">No OBS</Badge>
+            }
+          >
+            <div className="flex flex-col gap-3 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-vmd-textSubtle">On air now</span>
+                <span className="font-semibold text-vmd-textStrong">{onAir ?? '—'}</span>
+              </div>
+              <Button variant="primary" size="lg" disabled={!canControl} onClick={backToProgram}>
+                <Undo2 size={18} /> Back to program
+              </Button>
+            </div>
+          </Section>
+
+          {wledEntity && (
+            <Section title="Quick actions">
+              <div className="p-3">
+                <Button className="w-full justify-start" disabled={!canControl} onClick={flashLed}>
+                  <Zap size={16} /> Flash the LEDs
+                </Button>
+              </div>
+            </Section>
+          )}
+
+          <details className="rounded-xl border border-vmd-border bg-white">
+            <summary className="cursor-pointer px-4 py-3 text-[15px] font-semibold text-vmd-textStrong">Setup</summary>
+            <div className="grid grid-cols-1 gap-3 border-t border-vmd-border p-4">
+              <div>
+                <Label>Replay player id</Label>
+                <Input aria-label="Replay player id" value={setup.replayId} onChange={(e) => onSetup({ replayId: e.target.value.trim() || DEFAULT_SETUP.replayId })} />
+              </div>
+              <div>
+                <Label>OBS instance</Label>
+                <Select aria-label="OBS instance" value={obsEntity} onChange={(e) => onSetup({ obsEntity: e.target.value })}>
+                  <option value="">None</option>
+                  {obsList.map((i) => (
+                    <option key={i.entity_id} value={i.entity_id}>
+                      {i.display_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Replay scene</Label>
+                <Input aria-label="Replay scene" value={setup.replayScene} onChange={(e) => onSetup({ replayScene: e.target.value })} />
+              </div>
+              <div>
+                <Label>Fallback program scene</Label>
+                <Input aria-label="Program scene" placeholder="Used if the previous scene is unknown" value={setup.programScene} onChange={(e) => onSetup({ programScene: e.target.value })} />
+              </div>
+              <div>
+                <Label>WLED instance</Label>
+                <Select aria-label="WLED instance" value={wledEntity} onChange={(e) => onSetup({ wledEntity: e.target.value })}>
+                  <option value="">None</option>
+                  {wledList.map((i) => (
+                    <option key={i.entity_id} value={i.entity_id}>
+                      {i.display_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <p className="text-xs text-vmd-textSubtle">
+                Add <code>/replay/{setup.replayId}</code> as a 1920×1080 browser source in the replay scene.
+              </p>
+            </div>
+          </details>
         </div>
-        <p className="mt-2 text-xs text-vmd-textSubtle">
-          Add <code>/replay/{setup.replayId}</code> as a 1920×1080 browser source in the replay scene.
-        </p>
-      </Card>
+      </div>
     </div>
   );
 }

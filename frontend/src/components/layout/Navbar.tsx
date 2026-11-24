@@ -1,174 +1,105 @@
 import {
-  LayoutDashboard,
-  MonitorPlay,
-  Plug,
-  Workflow,
-  FileCode2,
-  Presentation,
-  Users2,
-  ScrollText,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  LayoutGrid,
-  Camera,
-  Radio,
-  LogOut,
-  Bug,
-  Activity,
-  DoorOpen,
-  ChevronDown,
-  Menu,
-  X,
-  Clapperboard,
+  LayoutDashboard, MonitorPlay, Plug, Workflow, FileCode2, Presentation, Users2, ScrollText,
+  Settings as SettingsIcon, ShieldCheck, LayoutGrid, Camera, Radio, LogOut, Bug, Activity,
+  DoorOpen, Menu, X, Clapperboard,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
+import type { LucideIcon } from 'lucide-react';
 import { logout } from '../../api/auth';
 import { useAuthStore } from '../../stores/auth';
 import { usePermission } from '../../hooks/usePermission';
-import { StaffPushToggle } from './StaffPushToggle';
+import { StaffAlerts } from './StaffAlerts';
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-}
-
-interface NavGroup {
-  label: string;
-  icon: typeof LayoutDashboard;
-  items: NavItem[];
-}
-
-const DASHBOARD_ITEM: NavItem = { to: '/', label: 'Dashboard', icon: LayoutDashboard };
+interface NavItem { to: string; label: string; icon: LucideIcon }
+interface NavGroup { label: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Production',
-    icon: MonitorPlay,
-    items: [
-      { to: '/match-control', label: 'Match Control', icon: MonitorPlay },
-      { to: '/overlays', label: 'Overlays', icon: Presentation },
-      { to: '/buttons', label: 'Button Pages', icon: LayoutGrid },
-      { to: '/comms', label: 'Comms', icon: Radio },
-    ],
-  },
-  {
-    label: 'Video',
-    icon: Clapperboard,
-    items: [
-      { to: '/record', label: 'Photo Booth', icon: Camera },
-      { to: '/analysis', label: 'Analysis', icon: Clapperboard },
-    ],
-  },
-  {
-    label: 'Event',
-    icon: Users2,
-    items: [
-      { to: '/teams', label: 'Teams', icon: Users2 },
-      { to: '/rooms', label: 'Rooms', icon: DoorOpen },
-    ],
-  },
-  {
-    label: 'Automation',
-    icon: Workflow,
-    items: [
-      { to: '/integrations', label: 'Integrations', icon: Plug },
-      { to: '/automations', label: 'Automations', icon: Workflow },
-      { to: '/scripts', label: 'Scripts', icon: FileCode2 },
-    ],
-  },
-  {
-    label: 'Admin',
-    icon: SettingsIcon,
-    items: [
-      { to: '/settings', label: 'Settings', icon: SettingsIcon },
-      { to: '/users', label: 'Users & Roles', icon: ShieldCheck },
-      { to: '/audit', label: 'Audit Log', icon: ScrollText },
-    ],
-  },
+  { label: 'Production', items: [
+    { to: '/match-control', label: 'Match control', icon: MonitorPlay },
+    { to: '/overlays', label: 'Overlays', icon: Presentation },
+    { to: '/buttons', label: 'Button pages', icon: LayoutGrid },
+    { to: '/comms', label: 'Comms', icon: Radio },
+  ] },
+  { label: 'Video', items: [
+    { to: '/record', label: 'Photo booth', icon: Camera },
+    { to: '/analysis', label: 'Analysis', icon: Clapperboard },
+  ] },
+  { label: 'Event', items: [
+    { to: '/teams', label: 'Teams', icon: Users2 },
+    { to: '/rooms', label: 'Rooms', icon: DoorOpen },
+  ] },
+  { label: 'Automation', items: [
+    { to: '/integrations', label: 'Integrations', icon: Plug },
+    { to: '/automations', label: 'Automations', icon: Workflow },
+    { to: '/scripts', label: 'Scripts', icon: FileCode2 },
+  ] },
+  { label: 'Admin', items: [
+    { to: '/settings', label: 'Settings', icon: SettingsIcon },
+    { to: '/users', label: 'Users & roles', icon: ShieldCheck },
+    { to: '/audit', label: 'Audit log', icon: ScrollText },
+  ] },
 ];
 
-/** Appendix A.11 debug views — gated on `settings:edit`, same as the pages
- * themselves (AUDIT_FINDINGS.md 1.10). */
-const DEBUG_NAV_ITEMS: NavItem[] = [
-  { to: '/debug/integration-log', label: 'Integration Debug Log', icon: Bug },
-  { to: '/debug/event-bus', label: 'Live Event Bus', icon: Activity },
+const DEBUG_ITEMS: NavItem[] = [
+  { to: '/debug/integration-log', label: 'Integration log', icon: Bug },
+  { to: '/debug/event-bus', label: 'Live event bus', icon: Activity },
 ];
 
-function NavDropdown({ group }: { group: NavGroup }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { pathname } = useLocation();
-  const Icon = group.icon;
-  const active = group.items.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
+const HOME: NavItem = { to: '/', label: 'Dashboard', icon: LayoutDashboard };
 
-  useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+/** Bottom tab bar entries on phones; everything else is under "More". */
+const TABS: NavItem[] = [
+  HOME,
+  { to: '/match-control', label: 'Match', icon: MonitorPlay },
+  { to: '/analysis', label: 'Analysis', icon: Clapperboard },
+  { to: '/integrations', label: 'Integrations', icon: Plug },
+];
 
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`navbar-anim-link rounded-lg px-1.5 py-1.5 ${active ? 'active' : ''}`}
-      >
-        <Icon size={18} className="text-vmd-textMuted" />
-        <span className="nav-label">{group.label}</span>
-        <ChevronDown size={14} className={`ml-1 text-vmd-textMuted transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute left-0 top-full z-50 mt-1 flex min-w-[12rem] flex-col gap-0.5 rounded-lg border border-white/10 bg-[#1a1a1f] p-1.5 shadow-xl"
-        >
-          {group.items.map(({ to, label, icon: ItemIcon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              role="menuitem"
-              className={({ isActive }) => `navbar-anim-link rounded-md px-2 py-1.5 hover:bg-white/5 ${isActive ? 'active bg-white/10' : ''}`}
-            >
-              <ItemIcon size={18} className="text-vmd-textMuted" />
-              <span className="nav-label">{label}</span>
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function Navbar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const { pathname } = useLocation();
-  useEffect(() => setMobileOpen(false), [pathname]);
-  const subject = useAuthStore((s) => s.subject);
-  const clearAuth = useAuthStore((s) => s.clear);
+function useNavGroups(): NavGroup[] {
   const canViewDebug = usePermission('settings:edit');
   const canViewAnalysis = usePermission('analysis:view');
-  const groups: NavGroup[] = [
+  return [
     ...NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items.filter(({ to }) => to !== '/analysis' || canViewAnalysis),
     })).filter((g) => g.items.length > 0),
-    ...(canViewDebug ? [{ label: 'Debug', icon: Bug, items: DEBUG_NAV_ITEMS }] : []),
+    ...(canViewDebug ? [{ label: 'Debug', items: DEBUG_ITEMS }] : []),
   ];
+}
+
+function linkClass(isActive: boolean) {
+  return `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm ${
+    isActive ? 'bg-neutral-100 font-semibold text-vmd-textStrong' : 'text-vmd-textMuted hover:bg-neutral-50 hover:text-vmd-textStrong'
+  }`;
+}
+
+function NavList({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () => void }) {
+  return (
+    <nav aria-label="Main" className="flex flex-col gap-4">
+      <NavLink to={HOME.to} end onClick={onNavigate} className={({ isActive }) => linkClass(isActive)}>
+        <HOME.icon size={18} /> {HOME.label}
+      </NavLink>
+      {groups.map((g) => (
+        <div key={g.label}>
+          <div className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-vmd-textSubtle">{g.label}</div>
+          <div className="flex flex-col gap-0.5">
+            {g.items.map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to} onClick={onNavigate} className={({ isActive }) => linkClass(isActive)}>
+                <Icon size={18} /> {label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function AccountRow() {
+  const subject = useAuthStore((s) => s.subject);
+  const clearAuth = useAuthStore((s) => s.clear);
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
@@ -176,74 +107,92 @@ export function Navbar() {
       window.location.href = '/admin_login';
     },
   });
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-vmd-border pt-3">
+      <span className="truncate text-[13px] text-vmd-textSubtle">{subject ?? ''}</span>
+      <button
+        type="button"
+        onClick={() => logoutMutation.mutate()}
+        className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] text-vmd-textMuted hover:bg-neutral-100"
+      >
+        <LogOut size={16} /> Log out
+      </button>
+    </div>
+  );
+}
+
+/** Desktop: fixed sidebar. Phones: top bar + drawer + bottom tabs. */
+export function AppNav() {
+  const groups = useNavGroups();
+  const [drawer, setDrawer] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => setDrawer(false), [pathname]);
 
   return (
-    <nav className="vmd-navbar mx-3 mt-3 sm:mx-4 sm:mt-4 flex flex-wrap items-center gap-1 lg:mx-8">
-      <span className="mr-4 text-sm font-semibold tracking-wide text-vmd-textStrong">TMTools</span>
-      <div className="hidden flex-1 flex-wrap items-center gap-x-3 gap-y-1 lg:flex">
-        <NavLink
-          to={DASHBOARD_ITEM.to}
-          end
-          className={({ isActive }) => `navbar-anim-link rounded-lg px-1.5 py-1.5 ${isActive ? 'active' : ''}`}
-        >
-          <DASHBOARD_ITEM.icon size={18} className="text-vmd-textMuted" />
-          <span className="nav-label">{DASHBOARD_ITEM.label}</span>
-        </NavLink>
-        {groups.map((g) => (
-          <NavDropdown key={g.label} group={g} />
-        ))}
-      </div>
-      <div className="ml-auto flex items-center gap-2 pl-2 text-xs text-vmd-textSubtle">
-        <StaffPushToggle />
-        {subject && <span className="hidden sm:inline">{subject}</span>}
-        <button
-          onClick={() => logoutMutation.mutate()}
-          className="navbar-anim-link rounded-lg px-1.5 py-1.5"
-          title="Log out"
-        >
-          <LogOut size={18} className="text-vmd-textMuted" />
-          <span className="nav-label hidden sm:inline">Log out</span>
-        </button>
+    <>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col gap-4 overflow-y-auto border-r border-vmd-border bg-white p-3 lg:flex">
+        <div className="flex items-center justify-between px-2.5 pt-1">
+          <span className="text-[15px] font-semibold tracking-tight text-vmd-textStrong">TMTools</span>
+        </div>
+        <div className="flex-1"><NavList groups={groups} /></div>
+        <StaffAlerts />
+        <AccountRow />
+      </aside>
+
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-vmd-border bg-white px-3 lg:hidden">
         <button
           type="button"
-          className="navbar-anim-link rounded-lg px-1.5 py-1.5 lg:hidden"
-          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={mobileOpen}
-          onClick={() => setMobileOpen((o) => !o)}
+          aria-label="Open menu"
+          onClick={() => setDrawer(true)}
+          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-neutral-100"
         >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          <Menu size={22} />
         </button>
-      </div>
-      {mobileOpen && (
-        <div className="mt-2 flex max-h-[75dvh] w-full flex-col gap-3 overflow-y-auto border-t border-white/10 pt-3 lg:hidden">
-          <NavLink
-            to={DASHBOARD_ITEM.to}
-            end
-            className={({ isActive }) => `navbar-anim-link rounded-md px-2 py-2.5 ${isActive ? 'active bg-white/10' : ''}`}
+        <span className="flex-1 text-[15px] font-semibold text-vmd-textStrong">TMTools</span>
+        <StaffAlerts compact />
+      </header>
+
+      {drawer && (
+        <div className="fixed inset-0 z-[90] lg:hidden" onClick={() => setDrawer(false)}>
+          <div className="absolute inset-0 bg-neutral-900/45" />
+          <div
+            role="dialog"
+            aria-label="Menu"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto bg-white p-3"
+            onClick={(e) => e.stopPropagation()}
           >
-            <DASHBOARD_ITEM.icon size={18} className="text-vmd-textMuted" />
-            <span className="nav-label">{DASHBOARD_ITEM.label}</span>
-          </NavLink>
-          {groups.map((g) => (
-            <div key={g.label}>
-              <div className="px-2 pb-1 text-[0.7rem] font-semibold uppercase tracking-wider text-vmd-textSubtle">{g.label}</div>
-              <div className="grid grid-cols-1 gap-0.5 min-[420px]:grid-cols-2">
-                {g.items.map(({ to, label, icon: ItemIcon }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) => `navbar-anim-link rounded-md px-2 py-2.5 ${isActive ? 'active bg-white/10' : ''}`}
-                  >
-                    <ItemIcon size={18} className="text-vmd-textMuted" />
-                    <span className="nav-label">{label}</span>
-                  </NavLink>
-                ))}
-              </div>
+            <div className="flex items-center justify-between px-2.5 pt-1">
+              <span className="text-[15px] font-semibold text-vmd-textStrong">TMTools</span>
+              <button type="button" aria-label="Close menu" onClick={() => setDrawer(false)} className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-neutral-100">
+                <X size={20} />
+              </button>
             </div>
-          ))}
-          {subject && <div className="px-2 pb-2 text-xs text-vmd-textSubtle sm:hidden">Signed in as {subject}</div>}
+            <div className="flex-1"><NavList groups={groups} onNavigate={() => setDrawer(false)} /></div>
+            <AccountRow />
+          </div>
         </div>
       )}
-    </nav>
+
+      <nav
+        aria-label="Quick"
+        className="fixed inset-x-0 bottom-0 z-30 flex h-16 items-stretch border-t border-vmd-border bg-white lg:hidden"
+      >
+        {TABS.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              `flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] ${isActive ? 'font-semibold text-vmd-textStrong' : 'text-vmd-textSubtle'}`
+            }
+          >
+            <Icon size={20} /> {label}
+          </NavLink>
+        ))}
+        <button type="button" onClick={() => setDrawer(true)} className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] text-vmd-textSubtle">
+          <Menu size={20} /> More
+        </button>
+      </nav>
+    </>
   );
 }

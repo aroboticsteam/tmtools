@@ -29,6 +29,7 @@ vi.mock('../api/capture', () => ({
 vi.mock('../api/integrations', () => ({
   useIntegrations: () => ({ data: [{ entity_id: 'obs.main', domain: 'obs', display_name: 'OBS' }] }),
   useCallIntegrationService: () => ({ mutate: vi.fn() }),
+  useIntegrationState: () => ({ data: { state: { current_scene: 'Program' } } }),
 }));
 vi.mock('../api/teams', () => ({
   useTeams: () => ({ data: [{ team_number: '1234A', robot_name: 'Bolt', cached_stats: { rank: 3 } }] }),
@@ -65,7 +66,7 @@ describe('AnalysisPage', () => {
 
   it('marks via buttons and keyboard, and sends a moment at the chosen speed', async () => {
     render(<AnalysisPage />);
-    await userEvent.click(screen.getByText('Mark last 5s'));
+    await userEvent.click(screen.getByLabelText('Cut last 5 seconds'));
     expect(mark.mock.calls[0][0]).toBe(5);
     await userEvent.keyboard('3');
     expect(mark.mock.calls[1][0]).toBe(10);
