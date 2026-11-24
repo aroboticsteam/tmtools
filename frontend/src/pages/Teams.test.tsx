@@ -16,6 +16,7 @@ const checklist = [
 vi.mock('../api/teams', () => ({
   useTeams: () => ({ data: teams, isLoading: false }),
   useTeamChecklist: () => ({ data: checklist }),
+  useUpdateTeam: () => ({ mutateAsync: vi.fn() }),
 }));
 
 describe('TeamsPage checklist', () => {

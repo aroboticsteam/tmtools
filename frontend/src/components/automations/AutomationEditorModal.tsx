@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Label, Select } from '../ui/Input';
+import { Tabs } from '../ui/Tabs';
 import { YamlEditor } from '../ui/YamlEditor';
 import { TriggerBuilder } from './TriggerBuilder';
 import { ConditionBuilder } from './ConditionBuilder';
@@ -86,7 +87,7 @@ export function AutomationEditorModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? `Edit: ${editing.alias}` : 'New Automation'} wide>
+    <Modal open={open} onClose={onClose} title={editing ? `Edit: ${editing.alias}` : 'New automation'} wide>
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
@@ -106,30 +107,27 @@ export function AutomationEditorModal({
           </div>
         </div>
 
-        <div className="flex overflow-x-auto gap-2 border-b border-vmd-border">
-          {(['builder', 'yaml'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-sm ${tab === t ? 'border-b-2 border-vmd-textStrong text-vmd-textStrong' : 'text-vmd-textMuted'}`}
-            >
-              {t === 'builder' ? 'Builder' : 'Raw YAML'}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          tabs={[
+            { id: 'builder' as const, label: 'Builder' },
+            { id: 'yaml' as const, label: 'Raw YAML' },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
 
         {tab === 'builder' ? (
           <div className="space-y-4">
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase text-vmd-textSubtle">Trigger</p>
+              <p className="mb-1.5 text-[13px] font-semibold text-vmd-textStrong">Trigger</p>
               <TriggerBuilder onYamlChange={setTriggerYaml} />
             </div>
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase text-vmd-textSubtle">Condition</p>
+              <p className="mb-1.5 text-[13px] font-semibold text-vmd-textStrong">Condition</p>
               <ConditionBuilder onYamlChange={setConditionYaml} />
             </div>
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase text-vmd-textSubtle">Action chain</p>
+              <p className="mb-1.5 text-[13px] font-semibold text-vmd-textStrong">Action chain</p>
               <ActionChainBuilder onYamlChange={setActionYaml} />
             </div>
           </div>
@@ -151,12 +149,12 @@ export function AutomationEditorModal({
         )}
 
         {validation && (
-          <div className={validation.valid ? 'text-sm text-vmd-success' : 'text-sm text-vmd-danger'}>
+          <div className={`rounded-lg border px-3 py-2 text-sm ${validation.valid ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
             {validation.valid ? 'Valid.' : validation.errors.join('; ')}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

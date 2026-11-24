@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useTeamChecklist, useTeams } from '../api/teams';
+import { useTeamChecklist, useTeams, useUpdateTeam } from '../api/teams';
+import { usePermission } from '../hooks/usePermission';
+import { useUiStore } from '../stores/ui';
+import { parsePitCsv } from '../lib/csv';
+import { Button } from '../components/ui/Button';
 import { ChecklistMark } from '../components/teams/ChecklistCard';
 import { INSPECTION_LABELS } from '../lib/checklist';
 import { useDebounce } from '../hooks/useDebounce';
@@ -15,6 +20,27 @@ export function TeamsPage() {
   const completeCount = (checklist ?? []).filter((c) => c.complete).length;
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 200);
+  const canEdit = usePermission('teams:edit');
+  const updateTeam = useUpdateTeam();
+  const pushToast = useUiStore((s) => s.pushToast);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function importPits(file: File) {
+    const rows = parsePitCsv(await file.text());
+    const known = new Set((teams ?? []).map((t) => t.team_number.toUpperCase()));
+    const usable = rows.filter((r) => known.has(r.team.toUpperCase()));
+    const real = new Map((teams ?? []).map((t) => [t.team_number.toUpperCase(), t.team_number]));
+    const results = await Promise.allSettled(
+      usable.map((r) => updateTeam.mutateAsync({ number: real.get(r.team.toUpperCase())!, body: { pit_location: r.pit } })),
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const skipped = rows.length - usable.length;
+    const failed = results.length - ok;
+    pushToast(
+      `Set ${ok} pit location${ok === 1 ? '' : 's'}${skipped ? `, ${skipped} unknown team${skipped === 1 ? '' : 's'} skipped` : ''}${failed ? `, ${failed} failed` : ''}`,
+      failed || ok === 0 ? 'error' : 'success',
+    );
+  }
 
   // Plan §12 "Search/filter by team number, name, division" (AUDIT_FINDINGS.md
   // 3.6). `TeamProfile` (frontend/src/types/api.ts, backend/schemas/team.py)
@@ -31,7 +57,31 @@ export function TeamsPage() {
 
   return (
     <div>
-      <PageHeader title="Teams" subtitle="Team profiles auto-populated from the TM scraper." />
+      <PageHeader
+        title="Teams"
+        subtitle="Profiles fill in from Tournament Manager"
+        action={
+          canEdit && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                aria-label="Import pit locations CSV"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void importPits(f);
+                }}
+              />
+              <Button onClick={() => fileRef.current?.click()}>
+                <Upload size={16} /> Import pits (CSV)
+              </Button>
+            </>
+          )
+        }
+      />
       <Input
         placeholder="Search by team number or robot name…"
         value={search}

@@ -14,6 +14,8 @@ import {
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { PageHeader, Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
 import { Toggle } from '../components/ui/Toggle';
 import { AutomationEditorModal } from '../components/automations/AutomationEditorModal';
@@ -74,7 +76,7 @@ export function AutomationsPage() {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
       <aside>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Folders</h2>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-vmd-textSubtle">Folders</h2>
           {canEdit && (
             <button
               onClick={() => {
@@ -87,20 +89,20 @@ export function AutomationsPage() {
             </button>
           )}
         </div>
-        <ul className="space-y-1 text-sm">
-          <li>
+        <ul className="flex gap-1 overflow-x-auto pb-1 text-sm lg:flex-col lg:space-y-0.5 lg:overflow-visible">
+          <li className="shrink-0 lg:shrink">
             <button
               onClick={() => setSelectedFolder(null)}
-              className={`w-full rounded-lg px-2 py-1 text-left ${selectedFolder === null ? 'bg-vmd-surfaceSubtle text-vmd-textStrong' : 'text-vmd-textMuted'}`}
+              className={`w-full whitespace-nowrap rounded-lg px-2.5 py-1.5 text-left ${selectedFolder === null ? 'bg-neutral-100 font-medium text-vmd-textStrong' : 'text-vmd-textMuted hover:bg-neutral-50'}`}
             >
               All automations
             </button>
           </li>
           {folders?.map((f) => (
-            <li key={f.id} className="group flex items-center gap-1">
+            <li key={f.id} className="group flex shrink-0 items-center gap-1 lg:shrink">
               <button
                 onClick={() => setSelectedFolder(f.id)}
-                className={`flex-1 rounded-lg px-2 py-1 text-left ${selectedFolder === f.id ? 'bg-vmd-surfaceSubtle text-vmd-textStrong' : 'text-vmd-textMuted'}`}
+                className={`flex-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-left ${selectedFolder === f.id ? 'bg-neutral-100 font-medium text-vmd-textStrong' : 'text-vmd-textMuted hover:bg-neutral-50'}`}
               >
                 {f.name}
               </button>
@@ -130,7 +132,7 @@ export function AutomationsPage() {
       <div>
         <PageHeader
           title="Automations"
-          subtitle="YAML/Jinja2 trigger-condition-action rules."
+          subtitle="When something happens, do something. Build rules with steps or YAML."
           action={
             canEdit && (
               <Button
@@ -140,7 +142,7 @@ export function AutomationsPage() {
                   setModalOpen(true);
                 }}
               >
-                <Plus size={16} /> New Automation
+                <Plus size={16} /> New automation
               </Button>
             )
           }
@@ -150,9 +152,9 @@ export function AutomationsPage() {
         <div className="space-y-3">
           {filtered.map((automation) => (
             <Card key={automation.id}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-vmd-textStrong">{automation.alias}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-vmd-textStrong">{automation.alias}</p>
                   <p className="text-xs text-vmd-textSubtle">
                     {automation.last_triggered_at
                       ? `Last triggered ${new Date(automation.last_triggered_at).toLocaleString()}`
@@ -172,7 +174,7 @@ export function AutomationsPage() {
                           onSuccess: (res) => pushToast(`Test run: ${res.status}`, res.status === 'success' ? 'success' : 'error'),
                         })
                       }
-                      className="text-vmd-textSubtle hover:text-vmd-textStrong"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"
                       title="Test Run"
                     >
                       <Play size={16} />
@@ -182,7 +184,7 @@ export function AutomationsPage() {
                     onClick={() =>
                       setExpandedHistory((cur) => (cur === automation.id ? null : automation.id))
                     }
-                    className="flex items-center gap-1 text-vmd-textSubtle hover:text-vmd-textStrong"
+                    className="flex h-8 items-center gap-1 rounded-lg px-1.5 text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"
                     title="Execution History"
                   >
                     <History size={16} />
@@ -197,14 +199,15 @@ export function AutomationsPage() {
                       setEditing(automation);
                       setModalOpen(true);
                     }}
-                    className="text-sm text-vmd-link hover:underline"
+                    className="h-8 rounded-lg border border-vmd-border px-3 text-sm font-medium text-vmd-text hover:bg-neutral-50"
                   >
                     Edit
                   </button>
                   {canEdit && (
                     <button
                       onClick={() => deleteAutomation.mutate(automation.id)}
-                      className="text-vmd-textSubtle hover:text-vmd-danger"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-red-50 hover:text-vmd-danger"
+                      title="Delete"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -216,7 +219,7 @@ export function AutomationsPage() {
             </Card>
           ))}
           {filtered.length === 0 && !isLoading && (
-            <p className="text-sm text-vmd-textSubtle">No automations in this folder yet.</p>
+            <EmptyState title="No automations here yet">Create one to react to match events.</EmptyState>
           )}
         </div>
       </div>
@@ -261,11 +264,7 @@ function AutomationHistoryPanel({ automationId }: { automationId: string }) {
                   {run.trigger_event ? JSON.stringify(run.trigger_event) : '—'}
                 </td>
                 <td className="py-1.5">
-                  <span
-                    className={run.status === 'success' ? 'text-vmd-success' : 'text-vmd-danger'}
-                  >
-                    {run.status}
-                  </span>
+                  <Badge tone={run.status === 'success' ? 'ok' : 'danger'}>{run.status}</Badge>
                 </td>
                 <td className="py-1.5">
                   {run.failed_action_index !== null ? (

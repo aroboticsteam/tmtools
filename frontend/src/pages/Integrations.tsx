@@ -39,11 +39,11 @@ export function IntegrationsPage() {
     <div>
       <PageHeader
         title="Integrations"
-        subtitle="VEX TM, Spotify, ATEM, ZerOS, and OBS instances."
+        subtitle="Connections to Tournament Manager, OBS, lighting, capture and more"
         action={
           canEdit && (
             <Button variant="primary" onClick={openCreate}>
-              <Plus size={16} /> Add Integration
+              <Plus size={16} /> Add integration
             </Button>
           )
         }
@@ -123,7 +123,7 @@ function IntegrationRow({
           <button
             onClick={handleTestConnection}
             disabled={testConnection.isPending}
-            className="text-vmd-textSubtle hover:text-vmd-textStrong disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong disabled:opacity-40"
             title="Test Connection"
           >
             <Zap size={16} />
@@ -132,14 +132,14 @@ function IntegrationRow({
             <>
               <button
                 onClick={onEdit}
-                className="text-vmd-textSubtle hover:text-vmd-textStrong"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"
                 title="Edit"
               >
                 <Pencil size={16} />
               </button>
               <button
                 onClick={handleDelete}
-                className="text-vmd-textSubtle hover:text-vmd-danger"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-red-50 hover:text-vmd-danger"
                 title="Delete"
               >
                 <Trash2 size={16} />
