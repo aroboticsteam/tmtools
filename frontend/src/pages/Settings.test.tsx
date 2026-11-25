@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsPage } from './Settings';
@@ -32,12 +33,13 @@ describe('API key presets', () => {
     const user = userEvent.setup();
     createKey.mockReset();
     data = [];
-    render(<SettingsPage />);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    await user.click(screen.getByRole('tab', { name: 'API keys' }));
     await user.click(screen.getByRole('button', { name: /new api key/i }));
-    await user.click(screen.getByRole('button', { name: 'Capture agent' }));
+    await user.click(screen.getByRole('button', { name: /^Capture agent/ }));
     expect(screen.getByLabelText(/capture:upload/)).toBeChecked();
     expect(screen.getByLabelText(/capture:control/)).not.toBeChecked();
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(screen.getByRole('button', { name: /create key/i }));
     expect(createKey.mock.calls[0][0]).toEqual({ name: 'Capture agent', permissions: ['capture:upload'] });
   });
 });
@@ -47,7 +49,7 @@ describe('SettingsPage competition program', () => {
 
   it('shows the stored program and saves a change', async () => {
     const user = userEvent.setup();
-    render(<SettingsPage />);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
     const select = screen.getByLabelText('VEX program');
     expect(select).toHaveValue('VIQRC');
     await user.selectOptions(select, 'V5RC');
@@ -57,7 +59,7 @@ describe('SettingsPage competition program', () => {
 
   it('defaults to V5RC when unset', () => {
     data = [{ key: 'competition', value: {} }];
-    render(<SettingsPage />);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
     expect(screen.getByLabelText('VEX program')).toHaveValue('V5RC');
   });
 });
