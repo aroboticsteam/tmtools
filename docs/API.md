@@ -28,8 +28,7 @@ reachable without a prior session.
 | GET | `/auth/login` | Starts the Authentik OIDC login redirect. |
 | GET | `/auth/callback` | OIDC callback — exchanges the code, establishes the session. |
 | POST | `/auth/logout` | Ends the current session. |
-| GET | `/admin_login` | HTML login form for the local emergency admin account (plan §3.9), bypasses OIDC entirely. |
-| POST | `/admin_login` | Submits `username`/`password` form fields for the local emergency admin; `admin_local` + `ADMIN_LOCAL_PASSWORD` env var. |
+| POST | `/admin_login` | Submits `username`/`password` form fields for the local emergency admin (the login page itself is the SPA route `/admin_login`); `admin_local` + `ADMIN_LOCAL_PASSWORD` env var. |
 | GET | `/api/v1/auth/whoami` | Returns the current session's user id, display name, and effective permissions. |
 
 ## Integrations (`/api/v1/integrations`)

@@ -11,21 +11,19 @@ test('a wrong password is rejected and no session is created', async ({ page, co
   await expect(page.locator('body')).toContainText('Invalid credentials');
   expect((await context.cookies()).filter((c) => /session/i.test(c.name))).toHaveLength(0);
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Button Pages' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Button pages' })).toHaveCount(0);
 });
 
 test('a signed-out visitor is not shown the console', async ({ page }) => {
   await page.goto('/buttons');
-  await expect(page.getByRole('link', { name: 'Button Pages' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Button pages' })).toHaveCount(0);
 });
 
 test('signing in with the right password opens the console', async ({ page }) => {
   await page.goto('/admin_login');
   await page.getByLabel('Password').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page.locator('body')).toContainText('"ok":true');
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Production' }).click();
-  await expect(page.getByRole('menuitem', { name: 'Comms' })).toBeVisible();
+  await page.waitForURL((u) => u.pathname === '/');
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Match control' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 });

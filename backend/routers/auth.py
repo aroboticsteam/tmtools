@@ -6,7 +6,6 @@ Owns:
     token, extracts groups from `settings.OIDC_GROUPS_CLAIM`, resolves them
     to permissions via `role_permissions`, and creates a server-side session.
   - `POST /auth/logout`   Clears the session (cookie + Redis key).
-  - `GET  /admin_login`   Local emergency admin login page (plan §3.9).
   - `POST /admin_login`   Submits the local admin password.
 
 Per §C.2, this router may import `backend/core/`, `backend/models/`,
@@ -30,7 +29,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -312,23 +311,8 @@ async def logout(
 
 # ── Local emergency admin (plan §3.9 / Appendix B.9) ─────────────────────
 
-_ADMIN_LOGIN_PAGE = """<!doctype html>
-<html><head><title>TMTools Emergency Admin Login</title></head>
-<body>
-<h1>Emergency Admin Login</h1>
-<form method="post" action="/admin_login">
-  <label>Username <input type="text" name="username" value="admin_local" readonly></label><br>
-  <label>Password <input type="password" name="password"></label><br>
-  <button type="submit">Log in</button>
-</form>
-</body></html>"""
-
-
-@router.get("/admin_login", response_class=HTMLResponse)
-async def admin_login_page() -> HTMLResponse:
-    """Serves the local emergency admin login page. Username is always
-    `admin_local` and never goes through Authentik (plan §3.9)."""
-    return HTMLResponse(content=_ADMIN_LOGIN_PAGE)
+# The login *page* is the SPA's `/admin_login` route (the backend serves no UI
+# pages for it); only the form POST lives here.
 
 
 @router.post("/admin_login")
