@@ -21,7 +21,7 @@ export function TeamPhotosPanel({ teamNumber }: { teamNumber: string }) {
             <figure key={kind} className="flex flex-col gap-2">
               <div
                 className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-vmd-border"
-                style={{ backgroundImage: 'conic-gradient(#f5f5f5 25%, #ffffff 0 50%, #f5f5f5 0 75%, #ffffff 0)', backgroundSize: '16px 16px' }}
+                style={{ backgroundImage: 'conic-gradient(rgb(var(--n-100)) 25%, rgb(var(--surface)) 0 50%, rgb(var(--n-100)) 0 75%, rgb(var(--surface)) 0)', backgroundSize: '16px 16px' }}
               >
                 {url ? (
                   <img src={url} alt={`${PHOTO_KIND_LABEL[kind]} for team ${teamNumber}`} className="h-full w-full object-contain" />

@@ -183,7 +183,7 @@ export function PhotoBoothPage() {
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Section title="Camera" description={validTeam ? `${number}, ${PHOTO_KIND_LABEL[kind].toLowerCase()}` : 'Enter a team number to start'}>
           <div className="p-4">
-            <div className="relative mx-auto aspect-square w-full max-w-xl overflow-hidden rounded-xl bg-neutral-900">
+            <div className="relative mx-auto aspect-square w-full max-w-xl overflow-hidden rounded-xl bg-black">
               {/* The live camera is always mounted (object-cover = the same centred square that gets snapped). */}
               <video ref={videoRef} className={`h-full w-full object-cover ${phase === 'review' ? 'hidden' : ''}`} playsInline muted />
               {phase === 'review' && photo && <ChromaKeyPreview file={photo.file} params={key} />}

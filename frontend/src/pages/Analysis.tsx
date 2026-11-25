@@ -330,7 +330,7 @@ function MatchTab({
 
   const player = (
     <section className="overflow-hidden rounded-xl border border-vmd-border bg-white">
-      <div className="relative flex aspect-video items-center justify-center bg-neutral-900">
+      <div className="relative flex aspect-video items-center justify-center bg-black">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white">
           {replay?.playing && !replay.paused ? <Play size={24} fill="currentColor" /> : <Pause size={24} />}
         </div>

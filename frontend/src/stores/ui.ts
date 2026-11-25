@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { applyTheme, initialTheme, type Theme } from '../lib/theme';
+
 export interface Toast {
   id: number;
   message: string;
@@ -17,6 +19,8 @@ export interface UiState {
   /** Alerts older than this (unix seconds) count as read. */
   alertsSeenAt: number;
   markAlertsRead: (at: number) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   toasts: Toast[];
   pushToast: (message: string, variant?: Toast['variant']) => void;
   dismissToast: (id: number) => void;
@@ -32,6 +36,11 @@ export const useUiStore = create<UiState>((set) => ({
   setReconnecting: (value) => set({ reconnecting: value }),
   alertsSeenAt: 0,
   markAlertsRead: (at) => set({ alertsSeenAt: at }),
+  theme: initialTheme(),
+  setTheme: (theme) => {
+    applyTheme(theme);
+    set({ theme });
+  },
   toasts: [],
   pushToast: (message, variant = 'info') => {
     const id = ++toastCounter;

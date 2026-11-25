@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Menu, MoreHorizontal, Workflow, X } from 'lucide-react';
+import { LogOut, Moon, Sun, Menu, MoreHorizontal, Workflow, X } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { logout } from '../../api/auth';
 import { useAuthStore } from '../../stores/auth';
+import { useUiStore } from '../../stores/ui';
 import { useCan } from '../../hooks/useCan';
 import { useAnyFieldLive } from '../../lib/fields';
 import { NAV_GROUPS, PHONE_TABS, isActivePath, locate, type NavGroup } from '../../lib/nav';
@@ -72,6 +73,8 @@ function AccountRow() {
       window.location.href = '/admin_login';
     },
   });
+  const theme = useUiStore((s) => s.theme);
+  const setTheme = useUiStore((s) => s.setTheme);
   const name = subject ?? 'Signed in';
   const initials = name.replace(/[^A-Za-z ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?';
   return (
@@ -84,6 +87,15 @@ function AccountRow() {
           <div className="truncate text-sm font-medium text-vmd-textStrong">{name}</div>
           <div className="text-xs text-vmd-textSubtle">{isAdmin ? 'Admin' : 'Staff'}</div>
         </div>
+        <button
+          type="button"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <button
           type="button"
           aria-label="Log out"
@@ -127,7 +139,7 @@ export function AppNav() {
 
       {drawer && (
         <div className="fixed inset-0 z-[90] lg:hidden" onClick={() => setDrawer(false)}>
-          <div className="absolute inset-0 bg-neutral-900/45" />
+          <div className="absolute inset-0 bg-black/50" />
           <div role="dialog" aria-label="Menu" className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col gap-5 overflow-y-auto bg-white p-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between pt-1">
               <Brand />
