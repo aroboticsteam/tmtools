@@ -26,9 +26,10 @@ describe('TeamsPage checklist', () => {
         <TeamsPage />
       </MemoryRouter>,
     );
-    expect(screen.getByText('Checklist complete: 1/2 teams')).toBeInTheDocument();
-    expect(screen.getByLabelText('Checklist for 1234A')).toHaveTextContent('Inspection: Passed');
-    expect(screen.getByLabelText('Checklist for 5678B')).toHaveTextContent('Inspection: Not started');
+    expect(screen.getByText('Checklist done')).toBeInTheDocument();
+    expect(screen.getByLabelText('Checklist for 1234A')).toHaveTextContent('3/3');
+    expect(screen.getByLabelText('Checklist for 5678B')).toHaveTextContent('0/3');
+    expect(screen.getByText('Not started')).toBeInTheDocument();
   });
 
   it('filters to incomplete teams', async () => {
@@ -37,7 +38,7 @@ describe('TeamsPage checklist', () => {
         <TeamsPage />
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByLabelText('Show incomplete only'));
+    await userEvent.click(screen.getByRole('button', { name: 'Checklist open' }));
     expect(screen.queryByText('1234A')).not.toBeInTheDocument();
     expect(screen.getByText('5678B')).toBeInTheDocument();
   });

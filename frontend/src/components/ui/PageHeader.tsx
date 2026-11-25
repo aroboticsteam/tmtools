@@ -30,8 +30,8 @@ export function PageHeader({
   // The breadcrumb, search and alerts need the router; a bare render (tests, previews) skips them.
   const inRouter = useInRouterContext();
   return (
-    <div className="-mx-4 -mt-5 mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-vmd-border bg-white px-4 py-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:py-5">
-      <div className="min-w-0 flex-1 basis-72">
+    <div className={`${action ? 'max-lg:mb-4 max-lg:border-b-0 max-lg:bg-transparent max-lg:!py-0' : 'max-lg:hidden'} -mx-4 -mt-5 mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-vmd-border bg-white px-4 py-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:py-5`}>
+      <div className="hidden min-w-0 flex-1 basis-72 lg:block">
         {inRouter && <Breadcrumb title={title} />}
         <h1 className="text-[22px] font-semibold leading-7 tracking-tight text-vmd-textStrong">{title}</h1>
         {subtitle && <p className="mt-0.5 text-sm text-vmd-textSubtle">{subtitle}</p>}

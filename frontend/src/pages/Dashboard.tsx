@@ -68,7 +68,7 @@ export function DashboardPage() {
         }
       />
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4">
           <StatCard icon={Users2} label="Teams ready" value={checklist.length ? `${done} / ${checklist.length}` : '—'} hint={checklist.length ? `${checklist.length - done} checklists still open` : 'No teams yet'} />
           <StatCard icon={MonitorPlay} label="Fields live" value={fields.length ? `${live} / ${fields.length}` : '—'} hint={fields.length ? `${fields.filter((f) => f.status === 'queued').length} queued` : 'Waiting for a match'} />
           <StatCard icon={Clapperboard} label="Recordings" value={recordings.length} hint={`${moments} moments marked`} />

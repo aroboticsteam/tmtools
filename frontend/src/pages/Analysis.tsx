@@ -306,7 +306,7 @@ function MatchTab({
           {isRecording ? `Saves the last few seconds of ${recordingLabel(recordingNow!)} and adds it to this match` : agentConnected ? 'Waiting for a match to start recording' : 'Capture agent offline'}
         </span>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3 px-4 pb-4">
+      <div className="grid grid-cols-3 gap-2 px-3 pb-3 sm:gap-3 sm:px-4 sm:pb-4">
         {MARK_LENGTHS.map((s) => (
           <button
             key={s}
@@ -314,13 +314,13 @@ function MatchTab({
             aria-label={`Cut last ${s} seconds`}
             disabled={!canControl || !isRecording || mark.isPending}
             onClick={() => doMark(s)}
-            className="flex h-[72px] items-center justify-between rounded-[10px] border border-neutral-900 bg-neutral-900 px-4 text-left text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-[72px] items-center justify-between rounded-[10px] border border-neutral-900 bg-neutral-900 px-3 text-left sm:px-4 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>
-              <span className="block text-[26px] font-semibold leading-[30px] tracking-tight">{s} s</span>
-              <span className="block text-xs opacity-70">Last {s} seconds</span>
+              <span className="block text-2xl font-semibold leading-[30px] tracking-tight sm:text-[26px]">{s} s</span>
+              <span className="block text-[11px] opacity-70 sm:text-xs">Last {s} s</span>
             </span>
-            <kbd className="flex h-6 w-6 items-center justify-center rounded-md border border-white/40 text-xs">{Object.entries(setup.keys).find(([, v]) => v === s)?.[0] ?? ''}</kbd>
+            <kbd className="hidden h-6 w-6 sm:flex items-center justify-center rounded-md border border-white/40 text-xs">{Object.entries(setup.keys).find(([, v]) => v === s)?.[0] ?? ''}</kbd>
           </button>
         ))}
       </div>
