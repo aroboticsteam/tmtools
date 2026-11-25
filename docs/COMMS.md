@@ -1,5 +1,7 @@
 # Desk ↔ iPad comms (issue #8)
 
+> The admin UI no longer has a Comms desk page (removed 2026-11-25). The backend API and the station iPad pages described here still exist; use the API directly.
+
 Two independent pieces:
 
 1. **Screens and messages** (built into TMTools): the desk operator pushes

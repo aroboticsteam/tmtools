@@ -111,7 +111,7 @@ export function AppNav() {
   const { item } = locate(pathname);
   const allItems = groups.flatMap((g) => g.items);
   const tabs = PHONE_TABS.map((to) => allItems.find((i) => i.to === to)).filter((i) => !!i);
-  const shortLabel: Record<string, string> = { '/': 'Home', '/match-control': 'Match', '/analysis': 'Analysis', '/comms': 'Comms' };
+  const shortLabel: Record<string, string> = { '/': 'Home', '/match-control': 'Match', '/analysis': 'Analysis', '/timers': 'Timers' };
 
   return (
     <>

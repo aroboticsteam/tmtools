@@ -1,5 +1,5 @@
 import {
-  Clapperboard, DoorOpen, FileCode2, LayoutDashboard, LayoutGrid, MessageSquare, MonitorPlay,
+  Clapperboard, DoorOpen, FileCode2, LayoutDashboard, LayoutGrid, Timer, MonitorPlay,
   Plug, Presentation, ScrollText, Settings as SettingsIcon, ShieldCheck, Camera, Users2, Workflow,
   Bug, Activity,
   type LucideIcon,
@@ -30,7 +30,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/analysis', label: 'Analysis desk', icon: Clapperboard, permission: 'analysis:view' },
       { to: '/teams', label: 'Teams', icon: Users2 },
       { to: '/rooms', label: 'Rooms', icon: DoorOpen },
-      { to: '/comms', label: 'Comms', icon: MessageSquare },
+      { to: '/timers', label: 'Timers', icon: Timer },
     ],
   },
   {
@@ -62,7 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 /** Phone bottom tabs; the last one ("More") opens the drawer. */
-export const PHONE_TABS = ['/', '/match-control', '/analysis', '/comms'] as const;
+export const PHONE_TABS = ['/', '/match-control', '/analysis', '/timers'] as const;
 
 export function isActivePath(pathname: string, to: string): boolean {
   return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);

@@ -16,7 +16,7 @@ import { RoomsPage } from './pages/Rooms';
 import { ButtonPagesPage } from './pages/ButtonPages';
 import { AnalysisPage } from './pages/Analysis';
 import { PhotoBoothPage } from './pages/PhotoBooth';
-import { CommsPage } from './pages/Comms';
+import { TimersPage } from './pages/Timers';
 import { AuditLogPage } from './pages/AuditLog';
 import { SettingsPage } from './pages/Settings';
 import { UsersPage } from './pages/Users';
@@ -48,8 +48,6 @@ export const router = createBrowserRouter([
       { path: 'automations/new', element: <AutomationEditorPage /> },
       { path: 'automations/:id', element: <AutomationEditorPage /> },
       { path: 'scripts', element: <ScriptsPage /> },
-      // The Timer-Teleprompter page is part of Comms now; keep old bookmarks working.
-      { path: 'timers', element: <Navigate to="/comms" replace /> },
       { path: 'overlays', element: <OverlaysPage /> },
       { path: 'teams', element: <TeamsPage /> },
       { path: 'teams/:number', element: <TeamDetailPage /> },
@@ -57,7 +55,9 @@ export const router = createBrowserRouter([
       { path: 'buttons', element: <ButtonPagesPage /> },
       { path: 'analysis', element: <AnalysisPage /> },
       { path: 'record', element: <PhotoBoothPage /> },
-      { path: 'comms', element: <CommsPage /> },
+      { path: 'timers', element: <TimersPage /> },
+      // The Comms page was removed; old bookmarks land on Timers.
+      { path: 'comms', element: <Navigate to="/timers" replace /> },
       { path: 'audit', element: <AuditLogPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'users', element: <UsersPage /> },
