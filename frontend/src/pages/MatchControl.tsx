@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Monitor, MonitorPlay, RotateCcw, Square, Play, Video } from 'lucide-react';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { useIntegrations, useCallIntegrationService, useIntegrationState } from '../api/integrations';
+import { useIntegrations, useCallIntegrationService } from '../api/integrations';
 import { useCaptureStatus } from '../api/capture';
 import { useFieldRows, useFieldSeed } from '../lib/fields';
 import { recordingLabel } from '../lib/analysis';
@@ -61,12 +61,9 @@ export function MatchControlPage() {
   useFieldSeed();
   const { data: integrations = [] } = useIntegrations();
   const tm = integrations.filter((i) => i.domain === 'vex_tm');
-  const obs = integrations.find((i) => i.domain === 'obs');
   const fields = useFieldRows();
   const events = useWsStore((s) => s.recentEvents);
   const { data: capture } = useCaptureStatus();
-  const { data: obsState } = useIntegrationState(obs?.entity_id ?? null);
-  const scene = typeof obsState?.state?.current_scene === 'string' ? (obsState.state.current_scene as string) : null;
   const log = events.filter((e) => e.type === 'automation_executed').slice(0, 8);
 
   return (
@@ -97,7 +94,6 @@ export function MatchControlPage() {
                     </div>
                     {tm[0] && <FieldButtons instance={tm[0]} />}
                     <div className="flex flex-col divide-y divide-neutral-100 text-sm">
-                      <Row icon={MonitorPlay} label="OBS scene" value={scene ?? '—'} />
                       <Row icon={Video} label="Recording" value={capture?.recording ? recordingLabel(capture.recording) : 'Not recording'} />
                     </div>
                   </div>
