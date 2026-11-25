@@ -9,6 +9,7 @@ import { useFieldRows, useFieldSeed } from '../lib/fields';
 import { timeAgo } from '../lib/alerts';
 import { useWsStore } from '../stores/ws';
 import { usePermission } from '../hooks/usePermission';
+import { useCan } from '../hooks/useCan';
 import { PageHeader, Section } from '../components/ui/Card';
 import { StatCard } from '../components/ui/StatCard';
 import { Badge, StatusBadge, type Tone } from '../components/ui/Badge';
@@ -37,12 +38,17 @@ function describe(e: EventBusMessage): { icon: typeof Check; text: string } | nu
 /** Overview of the whole event: key numbers, fields, activity and integrations. */
 export function DashboardPage() {
   useWebSocket('/ws/events');
-  useFieldSeed();
+  const can = useCan();
+  const canIntegrations = can('integrations:read');
+  const canTeams = can('teams:read');
+  const canRecordings = can('analysis:view');
+  const canAutomations = can('automations:read');
+  useFieldSeed(canIntegrations);
   const canAutomate = usePermission('automations:edit');
-  const { data: integrations = [], isLoading } = useIntegrations();
-  const { data: checklist = [] } = useTeamChecklist();
-  const { data: recordings = [] } = useCaptureRecordings({ limit: 300 });
-  const { data: automations = [] } = useAutomations();
+  const { data: integrations = [], isLoading } = useIntegrations(canIntegrations);
+  const { data: checklist = [] } = useTeamChecklist(canTeams);
+  const { data: recordings = [] } = useCaptureRecordings({ limit: 300, enabled: canRecordings });
+  const { data: automations = [] } = useAutomations(canAutomations);
   const fields = useFieldRows();
   const events = useWsStore((s) => s.recentEvents);
   const statuses = useWsStore((s) => s.integrationStatuses);
@@ -69,13 +75,14 @@ export function DashboardPage() {
       />
       <div className="flex flex-col gap-6">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4">
-          <StatCard icon={Users2} label="Teams ready" value={checklist.length ? `${done} / ${checklist.length}` : '—'} hint={checklist.length ? `${checklist.length - done} checklists still open` : 'No teams yet'} />
-          <StatCard icon={MonitorPlay} label="Fields live" value={fields.length ? `${live} / ${fields.length}` : '—'} hint={fields.length ? `${fields.filter((f) => f.status === 'queued').length} queued` : 'Waiting for a match'} />
-          <StatCard icon={Clapperboard} label="Recordings" value={recordings.length} hint={`${moments} moments marked`} />
-          <StatCard icon={Workflow} label="Automations on" value={`${enabled} / ${automations.length}`} hint={automations.length - enabled ? `${automations.length - enabled} disabled` : 'All enabled'} />
+          {canTeams && <StatCard icon={Users2} label="Teams ready" value={checklist.length ? `${done} / ${checklist.length}` : '—'} hint={checklist.length ? `${checklist.length - done} checklists still open` : 'No teams yet'} />}
+          {canIntegrations && <StatCard icon={MonitorPlay} label="Fields live" value={fields.length ? `${live} / ${fields.length}` : '—'} hint={fields.length ? `${fields.filter((f) => f.status === 'queued').length} queued` : 'Waiting for a match'} />}
+          {canRecordings && <StatCard icon={Clapperboard} label="Recordings" value={recordings.length} hint={`${moments} moments marked`} />}
+          {canAutomations && <StatCard icon={Workflow} label="Automations on" value={`${enabled} / ${automations.length}`} hint={automations.length - enabled ? `${automations.length - enabled} disabled` : 'All enabled'} />}
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className={`grid grid-cols-1 items-start gap-4 ${canIntegrations ? 'lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]' : ''}`}>
+          {canIntegrations && (
           <Section title="Fields" action={<Link to="/match-control" className="text-[13px] font-medium text-vmd-textStrong hover:underline">Open match control</Link>}>
             {fields.length === 0 ? (
               <EmptyState icon={MonitorPlay} title="No field activity yet">Fields appear once Tournament Manager assigns a match.</EmptyState>
@@ -92,6 +99,7 @@ export function DashboardPage() {
               ))
             )}
           </Section>
+          )}
 
           <Section title="Activity">
             {activity.length === 0 ? (
@@ -113,6 +121,7 @@ export function DashboardPage() {
           </Section>
         </div>
 
+        {canIntegrations && (
         <Section title="Integrations" action={<Link to="/integrations" className="text-[13px] font-medium text-vmd-textStrong hover:underline">Manage</Link>}>
           {isLoading ? (
             <p className="px-4 py-6 text-sm text-vmd-textSubtle">Loading…</p>
@@ -131,6 +140,7 @@ export function DashboardPage() {
             />
           )}
         </Section>
+        )}
       </div>
     </div>
   );

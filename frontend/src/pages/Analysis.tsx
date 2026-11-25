@@ -11,6 +11,7 @@ import {
 import { useCallIntegrationService, useIntegrations, useIntegrationState } from '../api/integrations';
 import { useTeams } from '../api/teams';
 import { usePermission } from '../hooks/usePermission';
+import { useCan } from '../hooks/useCan';
 import { useUiStore } from '../stores/ui';
 import {
   DEFAULT_SETUP,
@@ -98,7 +99,7 @@ function AnalysisDesk() {
 }
 
 function StatsTab({ recording }: { recording: CaptureRecording | null }) {
-  const { data: teams = [] } = useTeams();
+  const { data: teams = [] } = useTeams(useCan()('teams:read'));
   if (!recording) return <EmptyState title="No match selected">Pick a match on the Match tab to see its teams.</EmptyState>;
   // Stats only: we never show predicted scores or win probabilities here.
   return (
@@ -206,7 +207,7 @@ function MatchTab({
   const control = useReplayControl(setup.replayId);
   const { data: replay } = useReplayState(setup.replayId);
   const callService = useCallIntegrationService();
-  const { data: integrations = [] } = useIntegrations();
+  const { data: integrations = [] } = useIntegrations(useCan()('integrations:read'));
   const obsList = integrations.filter((i) => i.domain === 'obs');
   const wledList = integrations.filter((i) => i.domain === 'wled');
   const [speed, setSpeed] = useState<number>(0.5);

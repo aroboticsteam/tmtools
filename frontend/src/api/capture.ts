@@ -15,13 +15,14 @@ export function useCaptureStatus() {
   });
 }
 
-export function useCaptureRecordings(params: { team?: string; matchType?: string; limit?: number } = {}) {
+export function useCaptureRecordings(params: { team?: string; matchType?: string; limit?: number; enabled?: boolean } = {}) {
   const qs = new URLSearchParams();
   if (params.team) qs.set('team', params.team);
   if (params.matchType) qs.set('match_type', params.matchType);
   if (params.limit) qs.set('limit', String(params.limit));
   const query = qs.toString();
   return useQuery({
+    enabled: params.enabled ?? true,
     queryKey: [...RECORDINGS, query],
     queryFn: () => apiFetch<CaptureRecording[]>(`/api/v1/capture/recordings${query ? `?${query}` : ''}`),
     refetchInterval: 3000,

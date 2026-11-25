@@ -6,12 +6,13 @@ import type {
   TeamProfileUpdate,
 } from '../types/api';
 
-export function useTeams() {
-  return useQuery({ queryKey: ['teams'], queryFn: () => apiFetch<TeamProfile[]>('/api/v1/teams') });
+export function useTeams(enabled = true) {
+  return useQuery({ enabled, queryKey: ['teams'], queryFn: () => apiFetch<TeamProfile[]>('/api/v1/teams') });
 }
 
-export function useTeamChecklist() {
+export function useTeamChecklist(enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ['teams', 'checklist'],
     queryFn: () => apiFetch<TeamChecklistItem[]>('/api/v1/teams/checklist'),
   });

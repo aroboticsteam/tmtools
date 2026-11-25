@@ -12,8 +12,9 @@ import type {
 
 const KEY = ['integrations'] as const;
 
-export function useIntegrations() {
+export function useIntegrations(enabled = true) {
   return useQuery({
+    enabled,
     queryKey: KEY,
     queryFn: () => apiFetch<IntegrationInstance[]>('/api/v1/integrations'),
   });

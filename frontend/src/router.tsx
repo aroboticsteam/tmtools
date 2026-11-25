@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { AccessGuard } from './components/layout/AccessGuard';
 import { RouteError } from './components/layout/RouteError';
 import { ProtectedLayout } from './components/layout/ProtectedLayout';
 import { AdminLoginPage } from './pages/AdminLogin';
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       {
+        element: <AccessGuard />,
         errorElement: <RouteError />,
         children: [
       { index: true, element: <DashboardPage /> },

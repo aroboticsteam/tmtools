@@ -4,20 +4,16 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { logout } from '../../api/auth';
 import { useAuthStore } from '../../stores/auth';
-import { usePermission } from '../../hooks/usePermission';
+import { useCan } from '../../hooks/useCan';
 import { useAnyFieldLive } from '../../lib/fields';
 import { NAV_GROUPS, PHONE_TABS, isActivePath, locate, type NavGroup } from '../../lib/nav';
 import { StaffAlerts } from './StaffAlerts';
 
 function useVisibleGroups(): NavGroup[] {
-  const canEdit = usePermission('settings:edit');
-  const canAnalyse = usePermission('analysis:view');
-  return NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((i) =>
-      i.permission === 'settings:edit' ? canEdit : i.permission === 'analysis:view' ? canAnalyse : true,
-    ),
-  })).filter((g) => g.items.length > 0);
+  const can = useCan();
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => can(i.permission)) })).filter(
+    (g) => g.items.length > 0,
+  );
 }
 
 function Brand() {

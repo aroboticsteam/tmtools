@@ -42,20 +42,20 @@ export function useAnyFieldLive(): boolean {
 
 /** Loads the server's field snapshot on mount and after each reconnect, so a
  * page opened mid-match shows the fields straight away. */
-export function useFieldSeed(): void {
+export function useFieldSeed(enabled = true): void {
   const connected = useWsStore((s) => s.connected);
   const seedFields = useWsStore((s) => s.seedFields);
-  const { data, refetch } = useFieldState();
+  const { data, refetch } = useFieldState(enabled);
   useEffect(() => {
     if (data) seedFields(data);
   }, [data, seedFields]);
   const was = useRef(false);
   useEffect(() => {
-    if (connected && !was.current) {
+    if (enabled && connected && !was.current) {
       void refetch().then((r) => {
         if (r.data) seedFields(r.data, true);
       });
     }
     was.current = connected;
-  }, [connected, refetch, seedFields]);
+  }, [enabled, connected, refetch, seedFields]);
 }

@@ -208,7 +208,7 @@ export function SettingsPage() {
         action={<Link to="/audit"><Button>Audit log</Button></Link>}
       />
       <div className="-mt-6 mb-6 -mx-4 border-b border-vmd-border bg-white px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <Tabs tabs={SETTINGS_TABS} active={tab} onChange={setTab} />
+        <Tabs tabs={SETTINGS_TABS.filter((t) => canEdit || (t.id !== 'roles' && t.id !== 'keys'))} active={tab} onChange={setTab} />
       </div>
 
       {tab === 'general' && (
@@ -299,7 +299,7 @@ export function SettingsPage() {
         </div>
       )}
 
-      {tab === 'roles' && (
+      {tab === 'roles' && canEdit && (
         <Section title="Roles" description="Which role can do what is managed on the Users and roles page.">
           <div className="p-4">
             <Link to="/users"><Button>Open users and roles</Button></Link>
@@ -307,7 +307,7 @@ export function SettingsPage() {
         </Section>
       )}
 
-      {tab === 'keys' && (
+      {tab === 'keys' && canEdit && (
         <div className="flex flex-col gap-4">
           <ApiKeysSection canEdit={canEdit} />
           <TeleprompterIndexSection canEdit={canEdit} />

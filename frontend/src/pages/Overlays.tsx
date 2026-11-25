@@ -5,6 +5,7 @@ import { useTeams } from '../api/teams';
 import { useUiStore } from '../stores/ui';
 import { Input } from '../components/ui/Input';
 import { usePermission } from '../hooks/usePermission';
+import { useCan } from '../hooks/useCan';
 import { PageHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { CopyButton } from '../components/ui/CopyButton';
@@ -115,7 +116,7 @@ export function OverlaysPage() {
 /** Finals "team spotlight" operator control: pick a team to put on the
  * overlay (bot photo + info + team photo), or return to the match view. */
 function SpotlightControls({ entityId }: { entityId: string }) {
-  const { data: teams = [] } = useTeams();
+  const { data: teams = [] } = useTeams(useCan()('teams:read'));
   const spotlight = useSpotlightTeam();
   const pushToast = useUiStore((s) => s.pushToast);
   const [team, setTeam] = useState('');

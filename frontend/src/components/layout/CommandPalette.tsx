@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { usePermission } from '../../hooks/usePermission';
+import { useCan } from '../../hooks/useCan';
 import { NAV_GROUPS } from '../../lib/nav';
 
 /** Search box in the page header; Ctrl/Cmd+K focuses it. Jumps to a page. */
@@ -10,8 +10,7 @@ export function PageSearch() {
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const canEdit = usePermission('settings:edit');
-  const canAnalyse = usePermission('analysis:view');
+  const can = useCan();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -28,10 +27,10 @@ export function PageSearch() {
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return NAV_GROUPS.flatMap((g) => g.items.map((i) => ({ ...i, group: g.title })))
-      .filter((i) => (i.permission === 'settings:edit' ? canEdit : i.permission === 'analysis:view' ? canAnalyse : true))
+      .filter((i) => can(i.permission))
       .filter((i) => !needle || i.label.toLowerCase().includes(needle) || i.group.toLowerCase().includes(needle))
       .slice(0, 8);
-  }, [q, canEdit, canAnalyse]);
+  }, [q, can]);
 
   const go = (to: string) => {
     setOpen(false);
