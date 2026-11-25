@@ -747,6 +747,7 @@ async def ws_agent(websocket: WebSocket) -> None:
 
     await manager.connect(capture_hub.AGENT_BUCKET, websocket)
     info: dict[str, Any] = {"connected_at": time.time(), "state": "idle"}
+    integration_checked = False
     try:
         await capture_hub.set_presence(redis_client, info)
         await capture_hub.publish(redis_client, "capture_status", {"connected": True, **info})
@@ -765,6 +766,14 @@ async def ws_agent(websocket: WebSocket) -> None:
                 info["last_seen"] = time.time()
                 await capture_hub.set_presence(redis_client, info)
                 await capture_hub.publish(redis_client, "capture_status", {"connected": True, **info})
+                if not integration_checked and msg["type"] == "hello":
+                    integration_checked = True
+                    try:
+                        await capture_service.ensure_integration(
+                            redis_client, async_session_factory, info.get("agent_id")
+                        )
+                    except Exception:
+                        logger.exception("capture: could not ensure the capture integration")
             else:
                 await capture_hub.set_presence(redis_client, info)
                 await capture_service.handle_agent_message(redis_client, async_session_factory, msg)

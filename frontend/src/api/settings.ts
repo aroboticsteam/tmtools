@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../lib/http';
-import type { ApiKey, ApiKeyCreate, ApiKeyCreateResponse, RolePermission, SystemSetting } from '../types/api';
+import type {
+  ApiKey,
+  ApiKeyCreate,
+  ApiKeyCreateResponse,
+  PermissionCatalog,
+  RolePermission,
+  SystemSetting,
+} from '../types/api';
 
 export function useSettings() {
   return useQuery({ queryKey: ['settings'], queryFn: () => apiFetch<SystemSetting[]>('/api/v1/settings') });
@@ -12,6 +19,15 @@ export function useUpdateSettings() {
     mutationFn: (body: Record<string, { value: Record<string, unknown> }>) =>
       apiFetch<SystemSetting[]>('/api/v1/settings', { method: 'PUT', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  });
+}
+
+/** Every permission with a description, plus the API key presets (from the backend). */
+export function usePermissionCatalog() {
+  return useQuery({
+    queryKey: ['permission-catalog'],
+    queryFn: () => apiFetch<PermissionCatalog>('/api/v1/permissions'),
+    staleTime: Infinity,
   });
 }
 

@@ -370,6 +370,24 @@ export interface ApiKey {
   revoked: boolean;
 }
 
+export interface PermissionInfo {
+  name: string;
+  group: string;
+  description: string;
+}
+
+export interface KeyPreset {
+  id: string;
+  label: string;
+  description: string;
+  permissions: string[];
+}
+
+export interface PermissionCatalog {
+  permissions: PermissionInfo[];
+  presets: KeyPreset[];
+}
+
 export interface ApiKeyCreate {
   name: string;
   permissions: string[];
