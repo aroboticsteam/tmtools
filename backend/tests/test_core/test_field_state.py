@@ -63,6 +63,13 @@ async def test_audience_display_is_recorded_so_a_reload_can_show_countdown(redis
     assert "display" not in rows[0]
 
 
+async def test_audience_display_is_kept_per_tm_not_per_field(redis):
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 1, "display": "IN_MATCH"}, ts=1))
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 3, "display": "RANKINGS"}, ts=2))
+    audience = (await fs.snapshot(redis))["audience"]
+    assert audience == {"vex_tm.main": {"display": "RANKINGS", "timestamp": 2}}
+
+
 async def test_unrelated_and_malformed_events_are_ignored_and_never_raise(redis):
     await fs.record(redis, ev("timer_started", {"duration_s": 60}))
     await fs.record(redis, ev("fieldMatchAssigned", {"matchNum": 1}))  # no fieldID

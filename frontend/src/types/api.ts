@@ -448,6 +448,8 @@ export interface FieldStateSnapshot {
   matches: Record<string, FieldStateEntry>;
   /** Last few events per fieldID, newest first. */
   events: Record<string, FieldStateEvent[]>;
+  /** Last audience display each TM instance reported (one per TM, not per field). */
+  audience?: Record<string, { display: string; timestamp: number }>;
 }
 
 export interface EventBusMessage {

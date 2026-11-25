@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 STATE_KEY = REDIS_PREFIX + "field:state"
 EVENTS_PREFIX = REDIS_PREFIX + "field:events:"
+AUDIENCE_KEY = REDIS_PREFIX + "field:audience"  # hash: entity_id -> JSON {display, timestamp}; one per TM, not per field
 MAX_EVENTS = 5
 TTL_SECONDS = 24 * 60 * 60
 
@@ -46,6 +47,12 @@ async def record(redis: Any, event: dict[str, Any]) -> None:
         entity_id = event.get("entity_id")
         timestamp = event.get("timestamp")
         field_id = _field_id(payload)
+        if etype == "audienceDisplayChanged" and entity_id and isinstance(payload, dict) and payload.get("display"):
+            # The audience display belongs to the whole TM instance, whichever field the event was pinned to.
+            audience = redis.pipeline()
+            audience.hset(AUDIENCE_KEY, str(entity_id), json.dumps({"display": str(payload["display"]), "timestamp": timestamp}))
+            audience.expire(AUDIENCE_KEY, TTL_SECONDS)
+            await audience.execute()
         state_key = None
         if etype == "fieldMatchAssigned" and field_id is not None:
             state_key = field_id
@@ -75,7 +82,7 @@ async def record(redis: Any, event: dict[str, Any]) -> None:
 
 
 async def snapshot(redis: Any) -> dict[str, Any]:
-    """`{"matches": {key: {type, entity_id, timestamp, payload}}, "events": {fieldID: [..newest first]}}`."""
+    """`{"matches": {...}, "events": {fieldID: [..newest first]}, "audience": {entity_id: {display, timestamp}}}`."""
     matches: dict[str, Any] = {}
     for key, raw in (await redis.hgetall(STATE_KEY) or {}).items():
         try:
@@ -93,4 +100,10 @@ async def snapshot(redis: Any) -> dict[str, Any]:
                 continue
         if rows:
             events[key[len(EVENTS_PREFIX):]] = rows
-    return {"matches": matches, "events": events}
+    audience: dict[str, Any] = {}
+    for key, raw in (await redis.hgetall(AUDIENCE_KEY) or {}).items():
+        try:
+            audience[key if isinstance(key, str) else key.decode()] = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+    return {"matches": matches, "events": events, "audience": audience}

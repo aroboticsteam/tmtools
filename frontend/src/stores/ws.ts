@@ -58,6 +58,8 @@ export interface WsState {
 
   /** Rolling buffer of the last 50 raw events (Dashboard / Audit Log live feed). */
   recentEvents: EventBusMessage[];
+  /** Last audience display per TM instance (entity_id -> display), whichever field the event was filed under. */
+  audienceDisplays: Record<string, string>;
 
   /** automation_executed-equivalent: last-run result per automation id, if published. */
   automationLastRun: Record<string, { status: string; triggered_at: number }>;
@@ -78,6 +80,7 @@ export const useWsStore = create<WsState>((set) => ({
   cues: {},
   currentMatches: {},
   recentEvents: [],
+  audienceDisplays: {},
   automationLastRun: {},
 
   setConnected: (value) => set({ connected: value }),
@@ -89,6 +92,11 @@ export const useWsStore = create<WsState>((set) => ({
       };
 
       switch (event.type) {
+        case 'audienceDisplayChanged': {
+          const display = String(event.payload.display ?? event.payload.audienceDisplay ?? '');
+          if (display) next.audienceDisplays = { ...state.audienceDisplays, [event.entity_id]: display };
+          break;
+        }
         case 'integration_status': {
           const status = String(event.payload.status ?? 'DISCONNECTED');
           next.integrationStatuses = { ...state.integrationStatuses, [event.entity_id]: status };
@@ -173,6 +181,10 @@ export const useWsStore = create<WsState>((set) => ({
       const kept = replace
         ? state.recentEvents.filter((e) => !(String(e.payload.fieldID ?? '') in (snapshot.events ?? {})))
         : state.recentEvents;
-      return { currentMatches, recentEvents: [...kept, ...older].slice(0, 50) };
+      const audienceDisplays = { ...state.audienceDisplays };
+      for (const [entity, a] of Object.entries(snapshot.audience ?? {})) {
+        if (replace || !(entity in audienceDisplays)) audienceDisplays[entity] = a.display;
+      }
+      return { currentMatches, audienceDisplays, recentEvents: [...kept, ...older].slice(0, 50) };
     }),
 }));

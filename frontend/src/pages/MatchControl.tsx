@@ -68,10 +68,6 @@ export function MatchControlPage() {
   const { data: obsState } = useIntegrationState(obs?.entity_id ?? null);
   const scene = typeof obsState?.state?.current_scene === 'string' ? (obsState.state.current_scene as string) : null;
   const log = events.filter((e) => e.type === 'automation_executed').slice(0, 8);
-  // The audience display belongs to the whole TM field set, not to one field, and TM's event carries no
-  // fieldID (the backend pins it to whichever field is current), so every card shows the newest change.
-  const display = events.find((e) => e.type === 'audienceDisplayChanged');
-  const displayName = display ? String(display.payload.display ?? display.payload.audienceDisplay ?? 'Changed') : '—';
 
   return (
     <div>
@@ -101,7 +97,6 @@ export function MatchControlPage() {
                     </div>
                     {tm[0] && <FieldButtons instance={tm[0]} />}
                     <div className="flex flex-col divide-y divide-neutral-100 text-sm">
-                      <Row icon={Monitor} label="Audience display" value={displayName} />
                       <Row icon={MonitorPlay} label="OBS scene" value={scene ?? '—'} />
                       <Row icon={Video} label="Recording" value={capture?.recording ? recordingLabel(capture.recording) : 'Not recording'} />
                     </div>
@@ -182,6 +177,8 @@ function Controls({ instance }: { instance: IntegrationInstance }) {
   const { fire, pending } = useFire(instance);
   const [skillsId, setSkillsId] = useState('');
   const [display, setDisplay] = useState('');
+  // Whatever TM last set it to; TM sends audienceDisplayChanged whoever changed it (this page or TM itself).
+  const current = useWsStore((s) => s.audienceDisplays[instance.entity_id]);
   return (
     <Section title={instance.display_name} description={instance.entity_id} action={<StatusBadge status={instance.status} />}>
       <div className="flex flex-col gap-4 p-4">
@@ -199,13 +196,17 @@ function Controls({ instance }: { instance: IntegrationInstance }) {
           </div>
         </div>
         <div>
-          <div className="mb-1.5 text-[13px] font-medium text-neutral-700">Audience display</div>
+          <div className="mb-1.5 flex items-center justify-between text-[13px] font-medium text-neutral-700">
+            <span>Audience display</span>
+            <span className="text-xs font-normal text-vmd-textSubtle">Showing <span className="font-medium text-vmd-textStrong" data-testid="audience-current">{current ?? 'unknown'}</span></span>
+          </div>
           <div className="flex gap-2">
-            <Select aria-label="Audience display" value={display} onChange={(e) => setDisplay(e.target.value)}>
+            <Select aria-label="Audience display" value={display || current || ''} onChange={(e) => setDisplay(e.target.value)}>
               <option value="">Choose…</option>
+              {current && !(AUDIENCE_DISPLAY_MODES as readonly string[]).includes(current) && <option value={current}>{current}</option>}
               {AUDIENCE_DISPLAY_MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
             </Select>
-            <Button disabled={!canControl || !display || pending} onClick={() => fire('set_audience_display', { display })}>Set</Button>
+            <Button disabled={!canControl || !display || display === current || pending} onClick={() => { fire('set_audience_display', { display }); setDisplay(''); }}>Set</Button>
           </div>
         </div>
       </div>
