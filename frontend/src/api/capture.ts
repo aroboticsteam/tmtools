@@ -75,3 +75,15 @@ export function useReplayControl(replayId: string) {
     onSuccess: invalidate,
   });
 }
+
+/** Short-lived presigned link to a recording's MP4 (re-fetched before it expires). */
+export function useRecordingUrl(recordingId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['capture', 'url', recordingId],
+    enabled: Boolean(recordingId) && enabled,
+    queryFn: () => apiFetch<{ url: string; label: string }>(`/api/v1/capture/recordings/${recordingId}/url`),
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    retry: 1,
+  });
+}

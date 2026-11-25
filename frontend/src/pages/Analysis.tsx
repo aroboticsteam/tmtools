@@ -32,6 +32,7 @@ import { Badge, Chip } from '../components/ui/Badge';
 import { SplitLayout } from '../components/ui/Layouts';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Segmented, Tabs } from '../components/ui/Tabs';
+import { MatchPlayer, type SeekRequest } from '../components/analysis/MatchPlayer';
 import { Input, Label, Select } from '../components/ui/Input';
 import type { CaptureRecording } from '../types/api';
 
@@ -210,7 +211,7 @@ function MatchTab({
   const { data: integrations = [] } = useIntegrations(useCan()('integrations:read'));
   const obsList = integrations.filter((i) => i.domain === 'obs');
   const wledList = integrations.filter((i) => i.domain === 'wled');
-  const [speed, setSpeed] = useState<number>(0.5);
+  const [speed, setSpeed] = useState<number>(0.5); // speed for replays sent to program
   const isRecording = !!recordingNow;
 
   // Use the only OBS / WLED instance without making the operator pick it.
@@ -328,26 +329,32 @@ function MatchTab({
     </section>
   );
 
+  const [seek, setSeek] = useState<SeekRequest | null>(null);
   const player = (
-    <section className="overflow-hidden rounded-xl border border-vmd-border bg-white">
-      <div className="relative flex aspect-video items-center justify-center bg-black">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white">
-          {replay?.playing && !replay.paused ? <Play size={24} fill="currentColor" /> : <Pause size={24} />}
+    <>
+      <MatchPlayer recording={recording} seek={seek} />
+      {replay?.playing && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-vmd-border bg-white p-3 text-sm" aria-label="On program">
+          <span className="mr-auto text-vmd-textMuted">
+            On program: <span className="font-medium text-vmd-textStrong">{replay.label ?? 'Replay'}{replay.paused ? ' (paused)' : ''}</span> at {replay.rate ?? speed}×
+          </span>
+          <Button disabled={!canControl} onClick={() => control.mutate({ action: replay.paused ? 'resume' : 'pause' })}>
+            {replay.paused ? <Play size={16} /> : <Pause size={16} />}
+            {replay.paused ? 'Resume' : 'Pause'}
+          </Button>
+          <Button disabled={!canControl} onClick={() => control.mutate({ action: 'restart' })}>
+            <RotateCcw size={16} /> Restart
+          </Button>
         </div>
-        <div className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-xs text-white">
-          {replay?.playing ? `${replay.label ?? 'Replay'}${replay.paused ? ' (paused)' : ''}` : 'Nothing playing'}
-        </div>
-        {replay?.playing && <div className="absolute right-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-xs text-white">{replay.rate ?? speed}×</div>}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 p-3">
-        <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: replay?.paused ? 'resume' : 'pause' })}>
-          {replay?.paused ? <Play size={16} /> : <Pause size={16} />}
-          {replay?.paused ? 'Resume' : 'Pause'}
-        </Button>
-        <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: 'restart' })}>
-          <RotateCcw size={16} /> Restart
-        </Button>
-        <div className="ml-auto">
+      )}
+    </>
+  );
+
+  const moments = (
+    <Section
+      title="Moments in this match"
+      action={
+        <div aria-label="Program speed" title="Speed when sent to program">
           <Segmented
             options={speedOptions}
             value={String(speed)}
@@ -358,12 +365,8 @@ function MatchTab({
             }}
           />
         </div>
-      </div>
-    </section>
-  );
-
-  const moments = (
-    <Section title="Moments in this match">
+      }
+    >
       {!recording || recording.moments.length === 0 ? (
         <EmptyState title="No moments yet">Cut a clip above and it shows up here.</EmptyState>
       ) : (
@@ -380,6 +383,14 @@ function MatchTab({
                     <Badge tone={st.tone}>{st.label}</Badge>
                   </div>
                 </div>
+                {recording && recording.status === 'READY' && m.end_offset_ms != null && (
+                  <Button
+                    aria-label={`Preview moment ${m.number}`}
+                    onClick={() => setSeek((prev) => ({ t: Math.max(0, m.end_offset_ms! / 1000 - m.length_s), n: (prev?.n ?? 0) + 1 }))}
+                  >
+                    <Play size={14} /> Preview
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   className="w-full sm:w-auto"

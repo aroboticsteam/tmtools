@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from "react-router-dom";
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,7 @@ vi.mock('../api/capture', () => ({
   useCaptureRecordings: () => ({ data: recordings }),
   useCaptureStatus: () => ({ data: { connected: true, agent: {}, recording: recordings[1] } }),
   useMarkMoment: () => ({ mutate: mark, isPending: false }),
+  useRecordingUrl: () => ({ data: { url: 'http://media.test/match.mp4', label: 'Q 2' }, isError: false, refetch: vi.fn() }),
   useReplayState: () => ({ data: { playing: false } }),
   useReplayPlay: () => ({ mutate: play, isPending: false }),
   useReplayControl: () => ({ mutate: control, isPending: false }),
@@ -71,7 +72,7 @@ describe('AnalysisPage', () => {
     expect(mark.mock.calls[0][0]).toBe(5);
     await userEvent.keyboard('3');
     expect(mark.mock.calls[1][0]).toBe(10);
-    await userEvent.click(screen.getByText('0.25×'));
+    await userEvent.click(within(screen.getByLabelText('Program speed')).getByText('0.25×'));
     await userEvent.click(screen.getByLabelText('Send moment 1 to program'));
     expect(play.mock.calls[0][0]).toEqual({ kind: 'moment', id: 'm1', rate: 0.25 });
   });
