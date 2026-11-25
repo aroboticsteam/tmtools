@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '../lib/http';
 import { useIntegrations } from '../api/integrations';
 import { usePermission } from '../hooks/usePermission';
-import { PageHeader, Card } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
 import { Select } from '../components/ui/Input';
 
 interface DebugLogEntry {
@@ -81,19 +81,19 @@ export function DebugIntegrationLogPage() {
       )}
 
       {entityId && log && log.length > 0 && (
-        <div className="space-y-2">
+        <Section title={`${log.length} events`}>
           {log.map((entry, idx) => (
-            <Card key={idx}>
-              <div className="mb-1 flex items-center justify-between text-sm">
+            <details key={idx} className="border-b border-neutral-100 px-4 py-2.5 last:border-b-0">
+              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="font-mono font-medium text-vmd-textStrong">{entry.type}</span>
                 <span className="text-xs text-vmd-textSubtle">{formatTime(entry.timestamp)}</span>
-              </div>
-              <pre className="vmd-code-block max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">
+              </summary>
+              <pre className="vmd-code-block mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">
                 {JSON.stringify(entry.payload, null, 2)}
               </pre>
-            </Card>
+            </details>
           ))}
-        </div>
+        </Section>
       )}
     </div>
   );

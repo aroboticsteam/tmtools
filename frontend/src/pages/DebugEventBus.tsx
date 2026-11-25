@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useWsStore } from '../stores/ws';
 import { usePermission } from '../hooks/usePermission';
-import { PageHeader, Card } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import type { EventBusMessage } from '../types/api';
 
 const CAP = 200;
@@ -59,16 +60,10 @@ export function DebugEventBusPage() {
         subtitle={`Raw, unfiltered /ws/events feed — capped at ${CAP} client-side (Appendix A.11).`}
       />
 
-      <div className="mb-3 flex items-center gap-2">
-        <span className={`text-xs ${connected ? 'text-vmd-success' : 'text-vmd-danger'}`}>
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
-        <Button variant="ghost" onClick={() => setPaused((p) => !p)}>
-          {paused ? 'Resume' : 'Pause'}
-        </Button>
-        <Button variant="ghost" onClick={() => setCaptured([])}>
-          Clear
-        </Button>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Badge tone={connected ? 'ok' : 'danger'}>{connected ? 'Connected' : 'Disconnected'}</Badge>
+        <Button onClick={() => setPaused((p) => !p)}>{paused ? 'Resume' : 'Pause'}</Button>
+        <Button onClick={() => setCaptured([])}>Clear</Button>
         <span className="text-xs text-vmd-textSubtle">{captured.length} captured</span>
       </div>
 
@@ -76,23 +71,23 @@ export function DebugEventBusPage() {
         <p className="text-sm text-vmd-textSubtle">No events received yet this session.</p>
       )}
 
-      <div className="space-y-2">
-        {captured.map((event, idx) => (
-          <Card key={`${event.timestamp}-${idx}`}>
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="font-mono font-medium text-vmd-textStrong">{event.type}</span>
-              <span className="text-xs text-vmd-textSubtle">{event.entity_id}</span>
-              <span className="text-xs text-vmd-textSubtle">{formatTime(event.timestamp)}</span>
-            </div>
-            {event.entity_tags.length > 0 && (
-              <p className="mb-1 text-xs text-vmd-textSubtle">tags: {event.entity_tags.join(', ')}</p>
-            )}
-            <pre className="vmd-code-block max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">
-              {JSON.stringify(event.payload, null, 2)}
-            </pre>
-          </Card>
-        ))}
-      </div>
+      {captured.length > 0 && (
+        <Section title="Events">
+          {captured.map((event, idx) => (
+            <details key={`${event.timestamp}-${idx}`} className="border-b border-neutral-100 px-4 py-2.5 last:border-b-0">
+              <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <span className="font-mono font-medium text-vmd-textStrong">{event.type}</span>
+                <span className="flex-1 text-xs text-vmd-textSubtle">{event.entity_id}</span>
+                <span className="text-xs text-vmd-textSubtle">{formatTime(event.timestamp)}</span>
+              </summary>
+              {event.entity_tags.length > 0 && <p className="mt-2 text-xs text-vmd-textSubtle">tags: {event.entity_tags.join(', ')}</p>}
+              <pre className="vmd-code-block mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">
+                {JSON.stringify(event.payload, null, 2)}
+              </pre>
+            </details>
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
