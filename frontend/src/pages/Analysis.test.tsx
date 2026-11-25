@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from "react-router-dom";
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisPage } from './Analysis';
@@ -56,7 +57,7 @@ describe('AnalysisPage', () => {
   });
 
   it('follows the live recording and lists moments with upload state', () => {
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     expect(screen.getByTestId('current-match')).toHaveTextContent('Q 2');
     expect(screen.getByLabelText('Moment 1')).toHaveTextContent('Ready');
     expect(screen.getByLabelText('Moment 2')).toHaveTextContent('Uploading');
@@ -65,7 +66,7 @@ describe('AnalysisPage', () => {
   });
 
   it('marks via buttons and keyboard, and sends a moment at the chosen speed', async () => {
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     await userEvent.click(screen.getByLabelText('Cut last 5 seconds'));
     expect(mark.mock.calls[0][0]).toBe(5);
     await userEvent.keyboard('3');
@@ -76,7 +77,7 @@ describe('AnalysisPage', () => {
   });
 
   it('navigates between matches and shows team stats without predictions', async () => {
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     await userEvent.click(screen.getByLabelText('Previous match'));
     expect(screen.getByTestId('current-match')).toHaveTextContent('Q 1');
     await userEvent.click(screen.getByRole('tab', { name: 'Stats' }));
@@ -87,7 +88,7 @@ describe('AnalysisPage', () => {
 
   it('hides everything without analysis:view and disables controls without capture:control', () => {
     perms = false;
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     expect(screen.getByText(/do not have access/i)).toBeInTheDocument();
   });
 });

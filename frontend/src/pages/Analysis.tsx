@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Undo2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Send, Undo2, Zap } from 'lucide-react';
 import {
   useCaptureRecordings,
   useCaptureStatus,
@@ -28,6 +28,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card, PageHeader, Section } from '../components/ui/Card';
 import { Badge, Chip } from '../components/ui/Badge';
+import { SplitLayout } from '../components/ui/Layouts';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Segmented, Tabs } from '../components/ui/Tabs';
 import { Input, Label, Select } from '../components/ui/Input';
@@ -65,16 +66,18 @@ function AnalysisDesk() {
 
   return (
     <div>
-      <PageHeader title="Analysis desk" subtitle="Cut clips from live, review moments and send them to air" />
-      <Tabs
-        tabs={[
-          { id: 'match' as Tab, label: 'Match' },
-          { id: 'stats' as Tab, label: 'Stats' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
-      <div className="mt-4">
+      <PageHeader title="Analysis desk" subtitle="Pick a match, review the clip, send it to program." />
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'match' as Tab, label: 'Match' },
+            { id: 'stats' as Tab, label: 'Stats' },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
+      <div>
         {tab === 'stats' ? (
           <StatsTab recording={selected} />
         ) : (
@@ -292,186 +295,173 @@ function MatchTab({
 
   const speedOptions = SPEEDS.map((s) => ({ id: String(s), label: `${s}×` }));
 
-  return (
-    <div className="flex flex-col gap-4">
-      <section aria-label="Cut a clip from live" className="rounded-xl border-2 border-neutral-900 bg-white p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${isRecording ? 'animate-pulse bg-red-600' : 'bg-neutral-300'}`} />
-            <h2 className="text-[15px] font-semibold text-vmd-textStrong">Cut a clip from live</h2>
-          </div>
-          <div className="flex items-center gap-2 text-[13px] text-vmd-textSubtle">
-            <Badge tone={agentConnected ? 'ok' : 'danger'}>{agentConnected ? 'Agent connected' : 'Agent offline'}</Badge>
-            <span>{isRecording ? `Recording ${recordingLabel(recordingNow!)}` : 'Not recording'}</span>
-          </div>
+  const cutPanel = (
+    <section aria-label="Cut a clip from live" className="overflow-hidden rounded-xl border-2 border-neutral-900 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${isRecording ? 'animate-pulse bg-red-600' : 'bg-neutral-300'}`} />
+          <h2 className="text-[15px] font-semibold text-vmd-textStrong">Cut a clip from live</h2>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          {MARK_LENGTHS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              aria-label={`Cut last ${s} seconds`}
-              disabled={!canControl || !isRecording || mark.isPending}
-              onClick={() => doMark(s)}
-              className="flex h-[72px] flex-col items-center justify-center rounded-[10px] border border-neutral-900 bg-neutral-900 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 sm:h-20"
-            >
-              <span className="text-[26px] font-semibold leading-8 tracking-tight sm:text-[30px]">{s} s</span>
-              <span className="text-[11px] opacity-70 sm:text-xs">Last {s} seconds</span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-vmd-textSubtle">
-          Keys: {Object.entries(setup.keys).map(([k, v]) => `${k} = ${v}s`).join(', ')}
-        </p>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="flex flex-col gap-4">
-          <Section
-            title="Replay player"
-            description={replay?.playing ? `Playing: ${replay.label ?? ''}${replay.paused ? ' (paused)' : ''}` : 'Nothing playing'}
+        <span className="text-[13px] text-vmd-textSubtle">
+          {isRecording ? `Saves the last few seconds of ${recordingLabel(recordingNow!)} and adds it to this match` : agentConnected ? 'Waiting for a match to start recording' : 'Capture agent offline'}
+        </span>
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-3 px-4 pb-4">
+        {MARK_LENGTHS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            aria-label={`Cut last ${s} seconds`}
+            disabled={!canControl || !isRecording || mark.isPending}
+            onClick={() => doMark(s)}
+            className="flex h-[72px] items-center justify-between rounded-[10px] border border-neutral-900 bg-neutral-900 px-4 text-left text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <div className="flex flex-col gap-3 p-4">
-              <Segmented
-                options={speedOptions}
-                value={String(speed)}
-                onChange={(id) => {
-                  const s = Number(id);
-                  setSpeed(s);
-                  if (replay?.playing) control.mutate({ action: 'rate', value: s });
-                }}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: replay?.paused ? 'resume' : 'pause' })}>
-                  {replay?.paused ? <Play size={16} /> : <Pause size={16} />}
-                  {replay?.paused ? 'Resume' : 'Pause'}
-                </Button>
-                <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: 'restart' })}>
-                  <RotateCcw size={16} /> Restart
-                </Button>
-              </div>
-            </div>
-          </Section>
+            <span>
+              <span className="block text-[26px] font-semibold leading-[30px] tracking-tight">{s} s</span>
+              <span className="block text-xs opacity-70">Last {s} seconds</span>
+            </span>
+            <kbd className="flex h-6 w-6 items-center justify-center rounded-md border border-white/40 text-xs">{Object.entries(setup.keys).find(([, v]) => v === s)?.[0] ?? ''}</kbd>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 
-          <Section title="Moments in this match">
-            {!recording || recording.moments.length === 0 ? (
-              <EmptyState title="No moments yet">Cut a clip above and it shows up here.</EmptyState>
-            ) : (
-              <ul>
-                {recording.moments.map((m) => {
-                  const st = MOMENT_STATUS[m.status] ?? { tone: 'warn' as const, label: 'Uploading…' };
-                  return (
-                    <li
-                      key={m.id}
-                      aria-label={`Moment ${m.number}`}
-                      className="flex flex-wrap items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-vmd-textStrong">Moment {m.number}</div>
-                        <div className="mt-0.5 flex items-center gap-2 text-xs text-vmd-textSubtle">
-                          <span>{m.length_s} s clip</span>
-                          <Badge tone={st.tone}>{st.label}</Badge>
-                        </div>
-                      </div>
-                      <Button
-                        variant="primary"
-                        size="lg"
-                        className="w-full sm:w-auto"
-                        disabled={!canControl || !momentPlayable(m.status) || play.isPending}
-                        onClick={() => sendToProgram('moment', m.id)}
-                        aria-label={`Send moment ${m.number} to program`}
-                      >
-                        Send to program
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {recording && recording.status === 'READY' && (
-              <div className="border-t border-vmd-border p-4">
-                <Button disabled={!canControl || play.isPending} onClick={() => sendToProgram('recording', recording.id)}>
-                  Send full match to program
-                </Button>
-              </div>
-            )}
-          </Section>
+  const player = (
+    <section className="overflow-hidden rounded-xl border border-vmd-border bg-white">
+      <div className="relative flex aspect-video items-center justify-center bg-neutral-900">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white">
+          {replay?.playing && !replay.paused ? <Play size={24} fill="currentColor" /> : <Pause size={24} />}
         </div>
-
-        <div className="flex flex-col gap-4">
-          <MatchPicker ordered={ordered} selected={recording} onSelect={onSelect} />
-
-          <Section
-            title="Program"
-            action={
-              obsEntity ? <Badge tone="ok">OBS</Badge> : <Badge tone="neutral">No OBS</Badge>
-            }
-          >
-            <div className="flex flex-col gap-3 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-vmd-textSubtle">On air now</span>
-                <span className="font-semibold text-vmd-textStrong">{onAir ?? '—'}</span>
-              </div>
-              <Button variant="primary" size="lg" disabled={!canControl} onClick={backToProgram}>
-                <Undo2 size={18} /> Back to program
-              </Button>
-            </div>
-          </Section>
-
-          {wledEntity && (
-            <Section title="Quick actions">
-              <div className="p-3">
-                <Button className="w-full justify-start" disabled={!canControl} onClick={flashLed}>
-                  <Zap size={16} /> Flash the LEDs
-                </Button>
-              </div>
-            </Section>
-          )}
-
-          <details className="rounded-xl border border-vmd-border bg-white">
-            <summary className="cursor-pointer px-4 py-3 text-[15px] font-semibold text-vmd-textStrong">Setup</summary>
-            <div className="grid grid-cols-1 gap-3 border-t border-vmd-border p-4">
-              <div>
-                <Label>Replay player id</Label>
-                <Input aria-label="Replay player id" value={setup.replayId} onChange={(e) => onSetup({ replayId: e.target.value.trim() || DEFAULT_SETUP.replayId })} />
-              </div>
-              <div>
-                <Label>OBS instance</Label>
-                <Select aria-label="OBS instance" value={obsEntity} onChange={(e) => onSetup({ obsEntity: e.target.value })}>
-                  <option value="">None</option>
-                  {obsList.map((i) => (
-                    <option key={i.entity_id} value={i.entity_id}>
-                      {i.display_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>Replay scene</Label>
-                <Input aria-label="Replay scene" value={setup.replayScene} onChange={(e) => onSetup({ replayScene: e.target.value })} />
-              </div>
-              <div>
-                <Label>Fallback program scene</Label>
-                <Input aria-label="Program scene" placeholder="Used if the previous scene is unknown" value={setup.programScene} onChange={(e) => onSetup({ programScene: e.target.value })} />
-              </div>
-              <div>
-                <Label>WLED instance</Label>
-                <Select aria-label="WLED instance" value={wledEntity} onChange={(e) => onSetup({ wledEntity: e.target.value })}>
-                  <option value="">None</option>
-                  {wledList.map((i) => (
-                    <option key={i.entity_id} value={i.entity_id}>
-                      {i.display_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <p className="text-xs text-vmd-textSubtle">
-                Add <code>/replay/{setup.replayId}</code> as a 1920×1080 browser source in the replay scene.
-              </p>
-            </div>
-          </details>
+        <div className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-xs text-white">
+          {replay?.playing ? `${replay.label ?? 'Replay'}${replay.paused ? ' (paused)' : ''}` : 'Nothing playing'}
+        </div>
+        {replay?.playing && <div className="absolute right-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-xs text-white">{replay.rate ?? speed}×</div>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 p-3">
+        <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: replay?.paused ? 'resume' : 'pause' })}>
+          {replay?.paused ? <Play size={16} /> : <Pause size={16} />}
+          {replay?.paused ? 'Resume' : 'Pause'}
+        </Button>
+        <Button disabled={!canControl || !replay?.playing} onClick={() => control.mutate({ action: 'restart' })}>
+          <RotateCcw size={16} /> Restart
+        </Button>
+        <div className="ml-auto">
+          <Segmented
+            options={speedOptions}
+            value={String(speed)}
+            onChange={(id) => {
+              const s = Number(id);
+              setSpeed(s);
+              if (replay?.playing) control.mutate({ action: 'rate', value: s });
+            }}
+          />
         </div>
       </div>
-    </div>
+    </section>
   );
+
+  const moments = (
+    <Section title="Moments in this match">
+      {!recording || recording.moments.length === 0 ? (
+        <EmptyState title="No moments yet">Cut a clip above and it shows up here.</EmptyState>
+      ) : (
+        <ul>
+          {recording.moments.map((m) => {
+            const st = MOMENT_STATUS[m.status] ?? { tone: 'warn' as const, label: 'Uploading…' };
+            return (
+              <li key={m.id} aria-label={`Moment ${m.number}`} className="flex flex-wrap items-center gap-3 border-b border-neutral-100 px-4 py-3 last:border-b-0">
+                <div className="h-10 w-[72px] shrink-0 rounded-md bg-neutral-800" aria-hidden="true" />
+                <div className="min-w-0 flex-1 basis-32">
+                  <div className="font-medium text-vmd-textStrong">Moment {m.number}</div>
+                  <div className="mt-0.5 flex items-center gap-2 text-xs text-vmd-textSubtle">
+                    <span>{m.length_s} s clip</span>
+                    <Badge tone={st.tone}>{st.label}</Badge>
+                  </div>
+                </div>
+                <Button
+                  variant="primary"
+                  className="w-full sm:w-auto"
+                  disabled={!canControl || !momentPlayable(m.status) || play.isPending}
+                  onClick={() => sendToProgram('moment', m.id)}
+                  aria-label={`Send moment ${m.number} to program`}
+                >
+                  <Send size={14} /> Send to program
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {recording && recording.status === 'READY' && (
+        <div className="border-t border-vmd-border p-3">
+          <Button disabled={!canControl || play.isPending} onClick={() => sendToProgram('recording', recording.id)}>
+            Send full match to program
+          </Button>
+        </div>
+      )}
+    </Section>
+  );
+
+  const aside = (
+    <>
+      <MatchPicker ordered={ordered} selected={recording} onSelect={onSelect} />
+      <Section title="Program" action={obsEntity ? <Badge tone="ok">OBS connected</Badge> : <Badge tone="neutral">No OBS</Badge>}>
+        <div className="flex flex-col gap-3 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-vmd-textSubtle">On air now</span>
+            <span className="font-semibold text-vmd-textStrong">{onAir ?? '—'}</span>
+          </div>
+          <Button variant="primary" size="lg" disabled={!canControl} onClick={backToProgram}>
+            <Undo2 size={18} /> Back to program
+          </Button>
+        </div>
+      </Section>
+      {wledEntity && (
+        <Section title="Quick actions">
+          <div className="flex flex-col gap-2 p-3">
+            <Button className="justify-start" disabled={!canControl} onClick={flashLed}>
+              <Zap size={16} /> Flash the LEDs
+            </Button>
+          </div>
+        </Section>
+      )}
+      <details className="rounded-xl border border-vmd-border bg-white">
+        <summary className="cursor-pointer px-4 py-3.5 text-[15px] font-semibold text-vmd-textStrong">Setup</summary>
+        <div className="grid grid-cols-1 gap-3 border-t border-vmd-border p-4">
+          <div>
+            <Label>Replay player id</Label>
+            <Input aria-label="Replay player id" value={setup.replayId} onChange={(e) => onSetup({ replayId: e.target.value.trim() || DEFAULT_SETUP.replayId })} />
+          </div>
+          <div>
+            <Label>OBS instance</Label>
+            <Select aria-label="OBS instance" value={obsEntity} onChange={(e) => onSetup({ obsEntity: e.target.value })}>
+              <option value="">None</option>
+              {obsList.map((i) => (<option key={i.entity_id} value={i.entity_id}>{i.display_name}</option>))}
+            </Select>
+          </div>
+          <div>
+            <Label>Replay scene</Label>
+            <Input aria-label="Replay scene" value={setup.replayScene} onChange={(e) => onSetup({ replayScene: e.target.value })} />
+          </div>
+          <div>
+            <Label>Fallback program scene</Label>
+            <Input aria-label="Program scene" placeholder="Used if the previous scene is unknown" value={setup.programScene} onChange={(e) => onSetup({ programScene: e.target.value })} />
+          </div>
+          <div>
+            <Label>WLED instance</Label>
+            <Select aria-label="WLED instance" value={wledEntity} onChange={(e) => onSetup({ wledEntity: e.target.value })}>
+              <option value="">None</option>
+              {wledList.map((i) => (<option key={i.entity_id} value={i.entity_id}>{i.display_name}</option>))}
+            </Select>
+          </div>
+          <p className="text-xs text-vmd-textSubtle">
+            Add <code>/replay/{setup.replayId}</code> as a 1920×1080 browser source in the replay scene.
+          </p>
+        </div>
+      </details>
+    </>
+  );
+
+  return <SplitLayout main={<>{cutPanel}{player}{moments}</>} aside={aside} />;
 }

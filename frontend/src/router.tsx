@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { RouteError } from './components/layout/RouteError';
 import { ProtectedLayout } from './components/layout/ProtectedLayout';
 import { AdminLoginPage } from './pages/AdminLogin';
 import { SpotifyCallbackPage } from './pages/SpotifyCallback';
@@ -27,12 +28,16 @@ import { DebugEventBusPage } from './pages/DebugEventBus';
 // directly by FastAPI) so they are NOT registered here; the backend
 // handles those paths itself.
 export const router = createBrowserRouter([
-  { path: '/admin_login', element: <AdminLoginPage /> },
+  { path: '/admin_login', element: <AdminLoginPage />, errorElement: <RouteError /> },
   { path: '/integrations/spotify/callback', element: <SpotifyCallbackPage /> },
   {
     path: '/',
     element: <ProtectedLayout />,
+    errorElement: <RouteError />,
     children: [
+      {
+        errorElement: <RouteError />,
+        children: [
       { index: true, element: <DashboardPage /> },
       // Field Monitor was merged into Match Control; keep old links working.
       { path: 'fields', element: <Navigate to="/match-control" replace /> },
@@ -55,6 +60,9 @@ export const router = createBrowserRouter([
       { path: 'users', element: <UsersPage /> },
       { path: 'debug/integration-log', element: <DebugIntegrationLogPage /> },
       { path: 'debug/event-bus', element: <DebugEventBusPage /> },
+      { path: '*', element: <RouteError /> },
+        ],
+      },
     ],
   },
 ]);
