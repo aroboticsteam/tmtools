@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCan } from '../../hooks/useCan';
 import { NAV_GROUPS } from '../../lib/nav';
 
+/** "⌘ K" on Apple devices, "Ctrl K" elsewhere. */
+const SHORTCUT =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? '⌘ K' : 'Ctrl K';
+
 /** Search box in the page header; Ctrl/Cmd+K focuses it. Jumps to a page. */
 export function PageSearch() {
   const [q, setQ] = useState('');
@@ -57,7 +61,7 @@ export function PageSearch() {
           }}
           className="min-w-0 flex-1 bg-transparent text-vmd-text outline-none placeholder:text-vmd-textSubtle"
         />
-        <kbd className="rounded border border-vmd-border px-1.5 text-[11px] text-vmd-textSubtle">Ctrl K</kbd>
+        <kbd className="rounded border border-vmd-border px-1.5 text-[11px] text-vmd-textSubtle">{SHORTCUT}</kbd>
       </label>
       {open && results.length > 0 && (
         <ul role="listbox" className="absolute right-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-vmd-border bg-white py-1">
