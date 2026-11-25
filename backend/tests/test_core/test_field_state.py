@@ -76,7 +76,7 @@ async def test_unrelated_and_malformed_events_are_ignored_and_never_raise(redis)
     await fs.record(redis, ev("fieldMatchAssigned", {"fieldID": ""}))
     await fs.record(redis, {"type": "fieldMatchAssigned", "payload": "not a dict"})
     await fs.record(redis, {})
-    assert await fs.snapshot(redis) == {"matches": {}, "events": {}}
+    assert await fs.snapshot(redis) == {"matches": {}, "events": {}, "audience": {}}
 
     class Broken:
         def pipeline(self):
@@ -146,7 +146,7 @@ async def test_endpoint_requires_integrations_read(redis, _cleanup):
 async def test_endpoint_empty_when_nothing_recorded(redis, _cleanup):
     async with await _client(redis, {"integrations:read"}) as c:
         r = await c.get("/api/v1/fields/state")
-    assert r.status_code == 200 and r.json() == {"matches": {}, "events": {}}
+    assert r.status_code == 200 and r.json() == {"matches": {}, "events": {}, "audience": {}}
 
 
 async def test_loader_event_listener_records_field_state(redis):
