@@ -207,7 +207,7 @@ export function SettingsPage() {
         subtitle="Event, storage, access and API keys."
         action={<Link to="/audit"><Button>Audit log</Button></Link>}
       />
-      <div className="-mt-6 mb-6 -mx-4 border-b border-vmd-border bg-white px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="-mt-4 mb-6 -mx-4 lg:-mt-6 border-b border-vmd-border bg-white px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <Tabs tabs={SETTINGS_TABS.filter((t) => canEdit || (t.id !== 'roles' && t.id !== 'keys'))} active={tab} onChange={setTab} />
       </div>
 
