@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   useButtonPages,
   useCreateButton,
@@ -15,7 +15,8 @@ import {
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { Button } from '../components/ui/Button';
-import { Card, PageHeader } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Input, Label } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { ActionBuilder } from '../components/buttons/ActionBuilder';
@@ -133,14 +134,14 @@ export function ButtonPagesPage() {
     <div>
       <PageHeader
         title="Button pages"
-        subtitle="Pressable buttons that run actions across your integrations — like a stream deck, in the browser."
+        subtitle="Pressable buttons that run actions across your integrations, like a stream deck in the browser."
         action={
           canManage && (
             <div className="flex gap-2">
               <Button variant={editMode ? 'primary' : 'secondary'} onClick={() => setEditMode((v) => !v)}>
                 <Pencil size={14} /> {editMode ? 'Done editing' : 'Edit'}
               </Button>
-              <Button variant="secondary" onClick={() => setEditingPage('new')}>
+              <Button variant="primary" onClick={() => setEditingPage('new')}>
                 <Plus size={14} /> New page
               </Button>
             </div>
@@ -150,7 +151,7 @@ export function ButtonPagesPage() {
 
       {isLoading && <p className="text-sm text-vmd-textSubtle">Loading…</p>}
       {!isLoading && list.length === 0 && (
-        <p className="text-sm text-vmd-textSubtle">No pages yet.{canManage ? ' Create one to get started.' : ''}</p>
+        <EmptyState icon={LayoutGrid} title="No pages yet">{canManage ? 'Create a page to get started.' : 'Ask an admin to create one.'}</EmptyState>
       )}
 
       {list.length > 0 && (
@@ -168,10 +169,10 @@ export function ButtonPagesPage() {
                 dropPage(p.id);
                 setDragPage(null);
               }}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${
+              className={`h-8 rounded-full border px-3 text-[13px] font-medium ${
                 p.id === active?.id
-                  ? 'border-vmd-accent bg-vmd-surfaceSubtle text-vmd-textStrong'
-                  : 'border-vmd-border text-vmd-textMuted hover:text-vmd-textStrong'
+                  ? 'border-neutral-900 bg-neutral-900 text-white'
+                  : 'border-vmd-border bg-white text-neutral-700 hover:bg-neutral-50'
               }`}
             >
               {p.name}
@@ -181,20 +182,26 @@ export function ButtonPagesPage() {
       )}
 
       {active && (
-        <Card>
-          {editMode && canManage && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => setEditingPage(active)}>
-                <Pencil size={14} /> Page settings
-              </Button>
-              <Button variant="secondary" onClick={() => setEditingButton('new')}>
-                <Plus size={14} /> Add button
-              </Button>
-              <Button variant="ghost" onClick={() => removePage(active)}>
-                <Trash2 size={14} /> Delete page
-              </Button>
-            </div>
-          )}
+        <Section
+          title={active.name}
+          description={`${active.buttons.length} button${active.buttons.length === 1 ? '' : 's'}, ${active.columns} columns`}
+          action={
+            editMode && canManage ? (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => setEditingPage(active)}>
+                  <Pencil size={14} /> Page settings
+                </Button>
+                <Button size="sm" onClick={() => setEditingButton('new')}>
+                  <Plus size={14} /> Add button
+                </Button>
+                <Button size="sm" variant="danger" onClick={() => removePage(active)}>
+                  <Trash2 size={14} /> Delete page
+                </Button>
+              </div>
+            ) : undefined
+          }
+        >
+          <div className="p-4">
           <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(active.columns, 12)}, minmax(0, 1fr))` }}>
             {active.buttons.map((b) => {
               const result = outcome[b.id];
@@ -214,8 +221,8 @@ export function ButtonPagesPage() {
                   }}
                   disabled={(!canPress && !editMode) || pressing === b.id}
                   style={{ backgroundColor: b.color }}
-                  className={`relative min-h-20 rounded-xl px-2 py-3 text-center text-sm font-semibold text-white shadow transition active:scale-95 disabled:opacity-50 ${
-                    editMode ? 'cursor-grab outline outline-2 outline-dashed outline-white/50' : ''
+                  className={`relative min-h-20 rounded-xl px-2 py-3 text-center text-sm font-semibold text-white transition active:scale-95 disabled:opacity-50 ${
+                    editMode ? 'cursor-grab outline outline-2 outline-dashed outline-neutral-400' : ''
                   } ${pressing === b.id ? 'animate-pulse' : ''} ${
                     result === 'success' ? 'ring-4 ring-green-400' : result === 'failed' ? 'ring-4 ring-red-500' : ''
                   }`}
@@ -232,7 +239,8 @@ export function ButtonPagesPage() {
             })}
           </div>
           {active.buttons.length === 0 && <p className="text-sm text-vmd-textSubtle">No buttons on this page yet.</p>}
-        </Card>
+          </div>
+        </Section>
       )}
 
       <PageFormModal key={editingPage === null ? 'closed' : editingPage === 'new' ? 'new' : editingPage.id} editing={editingPage} onClose={() => setEditingPage(null)} />
