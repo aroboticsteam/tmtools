@@ -91,9 +91,11 @@ function MessagingSections() {
 
   return (
     <>
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+      <div className="flex min-w-0 flex-col gap-4">
       {canSend && (
-        <Card className="mb-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Send</h2>
+        <Card>
+          <h2 className="mb-3 text-[15px] font-semibold text-vmd-textStrong">Send</h2>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <Label>To</Label>
@@ -155,8 +157,8 @@ function MessagingSections() {
 
       {canSend && <StationTimerCard audience={audience} />}
 
-      <Card className="mb-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Messages from stations</h2>
+      <Card>
+        <h2 className="mb-3 text-[15px] font-semibold text-vmd-textStrong">Messages from stations</h2>
         {inbox.length === 0 && <p className="text-sm text-vmd-textSubtle">Nothing waiting.</p>}
         {inbox.map((m) => (
           <div key={m.id} className="flex items-center justify-between gap-3 border-b border-vmd-border py-2 last:border-0">
@@ -173,9 +175,11 @@ function MessagingSections() {
         ))}
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
         <StationsCard stations={stations} canManage={canManage} onEdit={setEditStation} />
         <PresetsCard presets={presets} canManage={canManage} onEdit={setEditPreset} />
+      </div>
       </div>
       <AgendaCard canManage={canManage} />
 
@@ -201,7 +205,7 @@ function TimersSection({ onEdit }: { onEdit: (timer: TimerInstance) => void }) {
 
   return (
     <section className="mb-6" data-testid="timers-section">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Timers &amp; teleprompter</h2>
+      <h2 className="mb-3 text-[15px] font-semibold text-vmd-textStrong">Timers &amp; teleprompter</h2>
       {isLoading && <p className="text-sm text-vmd-textSubtle">Loading…</p>}
       <div className="space-y-3">
         {timers?.map((timer) => {
@@ -295,7 +299,7 @@ export function CommsPage() {
     <div>
       <PageHeader
         title="Comms"
-        subtitle="Timers and teleprompter, plus messages and screens for emcee, floor manager and camera iPads. Voice runs over Mumble (see docs/COMMS.md)."
+        subtitle="Timers, teleprompter and messages for the emcee, floor manager and camera iPads."
         action={
           canEditTimers && (
             <Button
@@ -305,7 +309,7 @@ export function CommsPage() {
                 setTimerModalOpen(true);
               }}
             >
-              <Plus size={16} /> New Timer
+              <Plus size={16} /> New timer
             </Button>
           )
         }
@@ -381,7 +385,7 @@ function StationsCard({ stations, canManage, onEdit }: { stations: Station[]; ca
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Stations (iPads)</h2>
+        <h2 className="text-[15px] font-semibold text-vmd-textStrong">Stations (iPads)</h2>
         {canManage && (
           <Button variant="secondary" onClick={() => onEdit('new')}>
             <Plus size={14} /> Add
@@ -501,7 +505,7 @@ function PresetsCard({ presets, canManage, onEdit }: { presets: CommsPreset[]; c
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Preset messages</h2>
+        <h2 className="text-[15px] font-semibold text-vmd-textStrong">Preset messages</h2>
         {canManage && (
           <Button variant="secondary" onClick={() => onEdit('new')}>
             <Plus size={14} /> Add

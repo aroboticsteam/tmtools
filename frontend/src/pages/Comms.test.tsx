@@ -173,7 +173,7 @@ describe('CommsPage desk console', () => {
     expect(within(timersSection).getByText('Field 1 timer')).toBeInTheDocument();
     expect(within(timersSection).getByText(/\/prompter\/timer\.field1\?token=tok123/)).toBeInTheDocument();
     expect(screen.getAllByTestId('station-row')).toHaveLength(3);
-    expect(screen.getByRole('button', { name: /New Timer/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New timer/i })).toBeInTheDocument();
     const before = screen.getByTestId('timers-section').compareDocumentPosition(screen.getAllByTestId('station-row')[0]);
     expect(before & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // stations come after the timers
   });
@@ -195,7 +195,7 @@ describe('CommsPage desk console', () => {
   it('opens the timer editor from New Timer', async () => {
     const user = userEvent.setup();
     render(<CommsPage />);
-    await user.click(screen.getByRole('button', { name: /New Timer/ }));
+    await user.click(screen.getByRole('button', { name: /New timer/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
@@ -204,7 +204,7 @@ describe('CommsPage desk console', () => {
     perms.denied.add('timers:edit');
     const { unmount } = render(<CommsPage />);
     expect(screen.queryByTestId('timers-section')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New Timer/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New timer/i })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('station-row')).toHaveLength(3); // the comms half is unaffected
     unmount();
 
