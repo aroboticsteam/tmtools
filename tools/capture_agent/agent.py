@@ -300,6 +300,8 @@ class CaptureAgent:
         )
         self.queue = UploadQueue(settings.work_dir, self.client, keep_local=settings.keep_local, verify=not settings.insecure)
         self.recorder: Recorder | None = None
+        self.connected = False  # websocket to the server is up (read by the Mac tray app)
+        self.last_error = ""  # last reason the link to the server dropped, "" while connected
         self.send: Callable[[dict[str, Any]], Any] = self._drop
         self._tasks: set[asyncio.Task[None]] = set()
 
@@ -415,6 +417,7 @@ class CaptureAgent:
             try:
                 async with websockets.connect(url, additional_headers={"Authorization": f"Bearer {self.settings.key}"}, ssl=ssl_ctx) as ws:
                     attempt = 0
+                    self.connected, self.last_error = True, ""
 
                     async def send(msg: dict[str, Any]) -> None:
                         await ws.send(json.dumps(msg))
@@ -437,6 +440,8 @@ class CaptureAgent:
                 raise
             except Exception as exc:  # noqa: BLE001
                 log.warning("server link down (%s)", exc)
+                self.last_error = str(exc) or type(exc).__name__
+            self.connected = False
             self.send = self._drop
             delay = RETRY_DELAYS[min(attempt, len(RETRY_DELAYS) - 1)]
             attempt += 1

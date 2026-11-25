@@ -1,0 +1,7 @@
+py2app>=0.28
+rumps>=0.4
+httpx>=0.27
+websockets>=13
+certifi
+pillow
+setuptools<81

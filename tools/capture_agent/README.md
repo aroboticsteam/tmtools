@@ -24,6 +24,19 @@ it. On macOS the script tries several frame rates until one works (capture cards
 the questions. `~/tmtools-capture/run.sh` starts the agent directly. After editing `agent.py`
 run `python3 tools/capture_agent/build_setup.py` to re-embed it (a test checks they match).
 
+## Mac app (menu-bar tray)
+
+`mac_app/` builds **TMTools Capture.app**, the same agent as a menu-bar app: no Terminal, no Python install.
+Build it on a Mac (`bash tools/capture_agent/mac_app/build.sh`, Python 3.10-3.13; the zip lands in `mac_app/dist/`),
+copy it to the AV laptop and open it (unsigned: right-click → Open the first time; or
+`xattr -dr com.apple.quarantine "TMTools Capture.app"`). It needs ffmpeg with ffprobe (`brew install ffmpeg`).
+
+- The tray icon's menu shows the state (not set up / connecting / connected · idle / **Recording Q 12** / N uploads queued) and starts or stops capture.
+- **Server and API key…** asks for both (the key goes to the macOS Keychain, never to a file). **Video device / Audio device** list what ffmpeg sees; picking one test-records 3 s trying every usual frame rate and saves the one that works (devices are saved by name). The first test makes macOS ask for camera access for the app.
+- If `~/tmtools-capture/.agent.env` from `capture-setup.sh` exists, the app adopts its server, key and device on first launch.
+- Toggles: keep recordings after upload, skip TLS verification (off by default; for venue networks that re-sign HTTPS), launch at login. Logs: `~/Library/Logs/TMTools Capture/agent.log`; settings: `~/Library/Application Support/TMTools Capture/config.json`.
+- Quitting (or Stop) finishes a recording in progress first; the upload queue persists, so anything still queued uploads on the next start.
+
 ## Setup (manual)
 
 1. Install [ffmpeg](https://ffmpeg.org/) (with `ffprobe`) and Python 3.10+.

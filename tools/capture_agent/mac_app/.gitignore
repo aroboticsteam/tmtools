@@ -1,0 +1,7 @@
+.build-venv/
+build/
+dist/
+agent.py
+icons/
+__pycache__/
+build.log
