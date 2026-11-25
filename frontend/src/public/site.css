@@ -1,0 +1,149 @@
+/* Public competitor site. Every colour is a CSS variable on `.pubsite`; the `theme` object of the
+   `site` setting (served in /overview) overrides them at runtime (SitePage applies it token by token),
+   so a deployment brings its own colours and none are built in here. Neutral grey by default; dark
+   unless the device asks for light. The header and hero keep the primary colour in both. */
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 500 700; font-display: swap; src: url("../assets/space-grotesk.woff2") format("woff2"); }
+.pubsite {color-scheme: dark;
+    --primary: #171717; --accent: #FAFAFA;
+    --bg: #0A0A0A; --bg-2: #111111; --card: #171717; --raise: #262626; --line: #2E2E2E; --hero-glow: #262626;
+    --ink: #FAFAFA; --muted: #A3A3A3; --accent-t: #E5E5E5; --link: #E5E5E5; --accent-ink: #0A0A0A;
+    --red: #EE8DA0; --blue: #7CBDF0; --iq: #0E7490; --v5: #B91C1C; --ok: #5FD29A;
+    --head: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --card-line: var(--line);}
+@media (prefers-color-scheme: light) {
+.pubsite {color-scheme: light;
+      --accent: #171717; --bg: #FAFAFA; --bg-2: #F0F0F0; --card: #FFFFFF; --raise: #F5F5F5; --line: #D4D4D4;
+      --ink: #171717; --muted: #525252; --accent-t: #262626; --link: #171717; --accent-ink: #FAFAFA; --red: #9A2339; --blue: #1D418E; --ok: #17704A;}
+}
+.pubsite * {box-sizing: border-box;}
+.pubsite {margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased;}
+.pubsite a {color: var(--link); text-decoration: none;}
+.pubsite a:hover {text-decoration: underline;}
+.pubsite a:focus-visible, .pubsite button:focus-visible, .pubsite input:focus-visible, .pubsite select:focus-visible {outline: 2px solid var(--link); outline-offset: 2px;}
+.pubsite h1, .pubsite h2, .pubsite h3 {font-family: var(--head); text-wrap: balance;}
+.pubsite header {position: sticky; top: 0; z-index: 5; background: var(--primary); border-bottom: 2px solid var(--accent);}
+.pubsite .bar {max-width: 1100px; margin: 0 auto; padding: .35rem 1rem 0; display: flex; flex-wrap: wrap; gap: 0 1.5rem; align-items: center;}
+.pubsite .bar h1 {margin: 0; flex: 1 1 auto; font-size: 1rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #fff; padding: .55rem 0;}
+.pubsite nav {display: flex; gap: .1rem; flex-wrap: wrap;}
+.pubsite nav a {color: #B4C0D4; padding: .75rem .85rem .65rem; border-bottom: 3px solid transparent; font-size: .92rem; font-weight: 500; letter-spacing: .02em;}
+.pubsite nav a:hover {color: #fff; text-decoration: none;}
+.pubsite nav a.active {color: #fff; border-bottom-color: var(--accent);}
+.pubsite main {max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem;}
+.pubsite h2 {margin: 2rem 0 .8rem; font-size: 1.05rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; display: flex; align-items: center; gap: .7rem;}
+.pubsite h2:first-child {margin-top: 0;}
+.pubsite h2:not([style])::before {content: ""; flex: 0 0 22px; height: 3px; background: var(--accent);}
+.pubsite .card {background: var(--card); border: 1px solid var(--card-line); border-radius: 10px; padding: 1rem 1.1rem;}
+.pubsite .grid {display: grid; gap: .8rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));}
+.pubsite .muted {color: var(--muted);}
+.pubsite .empty {color: var(--muted); padding: 1.2rem 0;}
+.pubsite .scroll {max-height: 28rem; overflow: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 10px; background: var(--card);}
+.pubsite table {width: 100%; border-collapse: collapse; font-size: .95rem;}
+.pubsite th, .pubsite td {padding: .55rem .8rem; text-align: left; border-bottom: 1px solid var(--line);}
+.pubsite th {position: sticky; top: 0; background: var(--bg-2); color: var(--muted); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; z-index: 1;}
+.pubsite tbody tr:last-child td {border-bottom: 0;}
+.pubsite tbody tr:hover td {background: var(--raise);}
+.pubsite td.n, .pubsite th.n {font-variant-numeric: tabular-nums;}
+.pubsite th:first-child, .pubsite td:first-child {width: 1%; white-space: nowrap; padding-right: 1.4rem;}
+.pubsite td {font-variant-numeric: tabular-nums;}
+.pubsite td:first-child {font-weight: 600;}
+.pubsite tr.top td:first-child {color: var(--accent-t); font-weight: 700;}
+.pubsite .red {color: var(--red);}
+.pubsite .blue {color: var(--blue);}
+.pubsite .row-cur td {background: color-mix(in srgb, var(--accent) 22%, transparent); font-weight: 700;}
+.pubsite .row-cur td:first-child {box-shadow: inset 3px 0 0 var(--accent);}
+.pubsite .tabs {display: flex; gap: .45rem; flex-wrap: wrap; margin: .7rem 0;}
+.pubsite .tabs button, .pubsite select, .pubsite input {background: var(--card); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: .4rem .85rem; font: inherit; font-size: .92rem;}
+.pubsite .tabs button {border-radius: 999px; cursor: pointer;}
+.pubsite .tabs button:hover {border-color: var(--accent);}
+.pubsite .tabs button.active {background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;}
+.pubsite .tools {display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .8rem;}
+.pubsite input::placeholder {color: var(--muted);}
+.pubsite .teamcard {display: block; color: inherit; position: relative; transition: border-color .15s, transform .15s;}
+.pubsite .teamcard:hover {text-decoration: none; border-color: var(--accent);}
+.pubsite .teamcard b {font-family: var(--head); font-size: 1.4rem; letter-spacing: .02em;}
+.pubsite .teamcard div {font-size: .92rem;}
+.pubsite .linkcard {display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--ink); font-weight: 500; transition: border-color .15s;}
+.pubsite .linkcard::after {content: "\2192"; color: var(--accent-t); font-size: 1.2rem; transition: transform .15s;}
+.pubsite .linkcard:hover {text-decoration: none; border-color: var(--accent);}
+.pubsite .linkcard:hover::after {transform: translateX(3px);}
+.pubsite .kv {display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1.1rem;}
+.pubsite .kv dt {color: var(--muted); font-size: .85rem;}
+.pubsite .kv dd {margin: 0;}
+.pubsite .card > b {font-family: var(--head); font-size: .76rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-t);}
+.pubsite .card.teamcard > b {font-size: 1.45rem; text-transform: none; letter-spacing: .02em; color: var(--ink); display: block; margin-bottom: .1rem;}
+.pubsite video {max-width: 100%; border-radius: 10px; background: #000;}
+.pubsite .clips {display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));}
+.pubsite .frame {position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; margin-bottom: 1rem; border: 1px solid var(--line);}
+.pubsite .frame iframe {position: absolute; inset: 0; width: 100%; height: 100%; border: 0;}
+.pubsite .map {position: relative; overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 10px; background: #000;}
+.pubsite .map .inner {position: relative; transform-origin: top left;}
+.pubsite .map img {display: block; width: 100%;}
+.pubsite .pin {position: absolute; transform: translate(-50%, -50%); background: var(--accent); color: var(--accent-ink); border: 2px solid #fff; border-radius: 999px; padding: .15rem .6rem; font-size: .8rem; font-weight: 600; cursor: pointer;}
+.pubsite #pop {position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; padding: 1rem; z-index: 20;}
+.pubsite #pop .box {background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 10px; padding: 1.2rem; max-width: 460px; width: 100%; max-height: 80vh; overflow: auto;}
+.pubsite footer {max-width: 1100px; margin: 2rem auto 0; padding: 1.2rem 1rem 3rem; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--line);}
+.pubsite footer:empty {display: none;}
+.pubsite .hero {position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem; text-align: center; min-height: calc(100vh - 3.4rem); min-height: calc(100dvh - 3.4rem); margin: -1.25rem -1rem 0; padding: 2rem 1.2rem; color: #fff;
+    background: radial-gradient(ellipse at 50% 0%, var(--hero-glow) 0%, var(--primary) 70%); background-size: cover; background-position: center; background-repeat: no-repeat; width: 100vw; margin-left: calc(50% - 50vw); margin-right: 0;}
+.pubsite .hero.has-img::before {content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 80%, transparent) 0%, color-mix(in srgb, var(--primary) 33%, transparent) 40%, color-mix(in srgb, var(--primary) 90%, transparent) 100%);}
+.pubsite .hero > * {position: relative;}
+.pubsite .hero .kick {font-family: var(--mono); font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; color: #D4D4D4;}
+.pubsite .hero h1 {margin: 0; font-size: clamp(2.2rem, 7vw, 4.6rem); line-height: 1.05; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-shadow: 0 2px 22px #000c; max-width: 16ch;}
+.pubsite .hero .rule {width: 72px; height: 3px; background: var(--accent);}
+.pubsite .hero .hint {position: absolute; bottom: 1.3rem; left: 0; right: 0; font-family: var(--mono); font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: #D4D4D4;}
+.pubsite {overflow-x: clip;}
+.pubsite .section {padding-top: 2rem;}
+.pubsite .strip {display: grid; gap: .7rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 1.5rem;}
+.pubsite .strip .stat {background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 10px; padding: .8rem 1rem;}
+.pubsite .strip .stat b {display: block; font-family: var(--head); font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums;}
+.pubsite .strip {margin-bottom: 1rem;}
+.pubsite h2[style] {font-size: clamp(1.4rem, 4vw, 2rem); letter-spacing: .04em;}
+.pubsite .strip .stat span {color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 600;}
+.pubsite .vids .card > b, .pubsite .vids b {display: block;}
+.pubsite .vids img, .pubsite .vids video {width: 100%; max-width: 100%; border-radius: 10px;}
+.pubsite .vids {display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));}
+.pubsite .btn {display: inline-flex; align-items: center; background: var(--iq); color: #fff; border-radius: 8px; padding: .6rem 1.15rem; font-weight: 600; margin-top: .7rem;}
+.pubsite .btn:hover {text-decoration: none; filter: brightness(1.12);}
+.pubsite .hist {display: grid; gap: 1rem;}
+.pubsite .hist .card {padding: 1.2rem 1.3rem;}
+.pubsite .hist h3 {margin: 0 0 .15rem; font-size: 1.1rem; letter-spacing: .02em;}
+.pubsite .hist .when {color: var(--muted); font-size: .88rem; margin-bottom: .9rem; font-family: var(--mono);}
+.pubsite .tiles {display: grid; gap: .7rem; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));}
+.pubsite .tile {background: var(--raise); border-radius: 8px; padding: .6rem .85rem;}
+.pubsite .tile b {display: block; font-family: var(--head); font-size: 1.4rem; font-variant-numeric: tabular-nums;}
+.pubsite .tile span {color: var(--muted); font-size: .78rem;}
+.pubsite .chips {display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem;}
+.pubsite .chip {background: color-mix(in srgb, var(--accent) 20%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 999px; padding: .2rem .8rem; font-size: .88rem;}
+.pubsite .spons {display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;}
+.pubsite .spons a, .pubsite .spons > span {display: inline-flex; align-items: center; background: #fff; color: #171717; border-radius: 8px; padding: .6rem 1rem; font-weight: 600;}
+.pubsite .spons img {max-height: 44px;}
+.pubsite img, .pubsite iframe {max-width: 100%;}
+.pubsite main, .pubsite .card {overflow-wrap: anywhere;}
+.pubsite td, .pubsite th {overflow-wrap: normal;}
+.pubsite nav a, .pubsite .tabs button, .pubsite select, .pubsite input, .pubsite .btn {min-height: 40px;}
+.pubsite nav a, .pubsite .btn {display: inline-flex; align-items: center;}
+@media (prefers-reduced-motion: reduce) {
+.pubsite .teamcard, .pubsite .linkcard, .pubsite .linkcard::after {transition: none;}
+}
+@media (max-width: 640px) {
+.pubsite .bar {padding: .4rem .75rem 0; gap: 0 .6rem;}
+.pubsite .bar h1 {font-size: .9rem; flex-basis: 100%; padding: .4rem 0 .1rem;}
+.pubsite nav {flex-wrap: nowrap; overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: none;}
+.pubsite nav::-webkit-scrollbar {display: none;}
+.pubsite nav a {white-space: nowrap; padding: .6rem .75rem .5rem;}
+.pubsite main {padding: 1rem .75rem;}
+.pubsite .hero {margin-top: -1rem; padding: 1.5rem 1rem;}
+.pubsite .grid {grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));}
+.pubsite .vids, .pubsite .clips {grid-template-columns: 1fr;}
+.pubsite table {font-size: .85rem;}
+.pubsite th, .pubsite td {padding: .45rem .55rem; white-space: nowrap;}
+.pubsite .hist .card {padding: 1rem;}
+.pubsite .kv {grid-template-columns: 1fr; gap: 0;}
+.pubsite .kv dd {margin-bottom: .5rem;}
+.pubsite .tools > * {flex: 1 1 100%;}
+.pubsite input, .pubsite select {font-size: 16px;}
+.pubsite #pop {padding: .5rem;}
+.pubsite .map {max-height: 60vh;}
+}
+.pubsite { min-height: 100vh; }

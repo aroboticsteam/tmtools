@@ -37,15 +37,6 @@ needs_infra = pytest.mark.skipif(not _infra(), reason="Real Postgres/Redis not r
 
 
 @needs_infra
-def test_page_route_substitutes_id_and_rejects_bad_ids():
-    with TestClient(app) as client:
-        ok = client.get("/replay/program-1")
-        assert ok.status_code == 200 and '"program-1"' in ok.text and "__ENTITY_ID__\"" not in ok.text.split("CONFIG")[1][:60]
-        assert client.get("/replay/bad id!").status_code in (404, 422)
-        assert client.get("/replay/" + "a" * 101).status_code in (404, 422)
-
-
-@needs_infra
 def test_ws_replay_state_on_connect_and_command_forwarding():
     r = redis_sync.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     eid = f"t{int(time.time() * 1000)}"

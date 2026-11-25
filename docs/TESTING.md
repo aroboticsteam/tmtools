@@ -13,7 +13,7 @@ CI runs all three (`backend-tests`, `frontend-build`, `e2e`).
 They drive a real backend that serves the built SPA, with a synthetic 60 fps camera for the recorder.
 Covered: sign-in, button pages (visual builder, confirm, feedback, drag-and-drop), station iPad
 (messages, presence, timers and colour cues, secured link + PIN, agenda DnD/import), recorder, the public site and
-its admin tools (config form, map upload, recordings, team logo/website, leaderboard rotation), overlay spotlight.
+its admin tools (config form, map upload, recordings, team logo/website, leaderboard rotation), overlay spotlight, and the signed-out public pages (room, notify, station incl. PIN gate, teleprompter, replay) with no admin shell.
 
 ```bash
 # 1. backend env (same variables as CI) and a migrated database

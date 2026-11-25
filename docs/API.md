@@ -11,8 +11,10 @@ All `/api/v1/*` routes require an authenticated session (OIDC via Authentik,
 or the local emergency admin login at `/admin_login` — plan §3.9) plus the
 RBAC permission the specific route requires; see `backend/core/dependencies.py`
 and plan §13 for the permission list. `/healthz`, `/readyz`, `/admin_login`,
-`/auth/*`, and the teleprompter/overlay pages are the only endpoints
-reachable without a prior session.
+`/auth/*`, the `/api/v1/public/*` endpoints and the `/ws/*` sockets of the public/OBS pages are the
+only endpoints reachable without a prior session. The backend serves **no UI pages of its own**: every
+page below (including `/site`, `/room/{slug}`, `/station/{slug}`, `/prompter`, `/overlay/{id}`,
+`/replay/{id}`, `/notify`) is a route of the React SPA, which the catch-all serves as `index.html`.
 
 ## Health & Status
 
@@ -161,17 +163,29 @@ Alert behaviour (x matches / y minutes ahead, scores, excluded rounds) is config
 
 ## Public pages
 
+These are **SPA routes** (`frontend/src/public/`), not backend pages; they are listed because their URLs are
+shared (QR codes, OBS browser sources, links) and must keep working signed out. The backend only supplies
+their data (below) plus two static files from the built SPA:
+
 | Method | Path | Description |
 |---|---|---|
-| GET | `/room/{slug}` | Room display: livestream embed, team list and live alerts over `/ws/room/{slug}`. 404 for an unknown room. |
+| GET | `/site`, `/site/leaderboard` | Competitor site (hash-routed) and the big-screen rotating leaderboards. Data: `/api/v1/public/site/*`. |
+| GET | `/room/{slug}` | Room display: livestream embed, team list and live alerts over `/ws/room/{slug}`. Shows "Room not found" for an unknown room (the data call 404s). |
 | GET | `/notify` | Public phone page: pick any team(s) (list from `/api/v1/public/site/teams`) and turn on notifications. No QR, room or login. |
-| GET | `/sw.js`, `/notify.webmanifest` | Service worker and PWA manifest (iOS only delivers push to a web app added to the Home Screen). |
+| GET | `/station/{slug}` | iPad station (`?k=` key, PIN gate). |
+| GET | `/overlay/{entity_id}`, `/replay/{entity_id}` | OBS browser sources (fixed 1920x1080, transparent; `/overlay` also `?mode=iq\|vrc`, `?team=`, `?robot_name=1`; `/replay` `?label=1`). |
+| GET | `/sw.js` | Service worker (file from the built SPA; `Cache-Control: no-cache`, `Service-Worker-Allowed: /`). |
+| GET | `/notify.webmanifest` | PWA manifest (`application/manifest+json`; iOS only delivers push to a web app added to the Home Screen). |
 
 ## Prompter
 
+The pages `/prompter` (index) and `/prompter/{entity_id}?token=...` are SPA routes. The page-level checks the old
+HTML routes made are public JSON endpoints, in addition to the WebSocket-upgrade-time check at `/ws/prompter/{entity_id}`:
+
 | Method | Path | Description |
 |---|---|---|
-| GET | `/prompter/{entity_id}?token=...` | Serves the standalone teleprompter HTML page (plan Appendix B.3/B.4). The HMAC `token` query param (plan Appendix B.8) is validated server-side before the page renders; an invalid/stale token 403s here in addition to the WebSocket-upgrade-time check at `/ws/prompter/{entity_id}`. |
+| GET | `/api/v1/public/prompter/{entity_id}?token=...` | 404 for an unknown timer, 403 for a missing/stale per-instance HMAC token (plan Appendix B.8, constant-time compare); 200 `{entity_id, display_name}` otherwise. The page shows the error instead of a dead teleprompter. |
+| GET | `/api/v1/public/prompter-index?token=...` | Active timers with their tokenised `/prompter/...` links (Appendix B.4). Gated by the shared `prompter_index_token` setting; 403 when missing/wrong. |
 
 ## WebSocket Channels
 
@@ -248,7 +262,7 @@ Staff (`comms:read` / `comms:send` / `comms:manage`):
 | POST | `/api/v1/comms/inbox/{id}/ack` | Mark read. |
 | DELETE | `/api/v1/comms/inbox` | Clear read messages. |
 
-Public (the station slug is the credential): `GET /api/v1/public/stations/{slug}`, `.../agenda`, `.../next-match` (emcees only), `POST .../messages`; page `GET /station/{slug}`; socket `/ws/station/{slug}`.
+Public (the station slug is the credential): `GET /api/v1/public/stations/{slug}`, `.../agenda`, `.../next-match` (emcees only), `POST .../messages`; SPA page `/station/{slug}`; socket `/ws/station/{slug}`.
 
 
 ## Public website data (issue #10)

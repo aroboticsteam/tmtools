@@ -6,7 +6,7 @@ of the team's key colour); each is keyed to a transparent PNG (same ffmpeg
 
 `GET /api/v1/public/overlay/teams` is the unauthenticated, display-safe feed
 the OBS overlay page reads (no auth on overlays, by design — see
-`overlay.html`): team info plus presigned photo URLs, nothing else.
+`OverlayPage.tsx`): team info plus presigned photo URLs, nothing else.
 """
 from __future__ import annotations
 

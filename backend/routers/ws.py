@@ -287,7 +287,7 @@ class ConnectionManager:
     async def _dispatch_timer_state(self, entity_id: str, event_type: str, data: dict[str, Any]) -> None:
         """Translates a raw `timer_*` event (whose payload varies by type,
         see `TimerManager._publish`) into the full state snapshot
-        `prompter.html` expects (`{phase, running, elapsed, remaining, ...}`)
+        the teleprompter page (`PrompterPage.tsx`) expects (`{phase, running, elapsed, remaining, ...}`)
         by re-reading `TimerManager.get_state()` on the leader node."""
         if self.get_timer_manager is None:
             return
@@ -607,7 +607,7 @@ async def ws_prompter(websocket: WebSocket, entity_id: str) -> None:
         # this node / not the current leader") — there's no meaningful
         # WebSocket-level equivalent of a 503 response, so the connection is
         # rejected outright; the client's reconnect-with-backoff (Appendix
-        # A.14, already built into prompter.html) will keep retrying until a
+        # A.14, already built into PrompterPage.tsx) will keep retrying until a
         # request lands on the leader node.
         await websocket.close(code=WS_CLOSE_SERVICE_UNAVAILABLE, reason="Not the current leader")
         return

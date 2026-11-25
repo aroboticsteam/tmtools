@@ -195,11 +195,6 @@ async def test_livestreams_only_rooms_with_streams(client):
     ]
 
 
-async def test_site_page_served(client):
-    page = await client.get("/site")
-    assert page.status_code == 200 and "text/html" in page.headers["content-type"] and "/api/v1/public/site/" in page.text
-
-
 async def test_unplayed_match_has_no_score_and_matches_carry_programme(client):
     await seed(client)
     d = (await client.get("/api/v1/public/site/event")).json()
@@ -292,12 +287,3 @@ async def test_overview_has_no_bus_tracker_even_if_stored(client):
     assert "bus_tracker" not in (await client.get("/api/v1/public/site/overview")).json()
 
 
-async def test_site_page_markers(client):
-    page = (await client.get("/site")).text
-    assert "Checklist (" not in page and "360° robot video" not in page and "Robot photo" in page and "['bus'" not in page and "bus_tracker" not in page
-    assert "Welcome to " in page and "'hero'" in page  # hero with the welcome overlay
-    assert "Top 50 qualification rankings" in page and "Top 50 skills" in page
-    assert "Season history" in page and "'hist'" in page and "Download" in page
-    assert "m.score[0]" in page  # IQ shows a single score
-    assert "tile('Finals ranking', r.finals_rank)" in page and "tile('Division'" not in page  # season history shows finals placement
-    assert "function matchLabel" in page and "a.href = m.recording_url" in page  # the match number links to its video

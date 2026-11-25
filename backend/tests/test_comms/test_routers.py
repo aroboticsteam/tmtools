@@ -284,9 +284,10 @@ async def test_permissions(ctx):
     assert (await ctx.get("/api/v1/comms/stations")).status_code == 403
 
 
-async def test_station_page_served_and_unknown_404(ctx):
+async def test_station_page_data_and_unknown_404(ctx):
+    """The page is an SPA route; what it needs from the server is this public call."""
     await make_station(ctx, "emcee-1")
-    page = await ctx.get("/station/emcee-1")
-    assert page.status_code == 200 and '"emcee-1"' in page.text and "__STATION_SLUG__" not in page.text
-    assert (await ctx.get("/station/ghost")).status_code == 404
-    assert (await ctx.get("/station/Bad%20Slug")).status_code == 404
+    page = await ctx.get("/api/v1/public/stations/emcee-1")
+    assert page.status_code == 200 and page.json()["name"]
+    assert (await ctx.get("/api/v1/public/stations/ghost")).status_code == 404
+    assert (await ctx.get("/api/v1/public/stations/Bad%20Slug")).status_code == 404

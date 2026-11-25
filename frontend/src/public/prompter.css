@@ -1,0 +1,35 @@
+.prompter-page { --p-surface: rgba(8, 8, 8, 0.43); --p-border: rgba(255, 255, 255, 0.08); --p-text: #f5f5f5; --p-dim: rgba(245, 245, 245, 0.6);
+  --p-accent: #4f8cff; --p-danger: #ff4d4f; --p-success: #34d058; --p-warning: #f2c94c;
+  color-scheme: dark; background: #000; color: var(--p-text); font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 16px; gap: 16px; }
+.prompter-page *, .prompter-page *::before, .prompter-page *::after { box-sizing: border-box; }
+.prompter-page .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: var(--p-warning); color: #1a1a1a; text-align: center; font-weight: 600; padding: 8px 12px; font-size: clamp(12px, 2vw, 16px); }
+.prompter-page .panel { background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 16px; backdrop-filter: blur(12px); padding: 24px; }
+.prompter-page .countdown { text-align: center; flex: 0 0 auto; }
+.prompter-page .phase { text-transform: uppercase; letter-spacing: 0.15em; font-size: clamp(12px, 2vw, 18px); color: var(--p-dim); margin-bottom: 8px; }
+.prompter-page .clock { font-variant-numeric: tabular-nums; font-size: clamp(48px, 16vw, 160px); font-weight: 700; line-height: 1; }
+.prompter-page .clock.warning { color: var(--p-warning); } .prompter-page .clock.danger { color: var(--p-danger); } .prompter-page .clock.running { color: var(--p-success); }
+.prompter-page .start { margin-top: 16px; font-size: clamp(16px, 3vw, 24px); font-weight: 600; padding: 16px 32px; border-radius: 12px; border: 1px solid var(--p-border); background: var(--p-accent); color: #fff; cursor: pointer; }
+.prompter-page .start:disabled { opacity: 0.5; cursor: not-allowed; }
+.prompter-page .start-error { margin-top: 12px; font-size: clamp(14px, 2.2vw, 18px); color: #fca5a5; min-height: 1.2em; }
+.prompter-page .cues { flex: 1 1 auto; overflow-y: auto; }
+.prompter-page .active-cue { font-size: clamp(20px, 4vw, 40px); line-height: 1.4; }
+.prompter-page .next-label { margin-top: 24px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 14px; color: var(--p-dim); }
+.prompter-page .next-cue { font-size: clamp(14px, 2.2vw, 22px); color: var(--p-dim); margin-top: 8px; }
+.prompter-page .cues h1, .prompter-page .cues h2, .prompter-page .cues h3 { margin: 0.4em 0; font-weight: 700; }
+.prompter-page .cues h1 { font-size: 1.6em; } .prompter-page .cues h2 { font-size: 1.35em; } .prompter-page .cues h3 { font-size: 1.15em; }
+.prompter-page .cues p { margin: 0 0 .5em; }
+.prompter-page .cues strong { color: #fff; }
+.prompter-page .cues ul, .prompter-page .cues ol { padding-left: 1.4em; list-style: revert; margin: 0; }
+.prompter-page .match { flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 24px; }
+.prompter-page .match-head { width: 100%; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.prompter-page .match-title { font-size: clamp(14px, 2vw, 20px); color: var(--p-dim); }
+.prompter-page .match-flag { font-size: clamp(14px, 2vw, 20px); font-weight: 700; color: var(--p-warning); }
+.prompter-page .match-teams { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
+.prompter-page .team-card { flex: 1 1 200px; min-width: 160px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--p-border); border-radius: 10px; padding: 10px 12px; border-left: 4px solid transparent; }
+.prompter-page .team-card.alliance-red { border-left-color: var(--p-danger); } .prompter-page .team-card.alliance-blue { border-left-color: var(--p-accent); }
+.prompter-page .tc-number { font-weight: 700; font-size: clamp(14px, 1.8vw, 18px); }
+.prompter-page .tc-name { color: var(--p-dim); font-size: clamp(12px, 1.5vw, 15px); margin-top: 2px; }
+.prompter-page .tc-robot, .prompter-page .tc-rank, .prompter-page .tc-awards { font-size: clamp(11px, 1.3vw, 13px); color: var(--p-dim); margin-top: 2px; }
+.prompter-page .tc-rank strong, .prompter-page .tc-robot strong { color: var(--p-text); font-weight: 600; }
+.prompter-page .gate { margin: auto; text-align: center; color: var(--p-dim); font-size: 1.2rem; }
