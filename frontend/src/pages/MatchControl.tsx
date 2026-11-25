@@ -68,6 +68,10 @@ export function MatchControlPage() {
   const { data: obsState } = useIntegrationState(obs?.entity_id ?? null);
   const scene = typeof obsState?.state?.current_scene === 'string' ? (obsState.state.current_scene as string) : null;
   const log = events.filter((e) => e.type === 'automation_executed').slice(0, 8);
+  // The audience display belongs to the whole TM field set, not to one field, and TM's event carries no
+  // fieldID (the backend pins it to whichever field is current), so every card shows the newest change.
+  const display = events.find((e) => e.type === 'audienceDisplayChanged');
+  const displayName = display ? String(display.payload.display ?? display.payload.audienceDisplay ?? 'Changed') : '—';
 
   return (
     <div>
@@ -78,8 +82,6 @@ export function MatchControlPage() {
           {tm.length > 0 && fields.length === 0 && <EmptyState icon={MonitorPlay} title="No field activity yet">Fields appear once Tournament Manager assigns a match.</EmptyState>}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
             {fields.map((f) => {
-              const display = events.find((e) => e.type === 'audienceDisplayChanged' && String(e.payload.fieldID ?? f.id) === f.id);
-              const displayName = display ? String(display.payload.display ?? display.payload.audienceDisplay ?? 'Changed') : '—';
               return (
                 <Section key={f.id} title={`Field ${f.id}`} action={<Badge tone={TONE[f.status]}>{f.statusLabel}</Badge>}>
                   <div className="flex flex-col gap-4 p-4">
