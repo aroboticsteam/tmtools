@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/Dashboard';
 import { MatchControlPage } from './pages/MatchControl';
 import { IntegrationsPage } from './pages/Integrations';
 import { AutomationsPage } from './pages/Automations';
+import { AutomationEditorPage } from './pages/AutomationEditor';
 import { ScriptsPage } from './pages/Scripts';
 import { OverlaysPage } from './pages/Overlays';
 import { TeamsPage } from './pages/Teams';
@@ -44,6 +45,8 @@ export const router = createBrowserRouter([
       { path: 'match-control', element: <MatchControlPage /> },
       { path: 'integrations', element: <IntegrationsPage /> },
       { path: 'automations', element: <AutomationsPage /> },
+      { path: 'automations/new', element: <AutomationEditorPage /> },
+      { path: 'automations/:id', element: <AutomationEditorPage /> },
       { path: 'scripts', element: <ScriptsPage /> },
       // The Timer-Teleprompter page is part of Comms now; keep old bookmarks working.
       { path: 'timers', element: <Navigate to="/comms" replace /> },
