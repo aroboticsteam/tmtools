@@ -151,6 +151,10 @@ async def start_recording(redis: Any, session_factory: SessionFactory, params: d
 
     async with session_factory() as session:
         previous = await active_recording(session)
+        if previous is not None and previous.match_key == info["match_key"]:
+            # Already recording this very match (TM fires both the IN_MATCH display change and matchStarted, and a
+            # double click or a retried automation does the same): keep the take and its clips as they are.
+            return {"ok": True, "recording": recording_summary(previous)}
         if previous is not None and previous.match_key != info["match_key"]:
             previous.status = "STOPPED"
             previous.stopped_at = _now()
@@ -219,9 +223,31 @@ async def stop_recording(redis: Any, session_factory: SessionFactory) -> dict[st
         await session.commit()
         await session.refresh(row)
         summary = recording_summary(row)
-    await hub.send_command(redis, {"type": "stop_recording", "recording_id": summary["id"]})
+    try:
+        await hub.send_command(redis, {"type": "stop_recording", "recording_id": summary["id"]})
+    except IntegrationError:
+        # Agent offline: the row is closed anyway so the deck does not show a recording that nothing is making.
+        logger.warning("capture: stopped %s while the agent was offline", summary["match_key"])
     await hub.publish(redis, "capture_recording", summary)
     return {"ok": True, "recording": summary}
+
+
+async def close_orphaned_recording(redis: Any, session_factory: SessionFactory, agent_state: str | None) -> None:
+    """An agent that (re)connects idle while a recording is marked RECORDING lost it (crash, restart): close
+    the row so Match control and the deck stop showing a live recording. The agent uploads whatever it kept."""
+    if agent_state == "recording":
+        return
+    async with session_factory() as session:
+        row = await active_recording(session)
+        if row is None:
+            return
+        row.status = "STOPPED"
+        row.stopped_at = _now()
+        row.error = "The capture agent restarted during this recording"
+        await session.commit()
+        await session.refresh(row)
+        summary = recording_summary(row)
+    await hub.publish(redis, "capture_recording", summary)
 
 
 async def mark_moment(redis: Any, session_factory: SessionFactory, length_s: float) -> dict[str, Any]:

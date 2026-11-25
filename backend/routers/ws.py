@@ -766,6 +766,13 @@ async def ws_agent(websocket: WebSocket) -> None:
                 info["last_seen"] = time.time()
                 await capture_hub.set_presence(redis_client, info)
                 await capture_hub.publish(redis_client, "capture_status", {"connected": True, **info})
+                if msg["type"] == "hello":
+                    try:
+                        await capture_service.close_orphaned_recording(
+                            redis_client, async_session_factory, info.get("state")
+                        )
+                    except Exception:
+                        logger.exception("capture: could not reconcile recordings on reconnect")
                 if not integration_checked and msg["type"] == "hello":
                     integration_checked = True
                     try:

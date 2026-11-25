@@ -60,6 +60,7 @@ python agent.py --server https://tm.example.com --key tmt_... --input "-f avfoun
 - **Resilience.** The upload queue is persisted and retried with backoff, so a dropped venue connection or a restart loses nothing. The WebSocket reconnects automatically; a recording in progress continues while it is down.
 - **Disk use.** Local files are deleted after a confirmed upload, so the work dir only holds what is recording or still waiting to upload (a few GB during an outage, not the whole event). Pass `--keep-local` to keep everything.
 - **Layout in the bucket.** `{matchType}/{matchNumber}/match.mp4` and `{matchType}/{matchNumber}/segments/moment-N.mp4`. Clear between events from the server (`DELETE /api/v1/capture/recordings`).
+- **Crash recovery.** If the agent or the laptop dies mid-match, the next start remuxes the leftover `master.mkv` (Matroska is readable while growing) and uploads it, and the server closes the recording that was marked live. Only the last moment or two before the crash can be missing.
 - Ctrl-C finishes and queues the current recording before exiting.
 
 ## Tests

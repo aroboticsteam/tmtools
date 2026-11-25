@@ -557,11 +557,35 @@ class CaptureAgent:
 
     # ── link to the server ────────────────────────────────────────────
 
+    async def recover_interrupted(self) -> None:
+        """A crash, power cut or kill leaves `master.mkv` (Matroska stays readable while growing) in its
+        recording folder with nothing queued. Remux each one to an MP4 and queue its upload, so the half
+        of a match that was captured is not lost. Folders already queued, or with no master, are skipped."""
+        queued = {job.recording_id for job in self.queue.jobs.values() if job.kind == "match"}
+        for folder in sorted(p for p in self.settings.work_dir.iterdir() if p.is_dir()):
+            master = folder / "master.mkv"
+            if folder.name in queued or not master.exists():
+                continue
+            out = folder / "match.mp4"
+            try:
+                await _run([self.settings.ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(master),
+                            "-c", "copy", "-movflags", "+faststart", str(out)])
+            except Exception as exc:  # noqa: BLE001 - keep the master for a manual look
+                log.warning("could not recover %s: %s", folder.name, exc)
+                continue
+            duration = await probe_duration(self.settings.ffmpeg.replace("ffmpeg", "ffprobe"), out)
+            if not self.settings.keep_local:
+                with contextlib.suppress(OSError):
+                    master.unlink()
+            log.info("recovered interrupted recording %s (%.1f s)", folder.name, duration or 0)
+            self.queue.add(UploadJob("match", folder.name, str(out), duration_s=duration))
+
     async def run(self) -> None:
         import websockets  # imported late so unit tests need not have it
 
         self.settings.work_dir.mkdir(parents=True, exist_ok=True)
         self.queue.load()
+        await self.recover_interrupted()
         self.queue.start()
         url = self.settings.server.rstrip("/").replace("http", "ws", 1) + "/ws/agent"
         attempt = 0
