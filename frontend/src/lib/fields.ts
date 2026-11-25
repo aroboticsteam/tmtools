@@ -7,7 +7,7 @@ export interface FieldRow {
   match: string;
   red: string[];
   blue: string[];
-  status: 'live' | 'queued' | 'idle';
+  status: 'live' | 'countdown' | 'queued' | 'idle';
   statusLabel: string;
 }
 
@@ -20,18 +20,23 @@ export function useFieldRows(): FieldRow[] {
     .sort()
     .map((id) => {
       const m = currentMatches[id];
+      // Newest event wins: the audience display going to IN_MATCH is the countdown, matchStarted is the
+      // match itself, and a stop or any other display ends both.
       const last = recent.find(
-        (e) => String(e.payload.fieldID ?? '') === id && (e.type === 'matchStarted' || e.type === 'matchStopped'),
+        (e) =>
+          String(e.payload.fieldID ?? '') === id &&
+          (e.type === 'matchStarted' || e.type === 'matchStopped' || e.type === 'audienceDisplayChanged'),
       );
       const live = last?.type === 'matchStarted';
+      const countdown = last?.type === 'audienceDisplayChanged' && String(last.payload.display ?? '') === 'IN_MATCH';
       const num = m.matchNum !== undefined ? `${String(m.round ?? '').trim()} ${String(m.matchNum)}`.trim() : '';
       return {
         id,
         match: num || 'No match queued',
         red: m.redTeams ?? [],
         blue: m.blueTeams ?? [],
-        status: live ? 'live' : num ? 'queued' : 'idle',
-        statusLabel: live ? 'In match' : num ? 'Queued' : 'Idle',
+        status: live ? 'live' : countdown ? 'countdown' : num ? 'queued' : 'idle',
+        statusLabel: live ? 'In match' : countdown ? 'Countdown' : num ? 'Queued' : 'Idle',
       };
     });
 }

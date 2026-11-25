@@ -53,7 +53,7 @@ const AUDIENCE_DISPLAY_MODES = [
  * mid-match shows each field's current state straight away. A field that has
  * never had an event still doesn't appear (there's no static field topology
  * endpoint to seed an empty list from). */
-const TONE: Record<string, Tone> = { live: 'live', queued: 'neutral', idle: 'neutral' };
+const TONE: Record<string, Tone> = { live: 'live', countdown: 'warn', queued: 'neutral', idle: 'neutral' };
 
 /** Run each field: the match, alliances, start/stop, and what the room is doing. */
 export function MatchControlPage() {

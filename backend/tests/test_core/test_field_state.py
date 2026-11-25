@@ -55,6 +55,14 @@ async def test_events_are_per_field_newest_first_and_capped(redis):
     assert "3" not in snap["matches"]  # only assignments populate the match map
 
 
+async def test_audience_display_is_recorded_so_a_reload_can_show_countdown(redis):
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 1, "display": "IN_MATCH"}, ts=1))
+    await fs.record(redis, ev("matchStarted", {"fieldID": 1}, ts=2))
+    rows = (await fs.snapshot(redis))["events"]["1"]
+    assert rows[1]["display"] == "IN_MATCH"
+    assert "display" not in rows[0]
+
+
 async def test_unrelated_and_malformed_events_are_ignored_and_never_raise(redis):
     await fs.record(redis, ev("timer_started", {"duration_s": 60}))
     await fs.record(redis, ev("fieldMatchAssigned", {"matchNum": 1}))  # no fieldID

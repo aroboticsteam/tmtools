@@ -165,7 +165,7 @@ export const useWsStore = create<WsState>((set) => ({
             entity_tags: [],
             type: row.type,
             timestamp: row.timestamp,
-            payload: { fieldID: fieldId },
+            payload: row.display ? { fieldID: fieldId, display: row.display } : { fieldID: fieldId },
           });
         }
       }

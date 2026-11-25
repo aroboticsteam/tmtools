@@ -18,7 +18,7 @@ import { DataTable } from '../components/ui/DataTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import type { EventBusMessage } from '../types/api';
 
-const FIELD_TONE: Record<string, Tone> = { live: 'live', queued: 'neutral', idle: 'neutral' };
+const FIELD_TONE: Record<string, Tone> = { live: 'live', countdown: 'warn', queued: 'neutral', idle: 'neutral' };
 
 function describe(e: EventBusMessage): { icon: typeof Check; text: string } | null {
   switch (e.type) {

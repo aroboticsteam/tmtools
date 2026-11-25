@@ -46,6 +46,7 @@ export default {
           900: 'rgb(var(--amber-900) / <alpha-value>)',
         },
         blue: {
+          50: 'rgb(var(--blue-50) / <alpha-value>)',
           200: 'rgb(var(--blue-200) / <alpha-value>)',
           700: 'rgb(var(--blue-700) / <alpha-value>)',
         },

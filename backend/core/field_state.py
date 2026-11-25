@@ -63,7 +63,10 @@ async def record(redis: Any, event: dict[str, Any]) -> None:
             pipe.expire(STATE_KEY, TTL_SECONDS)
         if field_id is not None:
             key = EVENTS_PREFIX + field_id
-            pipe.lpush(key, json.dumps({"type": etype, "entity_id": entity_id, "timestamp": timestamp}))
+            row = {"type": etype, "entity_id": entity_id, "timestamp": timestamp}
+            if etype == "audienceDisplayChanged" and isinstance(payload, dict) and payload.get("display"):
+                row["display"] = str(payload["display"])  # lets a reload still tell IN_MATCH (countdown) apart
+            pipe.lpush(key, json.dumps(row))
             pipe.ltrim(key, 0, MAX_EVENTS - 1)
             pipe.expire(key, TTL_SECONDS)
         await pipe.execute()

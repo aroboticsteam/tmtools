@@ -439,6 +439,8 @@ export interface FieldStateEvent {
   type: string;
   entity_id: string;
   timestamp: number;
+  /** Only on audienceDisplayChanged: the new display, e.g. IN_MATCH. */
+  display?: string;
 }
 
 export interface FieldStateSnapshot {
