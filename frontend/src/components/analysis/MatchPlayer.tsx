@@ -74,6 +74,7 @@ export function MatchPlayer({
 
   let overlay: string | null = null;
   if (!recording) overlay = 'Pick a match to watch it';
+  else if (recording.status === 'QUEUED') overlay = 'On a field, waiting to start. The video appears here once it is recorded.';
   else if (recording.status === 'RECORDING') overlay = 'Recording now. The full video is ready once the match ends.';
   else if (recording.status === 'STOPPED') overlay = 'Processing the match video…';
   else if (recording.status === 'ERROR') overlay = recording.error ?? 'This recording failed';

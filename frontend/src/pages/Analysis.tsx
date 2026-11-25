@@ -13,6 +13,9 @@ import { useTeams } from '../api/teams';
 import { usePermission } from '../hooks/usePermission';
 import { useCan } from '../hooks/useCan';
 import { useUiStore } from '../stores/ui';
+import { useWsStore } from '../stores/ws';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useFieldSeed } from '../lib/fields';
 import {
   DEFAULT_SETUP,
   MARK_LENGTHS,
@@ -21,6 +24,7 @@ import {
   loadSetup,
   momentPlayable,
   orderRecordings,
+  pendingFromFields,
   recordingLabel,
   saveSetup,
   stepMatch,
@@ -49,8 +53,18 @@ function AnalysisDesk() {
   const [tab, setTab] = useState<Tab>('match');
   const [setup, setSetup] = useState<DeskSetup>(() => loadSetup());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Which match the operator picked, so the choice survives a queued entry turning into its real recording.
+  const [auto, setAuto] = useState(false); // the current pick was made by the desk, not the operator
+  const [pickedMatch, setPickedMatch] = useState<{ type: string; number: string } | null>(null);
   const { data: recordings = [] } = useCaptureRecordings({ limit: 300 });
-  const ordered = useMemo(() => orderRecordings(recordings), [recordings]);
+  // Matches TM has put on a field show up here straight away, before anything is recorded.
+  useWebSocket('/ws/events');
+  useFieldSeed(useCan()('integrations:read'));
+  const currentMatches = useWsStore((s) => s.currentMatches);
+  const ordered = useMemo(
+    () => orderRecordings([...recordings, ...pendingFromFields(currentMatches, recordings)]),
+    [recordings, currentMatches],
+  );
 
   const updateSetup = (patch: Partial<DeskSetup>) => {
     const next = { ...setup, ...patch };
@@ -62,9 +76,33 @@ function AnalysisDesk() {
   const { data: status } = useCaptureStatus();
   const liveId = status?.recording?.id ?? null;
   useEffect(() => {
-    if (liveId && !selectedId) setSelectedId(liveId);
-  }, [liveId, selectedId]);
-  const selected = ordered.find((r) => r.id === selectedId) ?? null;
+    if (liveId && (!selectedId || auto)) {
+      setSelectedId(liveId);
+      const live = status?.recording;
+      setPickedMatch(live ? { type: live.match_type, number: live.match_number } : null);
+    }
+  }, [liveId, selectedId, auto, status?.recording]);
+  const selected =
+    ordered.find((r) => r.id === selectedId) ??
+    (pickedMatch ? ordered.find((r) => r.match_type === pickedMatch.type && r.match_number === pickedMatch.number) : null) ??
+    null;
+  const select = (id: string | null) => {
+    setSelectedId(id);
+    setAuto(false);
+    const r = ordered.find((x) => x.id === id);
+    setPickedMatch(r ? { type: r.match_type, number: r.match_number } : null);
+  };
+  // With nothing picked and nothing recording, show the first match waiting on a field.
+  useEffect(() => {
+    if (!selectedId && !liveId) {
+      const next = ordered.find((r) => r.status === 'QUEUED');
+      if (next) {
+        setSelectedId(next.id);
+        setPickedMatch({ type: next.match_type, number: next.match_number });
+        setAuto(true);
+      }
+    }
+  }, [ordered, selectedId, liveId]);
 
   return (
     <div>
@@ -85,7 +123,7 @@ function AnalysisDesk() {
         ) : (
           <MatchTab
             ordered={ordered}
-            onSelect={setSelectedId}
+            onSelect={select}
             recording={selected}
             setup={setup}
             onSetup={updateSetup}
@@ -168,6 +206,7 @@ function MatchPicker({
         </form>
         {selected && (
           <div className="flex flex-wrap gap-1">
+            {selected.status === 'QUEUED' && <Chip>Field {String((selected.alliances as { field?: unknown } | null)?.field ?? '?')}</Chip>}
             {selected.teams.map((t) => (
               <Chip key={t}>{t}</Chip>
             ))}

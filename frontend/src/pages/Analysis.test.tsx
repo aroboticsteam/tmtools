@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisPage } from './Analysis';
+import { useWsStore } from '../stores/ws';
 
 const mark = vi.fn();
 const play = vi.fn();
@@ -33,6 +34,8 @@ vi.mock('../api/integrations', () => ({
   useCallIntegrationService: () => ({ mutate: vi.fn() }),
   useIntegrationState: () => ({ data: { state: { current_scene: 'Program' } } }),
 }));
+vi.mock('../hooks/useWebSocket', () => ({ useWebSocket: () => undefined }));
+vi.mock('../lib/fields', () => ({ useFieldSeed: () => undefined }));
 vi.mock('../api/teams', () => ({
   useTeams: () => ({ data: [{ team_number: '1234A', robot_name: 'Bolt', cached_stats: { rank: 3 } }] }),
 }));
@@ -55,6 +58,7 @@ describe('AnalysisPage', () => {
     control.mockClear();
     perms = true;
     stubStorage();
+    useWsStore.setState({ currentMatches: {} });
   });
 
   it('follows the live recording and lists moments with upload state', () => {
@@ -64,6 +68,24 @@ describe('AnalysisPage', () => {
     expect(screen.getByLabelText('Moment 2')).toHaveTextContent('Uploading');
     expect(screen.getByLabelText('Send moment 1 to program')).toBeEnabled();
     expect(screen.getByLabelText('Send moment 2 to program')).toBeDisabled();
+  });
+
+  it('lists a match as soon as TM puts it on a field, and not twice once it has a recording', async () => {
+    useWsStore.setState({
+      currentMatches: {
+        '3': { matchNum: 9, round: 'QUAL', redTeams: ['111A'], blueTeams: ['222B'] },
+        '1': { matchNum: 2, round: 'QUAL', redTeams: ['1234A'], blueTeams: ['5678B'] }, // already recorded as Q 2
+      },
+    });
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 2'); // live recording still wins
+    await userEvent.click(screen.getByLabelText('Next match'));
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 9');
+    expect(screen.getByText('Field 3')).toBeInTheDocument();
+    expect(screen.getByText('111A')).toBeInTheDocument();
+    expect(screen.getByText(/waiting to start/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Next match')); // nothing after the queued match, and no duplicate Q 2
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 9');
   });
 
   it('marks via buttons and keyboard, and sends a moment at the chosen speed', async () => {
