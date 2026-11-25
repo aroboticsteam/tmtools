@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useCan } from '../../hooks/useCan';
 import { NAV_GROUPS } from '../../lib/nav';
 
-/** "⌘ K" on Apple devices, "Ctrl K" elsewhere. */
+/** "Cmd K" on Apple devices, "Ctrl K" elsewhere. */
 const SHORTCUT =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? '⌘ K' : 'Ctrl K';
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? 'Cmd K' : 'Ctrl K';
 
 /** Search box in the page header; Ctrl/Cmd+K focuses it. Jumps to a page. */
 export function PageSearch() {
