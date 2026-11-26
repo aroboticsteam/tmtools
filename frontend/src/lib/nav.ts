@@ -1,5 +1,5 @@
 import {
-  Clapperboard, DoorOpen, FileCode2, LayoutDashboard, LayoutGrid, Timer, MonitorPlay,
+  CalendarClock, Clapperboard, DoorOpen, FileCode2, LayoutDashboard, LayoutGrid, Timer, MonitorPlay,
   Plug, Presentation, ScrollText, Settings as SettingsIcon, ShieldCheck, Camera, Users2, Workflow,
   Bug, Activity,
   type LucideIcon,
@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: '/teams', label: 'Teams', icon: Users2, permission: 'teams:read' },
       { to: '/rooms', label: 'Rooms', icon: DoorOpen, permission: 'rooms:read' },
       { to: '/timers', label: 'Timers', icon: Timer, permission: 'timers:read' },
+      { to: '/agenda', label: 'Agenda', icon: CalendarClock, permission: 'comms:read' },
     ],
   },
   {

@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import type { RouteObject } from 'react-router-dom';
+import { STATIC_SITE } from './public/siteUrl';
 import { AccessGuard } from './components/layout/AccessGuard';
 import { RouteError } from './components/layout/RouteError';
 import { ProtectedLayout } from './components/layout/ProtectedLayout';
@@ -18,18 +20,42 @@ import { ButtonPagesPage } from './pages/ButtonPages';
 import { AnalysisPage } from './pages/Analysis';
 import { PhotoBoothPage } from './pages/PhotoBooth';
 import { TimersPage } from './pages/Timers';
+import { AgendaPage } from './pages/Agenda';
 import { AuditLogPage } from './pages/AuditLog';
 import { SettingsPage } from './pages/Settings';
 import { UsersPage } from './pages/Users';
 import { DebugIntegrationLogPage } from './pages/DebugIntegrationLog';
 import { DebugEventBusPage } from './pages/DebugEventBus';
 
-// createBrowserRouter with nested routes (plan Appendix B.2). The
-// /prompter/<entity_id> and /overlay/<entity_id> pages are explicitly out
-// of this SPA's scope (Appendix B.3 — standalone HTML+vanilla JS served
-// directly by FastAPI) so they are NOT registered here; the backend
-// handles those paths itself.
-export const router = createBrowserRouter([
+// Public and OBS pages (no sign-in, no admin shell). Lazy so the admin bundle
+// does not carry them and they load only on their own URLs.
+const publicRoute = (path: string, load: () => Promise<{ Component: React.ComponentType }>): RouteObject => ({
+  path,
+  lazy: load,
+  errorElement: <RouteError />,
+});
+
+const publicRoutes: RouteObject[] = [
+  publicRoute('/site', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
+  publicRoute('/notify', async () => ({ Component: (await import('./public/NotifyPage')).NotifyPage })),
+  publicRoute('/room/:slug', async () => ({ Component: (await import('./public/RoomPage')).RoomPage })),
+  publicRoute('/prompter', async () => ({ Component: (await import('./public/PrompterIndexPage')).PrompterIndexPage })),
+  publicRoute('/prompter/:entityId', async () => ({ Component: (await import('./public/PrompterPage')).PrompterPage })),
+  publicRoute('/overlay/:entityId', async () => ({ Component: (await import('./public/OverlayPage')).OverlayPage })),
+  publicRoute('/replay/:entityId', async () => ({ Component: (await import('./public/ReplayPage')).ReplayPage })),
+];
+
+// createBrowserRouter with nested routes (plan Appendix B.2). The public
+// pages above sit outside ProtectedLayout, so they never ask for a login.
+// The exported static copy of the public site only has these routes (see public/siteUrl.ts).
+const staticSiteRoutes: RouteObject[] = [
+  publicRoute('/', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
+  publicRoute('/site', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
+  publicRoute('*', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
+];
+
+export const router = createBrowserRouter(STATIC_SITE ? staticSiteRoutes : [
+  ...publicRoutes,
   { path: '/admin_login', element: <AdminLoginPage />, errorElement: <RouteError /> },
   { path: '/integrations/spotify/callback', element: <SpotifyCallbackPage /> },
   {
@@ -58,8 +84,9 @@ export const router = createBrowserRouter([
       { path: 'analysis', element: <AnalysisPage /> },
       { path: 'record', element: <PhotoBoothPage /> },
       { path: 'timers', element: <TimersPage /> },
-      // The Comms page was removed; old bookmarks land on Timers.
-      { path: 'comms', element: <Navigate to="/timers" replace /> },
+      { path: 'agenda', element: <AgendaPage /> },
+      // The Comms page was removed; old bookmarks land on the agenda.
+      { path: 'comms', element: <Navigate to="/agenda" replace /> },
       { path: 'audit', element: <AuditLogPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'users', element: <UsersPage /> },

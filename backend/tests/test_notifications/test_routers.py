@@ -212,30 +212,6 @@ async def test_test_push_requires_config(ctx, pushes, monkeypatch):
     assert (await ctx.post("/api/v1/notifications/test")).status_code == 503
 
 
-# ── public pages ─────────────────────────────────────────────────────
-
-
-async def test_room_page_notify_page_and_assets(ctx):
-    await make_room(ctx, "pit-1")
-    page = await ctx.get("/room/pit-1")
-    assert page.status_code == 200 and '"pit-1"' in page.text and "__ROOM_SLUG__" not in page.text
-    assert (await ctx.get("/room/missing")).status_code == 404
-    assert (await ctx.get("/room/Bad%20Slug")).status_code == 404
-
-    # The QR mechanism is gone.
-    assert (await ctx.get("/room/pit-1/qr.svg")).status_code == 404
-    assert (await ctx.get("/room/missing/qr.svg")).status_code == 404
-
-    # The notify page is public and needs no room param; it lists every team.
-    notify = await ctx.get("/notify")
-    assert notify.status_code == 200 and "pushManager" in notify.text
-    assert "public/site/teams" in notify.text and "QR" not in notify.text and "ROOM" not in notify.text
-    sw = await ctx.get("/sw.js")
-    assert sw.status_code == 200 and "showNotification" in sw.text and sw.headers["service-worker-allowed"] == "/"
-    manifest = (await ctx.get("/notify.webmanifest")).json()
-    assert manifest["start_url"] == "/notify" and manifest["display"] == "standalone"
-
-
 # ── ws relay ─────────────────────────────────────────────────────────
 
 

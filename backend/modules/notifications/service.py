@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from backend.models.comms import AgendaItem
+from backend.models.agenda import AgendaItem
 from backend.models.notification import NotificationLog
 from backend.models.room import RoomTeam
 from backend.models.settings import SystemSetting
