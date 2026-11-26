@@ -13,7 +13,7 @@ test.describe('public site and its admin tools', () => {
     await request.delete('/api/v1/teams/E2E1A/logo');
   });
 
-  test('visitors browse the event, a team page and the live leaderboards', async ({ browser }) => {
+  test('visitors browse the event and a team page', async ({ browser }) => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
     await page.goto('/site#event');
@@ -26,14 +26,6 @@ test.describe('public site and its admin tools', () => {
     await expect(page.getByRole('heading', { name: /E2E1A — Gearsquad E2E/ })).toBeVisible();
     await expect(page.getByText('Excellence').or(page.getByText('Awards')).first()).toBeVisible();
 
-    await page.goto('/site/leaderboard?panel=2&programme=8');
-    await expect(page.locator('#prog')).toHaveText(/VIQRC|V5RC/);
-    const seen = new Set<string>();
-    for (let i = 0; i < 12 && seen.size < 3; i++) {
-      seen.add((await page.locator('#tabs .on').textContent()) ?? '');
-      await page.waitForTimeout(1000);
-    }
-    expect(seen.size).toBeGreaterThanOrEqual(3); // it rotates through panels on its own
     await context.close();
   });
 

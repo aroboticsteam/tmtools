@@ -5,8 +5,7 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 //
 // The backend (FastAPI/uvicorn) runs on http://localhost:8000 in dev
-// (plan Appendix B.1). We proxy /api, /auth, /admin_login, /ws, and
-// /prompter under the Vite dev server's own origin so the browser never
+// (plan Appendix B.1). We proxy /api, /auth, /admin_login and /ws under the Vite dev server's own origin so the browser never
 // needs CORS and cookies set by the backend are same-site. In production
 // the built SPA is served by the same origin as the backend (Traefik
 // IngressRoute per Appendix A.9), so no proxy/base-URL config is needed
@@ -45,21 +44,8 @@ export default defineConfig({
         changeOrigin: true,
         bypass: (req) => (req.method === 'POST' ? undefined : req.url),
       },
-      '/prompter': { target: backendTarget, changeOrigin: true },
-      // Trailing slash matters: this must match only the public OBS
-      // browser-source route `/overlay/{entity_id}` (backend/routers/overlays.py),
-      // not the admin SPA route `/overlays` (pages/Overlays.tsx) — a bare
-      // '/overlay' prefix matches both (Vite's proxy does string-prefix
-      // matching), which sends a hard navigation to /overlays into the
-      // backend's baked-in production index.html instead of this dev
-      // server's own SPA shell, producing a silent blank page.
-      '/overlay/': { target: backendTarget, changeOrigin: true },
-      // Public room display + phone subscribe pages (backend/routers/public_pages.py).
-      // `/room/` has a trailing slash for the same reason as `/overlay/` above
-      // (the admin SPA page is `/rooms`).
-      '/room/': { target: backendTarget, changeOrigin: true },
-      '/notify': { target: backendTarget, changeOrigin: true },
-      '/sw.js': { target: backendTarget, changeOrigin: true },
+      // The public/OBS pages (/site, /room, /prompter, /overlay, /replay, /notify) are
+      // SPA routes now, so the dev server renders them itself; only API, auth and sockets proxy.
       '/ws': { target: backendTarget, changeOrigin: true, ws: true },
     },
   },

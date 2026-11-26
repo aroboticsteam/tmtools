@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.dependencies import get_db, get_redis
-from backend.models.comms import AgendaItem
+from backend.models.agenda import AgendaItem
 from backend.models.capture import CaptureRecording
 from backend.models.match_recording import MatchRecording
 from backend.models.room import Room
@@ -348,7 +348,7 @@ async def leaderboards(
 ) -> dict[str, Any]:
     """Overall / tournament / skills / awards leaderboards per programme, with
     the rotation timing (`panel_seconds` per panel, `programme_seconds` before
-    switching IQ <-> VRC) that the `/site/leaderboard` display page follows."""
+    switching IQ <-> VRC) (site setting `leaderboard`)."""
     profiles = list((await db.execute(select(TeamProfile))).scalars())
     schedules = await _schedules(redis)
     division_programme = {d: _programme(ms) for d, ms in schedules.items()}

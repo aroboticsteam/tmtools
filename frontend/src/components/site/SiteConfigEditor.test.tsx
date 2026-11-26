@@ -91,14 +91,11 @@ describe('SiteConfigEditor', () => {
     expect(out().map?.rooms).toEqual([]);
   });
 
-  it('edits leaderboard timing, recording template', async () => {
+  it('edits the recording template', async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    await user.clear(screen.getByLabelText('Seconds per panel'));
-    await user.type(screen.getByLabelText('Seconds per panel'), '30');
     await user.type(screen.getByLabelText('Recording URL template'), 'https://r.example/{{label}');
     expect(out()).toMatchObject({
-      leaderboard: { panel_seconds: 30 },
       recording_url_template: 'https://r.example/{label}',
     });
   });

@@ -18,7 +18,7 @@ exactly one Uvicorn worker per pod (source-of-truth §2) — leader election
 | `modules/timer/manager.py` | Timer-Teleprompter countdown/milestone state machine |
 | `modules/scraper/`, `modules/predictor/`, `modules/media/` | Team-profile scraper, OPR match predictor, FFmpeg green-screen pipeline + S3 upload |
 | `routers/` | Thin FastAPI routers — validate input, call a module, return a response; no business logic here |
-| `static/` | Standalone (non-SPA) pages: `prompter.html`, `overlay.html` |
+| `static/` | Only the built SPA (`static/frontend`, baked in by the Dockerfile). The backend serves no hand-written pages |
 | `main.py` | App factory + lifespan: the *only* file that instantiates the leader-only managers (Loader, AutomationEngine, TimerManager, Scraper, Predictor) and wires them to `on_promoted`/`on_demoted` |
 
 Cross-module communication goes through the `tmtools:events` Redis pub/sub

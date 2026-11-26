@@ -102,8 +102,8 @@ team(s) and turn on match alerts, with no QR code, room or login.
   (`VAPID_SUBJECT` is optional). Without keys push
   is off but room displays still work. Works in Chrome/Edge/Firefox and Safari; on iPhone/iPad the
   page must first be added to the Home Screen.
-- Your reverse proxy must route `/room/`, `/notify`, `/notify.webmanifest` and `/sw.js` to the backend
-  (see `frontend/nginx.conf`).
+- `/room/`, `/notify`, `/notify.webmanifest` and `/sw.js` are part of the SPA (the backend serves no pages),
+  so route them to whatever serves the SPA, together with `/assets/` (see `frontend/nginx.conf`).
 
 ## Tests
 

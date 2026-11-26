@@ -1,0 +1,26 @@
+/* Standalone dark screens: room display.
+   Scoped so they never leak into the admin shell. */
+.pub-screen { color-scheme: dark; background: #0f1115; color: #eceff4; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
+.pub-screen *, .pub-screen *::before, .pub-screen *::after { box-sizing: border-box; }
+.pub-screen button { cursor: pointer; font: inherit; }
+
+/* ── Room display ── */
+.room-page { min-height: 100vh; }
+.room-page header { padding: 1rem 1.5rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem; }
+.room-page h1 { margin: 0; font-size: 1.6rem; font-weight: 700; }
+.room-page .teams { display: flex; flex-wrap: wrap; gap: .35rem; }
+.room-page .chip { background: #1d2230; border: 1px solid #2c3347; border-radius: 999px; padding: .15rem .65rem; font-size: .95rem; }
+.room-page main { padding: 0 1.5rem 1.5rem; }
+.room-page .video { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; }
+.room-page .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.room-page .status { position: fixed; right: .75rem; bottom: .5rem; font-size: .75rem; color: #6b7389; }
+.room-page .notfound { padding: 3rem 1.5rem; font-size: 1.2rem; color: #9aa3b8; }
+.room-toasts { position: fixed; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: .6rem; width: min(380px, calc(100vw - 2rem)); z-index: 10; }
+.room-toast { background: #1f2638; border: 1px solid #3a4666; border-left: 5px solid #5b9dff; border-radius: 10px; padding: .75rem 1rem; box-shadow: 0 6px 24px #0008; animation: room-in .25s ease-out; }
+.room-toast b { display: block; margin-bottom: .2rem; font-size: 1.05rem; }
+@keyframes room-in { from { transform: translateX(30px); opacity: 0; } }
+.room-modal { position: fixed; inset: 0; background: #000b; display: flex; align-items: center; justify-content: center; z-index: 20; padding: 1rem; }
+.room-modal .box { background: #1b2030; border: 1px solid #3a4666; border-radius: 16px; padding: 2rem; max-width: 640px; width: 100%; text-align: center; }
+.room-modal h2 { margin: 0 0 .75rem; font-size: 1.8rem; font-weight: 700; }
+.room-modal p { margin: 0 0 1.25rem; font-size: 1.3rem; white-space: pre-wrap; }
+.room-modal button { background: #3b6fe0; color: #fff; border: 0; border-radius: 8px; padding: .6rem 1.4rem; font-size: 1rem; }
