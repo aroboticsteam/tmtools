@@ -107,7 +107,36 @@ export function ReplayPage() {
     };
   }, []);
 
-  usePublicSocket(`/ws/replay/${encodeURIComponent(entityId)}`, handle);
+  const { send } = usePublicSocket(`/ws/replay/${encodeURIComponent(entityId)}`, handle);
+
+  // Report the real playback position so the analysis desk can show what is on air, live.
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return undefined;
+    let last = 0;
+    const report = (force: boolean) => {
+      const now = Date.now();
+      if (!force && now - last < 500) return;
+      last = now;
+      if (!v.getAttribute('src')) return;
+      send({
+        type: 'status',
+        position: v.currentTime,
+        duration: Number.isFinite(v.duration) ? v.duration : 0,
+        rate: v.playbackRate,
+        paused: v.paused,
+        ended: v.ended,
+      });
+    };
+    const tick = () => report(false);
+    const now = () => report(true);
+    v.addEventListener('timeupdate', tick);
+    for (const ev of ['play', 'pause', 'ended', 'seeked', 'ratechange', 'loadedmetadata']) v.addEventListener(ev, now);
+    return () => {
+      v.removeEventListener('timeupdate', tick);
+      for (const ev of ['play', 'pause', 'ended', 'seeked', 'ratechange', 'loadedmetadata']) v.removeEventListener(ev, now);
+    };
+  }, [send]);
 
   return (
     <div className="obs-stage replay-stage" id="stage">

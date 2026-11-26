@@ -9,6 +9,7 @@ const mark = vi.fn();
 const play = vi.fn();
 const control = vi.fn();
 let perms = true;
+const replayState = vi.hoisted(() => ({ value: { playing: false } as Record<string, unknown> }));
 
 const moments = [
   { id: 'm1', number: 1, length_s: 5, status: 'READY', end_offset_ms: 1, ready_ms: 3000, requested_at: '', error: null },
@@ -25,7 +26,7 @@ vi.mock('../api/capture', () => ({
   useCaptureStatus: () => ({ data: { connected: true, agent: {}, recording: recordings[1] } }),
   useMarkMoment: () => ({ mutate: mark, isPending: false }),
   useRecordingUrl: () => ({ data: { url: 'http://media.test/match.mp4', label: 'Q 2' }, isError: false, refetch: vi.fn() }),
-  useReplayState: () => ({ data: { playing: false } }),
+  useReplayState: () => ({ data: replayState.value }),
   useReplayPlay: () => ({ mutate: play, isPending: false }),
   useReplayControl: () => ({ mutate: control, isPending: false }),
 }));
@@ -58,7 +59,8 @@ describe('AnalysisPage', () => {
     control.mockClear();
     perms = true;
     stubStorage();
-    useWsStore.setState({ currentMatches: {} });
+    replayState.value = { playing: false };
+    useWsStore.setState({ currentMatches: {}, replayStatus: {} });
   });
 
   it('follows the live recording and lists moments with upload state', () => {
@@ -97,6 +99,22 @@ describe('AnalysisPage', () => {
     await userEvent.click(within(screen.getByLabelText('Program speed')).getByText('0.25×'));
     await userEvent.click(screen.getByLabelText('Send moment 1 to program'));
     expect(play.mock.calls[0][0]).toEqual({ kind: 'moment', id: 'm1', rate: 0.25 });
+  });
+
+  it('shows what is on program live, from the replay page itself', () => {
+    replayState.value = { playing: true, paused: false, label: 'Q 2', rate: 0.5 };
+    useWsStore.setState({ replayStatus: { main: { player: true, position: 65, duration: 130, rate: 0.5, paused: false, at: Date.now() } } });
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
+    expect(screen.getByTestId('on-program')).toHaveTextContent('Q 2');
+    expect(screen.getByTestId('on-program-state')).toHaveTextContent('Playing');
+    expect(screen.getByTestId('on-program-time')).toHaveTextContent('1:05 / 2:10');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+  });
+
+  it('says when no replay page is connected to play it', () => {
+    replayState.value = { playing: true, paused: false, label: 'Q 2', rate: 0.5 };
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
+    expect(screen.getByTestId('on-program-state')).toHaveTextContent('Waiting for the replay page');
   });
 
   it('navigates between matches and shows team stats without predictions', async () => {

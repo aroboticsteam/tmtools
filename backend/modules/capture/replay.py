@@ -82,3 +82,32 @@ async def control(redis: Any, entity_id: str, action: str, value: float | None =
         command["value"] = value
     await _publish(redis, entity_id, command)
     return state
+
+
+def parse_status(raw: str) -> dict[str, Any] | None:
+    """A `status` frame from the player page, reduced to safe numbers/bools; None for anything else (pings)."""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or data.get("type") != "status":
+        return None
+
+    def num(key: str) -> float | None:
+        v = data.get(key)
+        return round(float(v), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v < 1e7 else None
+
+    return {
+        "player": True,
+        "position": num("position"),
+        "duration": num("duration"),
+        "rate": num("rate"),
+        "paused": bool(data.get("paused")),
+        "ended": bool(data.get("ended")),
+    }
+
+
+async def publish_status(redis: Any, entity_id: str, status: dict[str, Any]) -> None:
+    """Live player status (not stored): `replay_status` on the event bus reaches every admin session on any node."""
+    message = EventBusMessage(entity_id=entity_id, entity_tags=[], type="replay_status", timestamp=time.time(), payload=status)
+    await redis.publish(EVENTS_CHANNEL, message.model_dump_json())

@@ -69,3 +69,19 @@ async def test_control_validation(redis):
 
 async def test_stop_when_idle_is_ok(redis):
     assert await replay.control(redis, "main", "stop") == {"playing": False}
+
+
+async def test_parse_status_keeps_only_safe_numbers():
+    ok = replay.parse_status(json.dumps({"type": "status", "position": 3.14159, "duration": 10, "rate": 0.5, "paused": False, "ended": False}))
+    assert ok == {"player": True, "position": 3.14, "duration": 10.0, "rate": 0.5, "paused": False, "ended": False}
+    bad = replay.parse_status(json.dumps({"type": "status", "position": -1, "duration": "x", "rate": True}))
+    assert bad["position"] is None and bad["duration"] is None and bad["rate"] is None
+    assert replay.parse_status("ping") is None
+    assert replay.parse_status(json.dumps({"type": "play"})) is None
+
+
+async def test_publish_status_goes_on_the_event_bus(redis):
+    msgs = await _published(redis, lambda: replay.publish_status(redis, "main", {"player": True, "position": 1.0}))
+    assert [m["type"] for m in msgs] == ["replay_status"]
+    assert msgs[0]["entity_id"] == "main" and msgs[0]["payload"]["position"] == 1.0
+
