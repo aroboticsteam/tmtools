@@ -2,8 +2,8 @@
 
 At the end of a competition staff download one archive that can be published as is
 (Cloudflare Pages: drag the unzipped folder, or `wrangler pages deploy`). It holds
-`index.html` (the same page the server serves, reading static JSON instead of the
-API), a `data/` snapshot of every public endpoint (overview, rankings, event
+`index.html` plus the built site code in `assets/` (the same SPA the server serves, told by a
+flag in `index.html` to read static JSON instead of the API), a `data/` snapshot of every public endpoint (overview, rankings, event
 agenda, results, every team) and the images those payloads point to.
 
 The snapshot is produced by calling the real public endpoints in-process, so the
@@ -32,8 +32,11 @@ from backend.modules.media import s3
 
 logger = logging.getLogger(__name__)
 
-_SITE_HTML = Path(__file__).parent.parent / "static" / "site.html"
-_FETCH_LINE = "fetch('/api/v1/public/site/' + path)"
+#: The built SPA baked into the image (see `backend/main.py`). Absent in a bare backend checkout.
+_FRONTEND_DIST = Path(__file__).parent.parent / "static" / "frontend"
+#: Marks the SPA as the static copy (frontend/src/public/siteUrl.ts); `<base>` keeps the relative
+#: `data/`, `images/` and `files/` URLs working from deep links like `/site/x`.
+_STATIC_FLAG = '<base href="/"><script>window.__SITE_STATIC__=true</script>'
 _IMAGE_PATH = re.compile(r"^/api/v1/public/site/image/([0-9a-f]{32}\.(?:png|jpg|gif|webp))$")
 _EXT_BY_TYPE = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}
 _MAX_ASSET_BYTES = 25 * 1024 * 1024
@@ -52,7 +55,8 @@ Publish on Cloudflare Pages
      (or: npx wrangler pages deploy <folder> --project-name <name>)
 
 Contents
-  index.html   the site (same page the live server shows)
+  index.html   the site (same app the live server shows, in static mode)
+  assets/      the site's code, styles and fonts
   data/        snapshot of every public page's data (JSON)
   images/      uploaded site images (hero, map, sponsors)
   files/       team logos and photos
@@ -63,6 +67,8 @@ they only work on the venue network.
 """
 
 HEADERS = """\
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
 /data/*
   Cache-Control: public, max-age=300
 /images/*
@@ -75,10 +81,25 @@ HEADERS = """\
 
 
 def _patch_index(html: str) -> str:
-    """The page reads `data/<path>.json` instead of calling the API."""
-    if _FETCH_LINE not in html:
-        raise RuntimeError("site.html no longer matches the export's data loader; update backend/modules/site_export.py")
-    return html.replace(_FETCH_LINE, "fetch('data/' + path + '.json')")
+    """Flag the SPA's index.html as the static copy (it then reads `data/<path>.json`)."""
+    if "<head>" not in html:
+        raise RuntimeError("The built index.html has no <head>; update backend/modules/site_export.py")
+    return html.replace("<head>", "<head>" + _STATIC_FLAG, 1)
+
+
+def _spa_files() -> dict[str, bytes]:
+    """`index.html`, the hashed `assets/*` and the favicon of the built SPA."""
+    index = _FRONTEND_DIST / "index.html"
+    if not index.is_file():
+        raise RuntimeError("The frontend build is not baked into this image, so the site cannot be exported")
+    files = {"index.html": _patch_index(index.read_text(encoding="utf-8")).encode()}
+    for path in sorted((_FRONTEND_DIST / "assets").glob("**/*")) if (_FRONTEND_DIST / "assets").is_dir() else []:
+        if path.is_file():
+            files[path.relative_to(_FRONTEND_DIST).as_posix()] = path.read_bytes()
+    favicon = _FRONTEND_DIST / "favicon.svg"
+    if favicon.is_file():
+        files["favicon.svg"] = favicon.read_bytes()
+    return files
 
 
 def _is_presigned(value: str) -> bool:
@@ -183,9 +204,12 @@ async def build_site_export(app: Any) -> tempfile.SpooledTemporaryFile:
 
         cleaned = {name: await _clean(payload, assets) for name, payload in data.items()}
 
+    spa = _spa_files()
+
     out = tempfile.SpooledTemporaryFile(max_size=64 * 1024 * 1024)  # noqa: SIM115 - returned to the caller
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("index.html", _patch_index(_SITE_HTML.read_text(encoding="utf-8")))
+        for path, blob in spa.items():
+            archive.writestr(path, blob)
         archive.writestr("README.txt", README.format(generated=generated.strftime("%Y-%m-%d %H:%M UTC")))
         archive.writestr("_headers", HEADERS)
         for name, payload in cleaned.items():

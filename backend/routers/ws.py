@@ -35,10 +35,6 @@ from backend.core.redis import redis_client
 from backend.core.security import validate_prompter_token
 from backend.core.sessions import SESSION_COOKIE_NAME, get_session, unsign_session_id
 from backend.models.overlay import OverlayInstance
-from backend.models.comms import Station
-from backend.modules.comms import access as station_access
-from backend.modules.comms import presence as station_presence
-from backend.modules.comms.station_timer import STATION_TIMER_KEY
 from backend.models.room import Room
 from backend.modules.capture import hub as capture_hub
 from backend.modules.capture import replay as replay_module
@@ -58,8 +54,6 @@ TIMER_EVENT_TYPES = {"timer_started", "timer_milestone", "timer_finished", "time
 EVENTS_BUCKET = "__events__"
 #: Bookkeeping bucket prefix for the public `/ws/room/{slug}` connections.
 ROOM_BUCKET_PREFIX = "room:"
-#: Same for the public `/ws/station/{slug}` connections (issue #8).
-STATION_BUCKET_PREFIX = "station:"
 
 # WebSocket close codes (RFC 6455 range 4000-4999 is free for application use).
 WS_CLOSE_POLICY_VIOLATION = 4003  # invalid/missing prompter token
@@ -103,7 +97,7 @@ class ConnectionManager:
     async def connect(self, entity_id: str, ws: WebSocket, *, receive_all: bool = False) -> None:
         """Only `receive_all=True` sockets (the authenticated `/ws/events`
         feed) join the `broadcast_all` fan-out. Every other socket - public
-        room/station/overlay/prompter pages, the capture agent, the replay
+        room/overlay/prompter pages, the capture agent, the replay
         player - only gets messages addressed to its own bucket."""
         await ws.accept()
         self._by_entity[entity_id].add(ws)
@@ -209,33 +203,12 @@ class ConnectionManager:
             await self._dispatch_upcoming_match(data)
         elif event_type == "room_notice":
             await self._dispatch_room_notice(data)
-        elif event_type in ("station_message", "station_screen", "station_timer"):
-            await self._dispatch_station_event(event_type, data)
         elif event_type == "overlay_show_team" and entity_id:
             await self._dispatch_overlay_show_team(entity_id, data)
         elif event_type == "replay_command" and entity_id:
             await self.broadcast(replay_module.BUCKET_PREFIX + entity_id, data.get("payload") or {})
         elif event_type == "capture_command":
             await self.broadcast(capture_hub.AGENT_BUCKET, data.get("payload") or {})
-
-    async def _dispatch_station_event(self, event_type: str, data: dict[str, Any]) -> None:
-        """Desk -> iPad: forwards a message or screen change to each named
-        station's `/ws/station/<slug>` clients (display-safe fields only)."""
-        payload = data.get("payload") or {}
-        if event_type == "station_message":
-            out = {
-                "type": "message",
-                "id": payload.get("id"),
-                "text": payload.get("text", ""),
-                "flash": bool(payload.get("flash")),
-                "sent_at": payload.get("sent_at", data.get("timestamp", time.time())),
-            }
-        elif event_type == "station_timer":
-            out = {"type": "timer", "timer": payload.get("timer"), "server_time": payload.get("server_time", time.time())}
-        else:
-            out = {"type": "screen", "screen": payload.get("screen")}
-        for slug in payload.get("stations") or []:
-            await self.broadcast(f"{STATION_BUCKET_PREFIX}{slug}", out)
 
     async def _dispatch_overlay_show_team(self, entity_id: str, data: dict[str, Any]) -> None:
         """Operator chose a single team to feature on an overlay (finals
@@ -287,7 +260,7 @@ class ConnectionManager:
     async def _dispatch_timer_state(self, entity_id: str, event_type: str, data: dict[str, Any]) -> None:
         """Translates a raw `timer_*` event (whose payload varies by type,
         see `TimerManager._publish`) into the full state snapshot
-        `prompter.html` expects (`{phase, running, elapsed, remaining, ...}`)
+        the teleprompter page (`PrompterPage.tsx`) expects (`{phase, running, elapsed, remaining, ...}`)
         by re-reading `TimerManager.get_state()` on the leader node."""
         if self.get_timer_manager is None:
             return
@@ -307,21 +280,6 @@ class ConnectionManager:
                 "payload": state,
             },
         )
-        await self._forward_timer_to_stations(entity_id, state)
-
-    async def _forward_timer_to_stations(self, entity_id: str, state: dict[str, Any]) -> None:
-        """Stations the desk bound to this timer instance (their timer screen) get its new state too;
-        the iPad keeps the heading it was given when the timer was shown."""
-        for bucket in [b for b in self._by_entity if b.startswith(STATION_BUCKET_PREFIX)]:
-            slug = bucket[len(STATION_BUCKET_PREFIX):]
-            try:
-                bound = await self._redis.get(STATION_TIMER_KEY.format(slug=slug))
-            except Exception:
-                continue
-            if bound != entity_id:
-                continue
-            shown = {k: state.get(k) for k in ("entity_id", "phase", "running", "duration_s", "elapsed", "remaining")}
-            await self.broadcast(bucket, {"type": "timer", "timer": shown, "server_time": time.time()})
 
     async def _dispatch_upcoming_match(self, data: dict[str, Any]) -> None:
         """On `fieldMatchAssigned`, push a sanitized `upcoming_match` message
@@ -499,36 +457,6 @@ async def ws_room(websocket: WebSocket, slug: str) -> None:
         await manager.disconnect(bucket, websocket)
 
 
-@router.websocket("/ws/station/{slug}")
-async def ws_station(websocket: WebSocket, slug: str) -> None:
-    """Public (no auth) feed for a comms iPad page: only that station's
-    messages and screen changes come down; nothing sent up is acted on."""
-    if not slug or len(slug) > 50 or not set(slug) <= _ROOM_SLUG_CHARS:
-        await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason="Unknown station")
-        return
-    async with async_session_factory() as session:
-        station = await session.get(Station, slug)
-    if station is None:
-        await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason="Unknown station")
-        return
-    params = websocket.query_params
-    if station_access.check_access(station, params.get("k"), params.get("t")):
-        await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason="Station link is not valid")
-        return
-    bucket = f"{STATION_BUCKET_PREFIX}{slug}"
-    await manager.connect(bucket, websocket)
-    await station_presence.mark_connected(redis_client, slug)
-    try:
-        while True:
-            await websocket.receive_text()  # keepalive pings from the page
-            await station_presence.touch(redis_client, slug)
-    except WebSocketDisconnect:
-        pass
-    finally:
-        await manager.disconnect(bucket, websocket)
-        await station_presence.mark_disconnected(redis_client, slug)
-
-
 # ── /ws/prompter/{entity_id} ──────────────────────────────────────────
 
 
@@ -607,7 +535,7 @@ async def ws_prompter(websocket: WebSocket, entity_id: str) -> None:
         # this node / not the current leader") — there's no meaningful
         # WebSocket-level equivalent of a 503 response, so the connection is
         # rejected outright; the client's reconnect-with-backoff (Appendix
-        # A.14, already built into prompter.html) will keep retrying until a
+        # A.14, already built into PrompterPage.tsx) will keep retrying until a
         # request lands on the leader node.
         await websocket.close(code=WS_CLOSE_SERVICE_UNAVAILABLE, reason="Not the current leader")
         return
@@ -766,6 +694,13 @@ async def ws_agent(websocket: WebSocket) -> None:
                 info["last_seen"] = time.time()
                 await capture_hub.set_presence(redis_client, info)
                 await capture_hub.publish(redis_client, "capture_status", {"connected": True, **info})
+                if msg["type"] == "hello":
+                    try:
+                        await capture_service.close_orphaned_recording(
+                            redis_client, async_session_factory, info.get("state")
+                        )
+                    except Exception:
+                        logger.exception("capture: could not reconcile recordings on reconnect")
                 if not integration_checked and msg["type"] == "hello":
                     integration_checked = True
                     try:

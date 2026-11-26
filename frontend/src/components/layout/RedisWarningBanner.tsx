@@ -18,7 +18,7 @@ export function RedisWarningBanner() {
   if (!ready || ready.redis) return null;
 
   return (
-    <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm text-amber-200 lg:mx-8">
+    <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:mx-8">
       <DatabaseZap size={16} />
       Redis unavailable — real-time features degraded.
     </div>

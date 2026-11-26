@@ -1,14 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { Monitor, MonitorPlay, RotateCcw, Square, Play, Video } from 'lucide-react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useIntegrations, useCallIntegrationService } from '../api/integrations';
-import { useFieldState } from '../api/fields';
+import { useCaptureStatus } from '../api/capture';
+import { useFieldRows, useFieldSeed } from '../lib/fields';
+import { recordingLabel } from '../lib/analysis';
 import { useWsStore } from '../stores/ws';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
-import { PageHeader, Card } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Badge, StatusBadge, type Tone } from '../components/ui/Badge';
 import { Input, Select } from '../components/ui/Input';
-import { IntegrationStatusChip } from '../components/integrations/IntegrationStatusChip';
+import { EmptyState } from '../components/ui/EmptyState';
+import { timeAgo } from '../lib/alerts';
 import type { IntegrationInstance } from '../types/api';
 
 /** VEX TM's known audience-display modes. `backend/modules/integrations/
@@ -48,186 +53,159 @@ const AUDIENCE_DISPLAY_MODES = [
  * mid-match shows each field's current state straight away. A field that has
  * never had an event still doesn't appear (there's no static field topology
  * endpoint to seed an empty list from). */
+const TONE: Record<string, Tone> = { live: 'live', countdown: 'warn', queued: 'neutral', idle: 'neutral' };
+
+/** Run each field: the match, alliances, start/stop, and what the room is doing. */
 export function MatchControlPage() {
   useWebSocket('/ws/events');
-  const { data: integrations } = useIntegrations();
-  const connected = useWsStore((s) => s.connected);
-  const seedFields = useWsStore((s) => s.seedFields);
-  const { data: fieldState, refetch: refetchFieldState } = useFieldState();
-  useEffect(() => {
-    if (fieldState) seedFields(fieldState);
-  }, [fieldState, seedFields]);
-  // After a reconnect events may have been missed: take the server's snapshot as authoritative.
-  const wasConnected = useRef(false);
-  useEffect(() => {
-    if (connected && !wasConnected.current) {
-      void refetchFieldState().then((result) => {
-        if (result.data) seedFields(result.data, true);
-      });
-    }
-    wasConnected.current = connected;
-  }, [connected, refetchFieldState, seedFields]);
-  const tmInstances = (integrations ?? []).filter((i) => i.domain === 'vex_tm');
+  useFieldSeed();
+  const { data: integrations = [] } = useIntegrations();
+  const tm = integrations.filter((i) => i.domain === 'vex_tm');
+  const fields = useFieldRows();
+  const events = useWsStore((s) => s.recentEvents);
+  const { data: capture } = useCaptureStatus();
+  const log = events.filter((e) => e.type === 'automation_executed').slice(0, 8);
 
   return (
     <div>
-      <PageHeader
-        title="Match Control"
-        subtitle="Live field states and manual overrides for VEX TM instances."
-      />
-      {tmInstances.length === 0 && (
-        <p className="text-sm text-vmd-textSubtle">No vex_tm integrations configured yet.</p>
-      )}
-      <div className="space-y-6">
-        {tmInstances.map((instance) => (
-          <section key={instance.entity_id}>
-            <TmSectionHeader instance={instance} />
-            <FieldCards />
-          </section>
-        ))}
+      <PageHeader title="Match control" subtitle="Run each field: audience display, scenes and recording." />
+      {tm.length === 0 && <EmptyState title="No Tournament Manager connected">Add a vex_tm integration to control fields.</EmptyState>}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          {tm.length > 0 && fields.length === 0 && <EmptyState icon={MonitorPlay} title="No field activity yet">Fields appear once Tournament Manager assigns a match.</EmptyState>}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+            {fields.map((f) => {
+              return (
+                <Section key={f.id} title={`Field ${f.id}`} action={<Badge tone={TONE[f.status]}>{f.statusLabel}</Badge>}>
+                  <div className="flex flex-col gap-4 p-4">
+                    <div className="text-center">
+                      <div className="text-[13px] text-vmd-textSubtle">Current match</div>
+                      <div className="text-4xl font-semibold tracking-tight text-vmd-textStrong">{f.match}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                        <div className="text-[11px] font-medium text-red-700">RED</div>
+                        <div className="font-medium text-vmd-textStrong">{f.red.join('  ') || '—'}</div>
+                      </div>
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <div className="text-[11px] font-medium text-blue-700">BLUE</div>
+                        <div className="font-medium text-vmd-textStrong">{f.blue.join('  ') || '—'}</div>
+                      </div>
+                    </div>
+                    {tm[0] && <FieldButtons instance={tm[0]} />}
+                    <div className="flex flex-col divide-y divide-neutral-100 text-sm">
+                      <Row icon={Video} label="Recording" value={capture?.recording ? recordingLabel(capture.recording) : 'Not recording'} />
+                    </div>
+                  </div>
+                </Section>
+              );
+            })}
+          </div>
+          <Section title="What the automations just did">
+            {log.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-vmd-textSubtle">Nothing yet this session.</p>
+            ) : (
+              log.map((e, i) => {
+                const ok = String(e.payload.status ?? 'success') === 'success';
+                return (
+                  <div key={`${e.timestamp}-${i}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0">
+                    <span className="w-24 text-xs text-vmd-textSubtle">{timeAgo(e.timestamp)}</span>
+                    <span className="min-w-0 flex-1 basis-60 text-vmd-text">{String(e.payload.alias ?? e.entity_id)}</span>
+                    <Badge tone={ok ? 'ok' : 'danger'}>{ok ? 'Done' : 'Failed'}</Badge>
+                  </div>
+                );
+              })
+            )}
+          </Section>
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          {tm.map((instance) => (
+            <Controls key={instance.entity_id} instance={instance} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function FieldCards() {
-  const currentMatches = useWsStore((s) => s.currentMatches);
-  const recentEvents = useWsStore((s) => s.recentEvents);
-  const fieldIds = Object.keys(currentMatches).filter((key) => !key.includes('.'));
-
-  if (fieldIds.length === 0) {
-    return <p className="text-sm text-vmd-textSubtle">No field activity recorded yet.</p>;
-  }
-
+function Row({ icon: Icon, label, value }: { icon: typeof Monitor; label: string; value: string }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {fieldIds.map((fieldId) => {
-        const match = currentMatches[fieldId];
-        const events = recentEvents.filter((e) => String(e.payload.fieldID ?? '') === fieldId).slice(0, 5);
-        return (
-          <Card key={fieldId}>
-            <p className="mb-1 font-medium text-vmd-textStrong">Field {fieldId}</p>
-            {match ? (
-              <div className="mb-2 text-sm text-vmd-text">
-                <p>
-                  Match {String(match.matchNum ?? '?')} · {String(match.round ?? '')}
-                </p>
-                <p className="text-vmd-textMuted">Red: {(match.redTeams ?? []).join(', ') || '—'}</p>
-                <p className="text-vmd-textMuted">Blue: {(match.blueTeams ?? []).join(', ') || '—'}</p>
-              </div>
-            ) : (
-              <p className="mb-2 text-sm text-vmd-textSubtle">No match queued.</p>
-            )}
-            <p className="mb-1 text-xs font-semibold uppercase text-vmd-textSubtle">Recent events</p>
-            <ul className="space-y-0.5 text-xs text-vmd-textMuted">
-              {events.length === 0 && <li>—</li>}
-              {events.map((e, idx) => (
-                <li key={idx} className="font-mono">
-                  {e.type}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        );
-      })}
+    <div className="flex items-center gap-2.5 py-2">
+      <Icon size={16} className="text-vmd-textSubtle" aria-hidden="true" />
+      <span className="flex-1 text-vmd-textMuted">{label}</span>
+      <span className="font-medium text-vmd-textStrong">{value}</span>
     </div>
   );
 }
 
-/** Field Monitor's per-instance section heading (name + status chip), with
- * that field set's manual controls beside/under it. TM commands apply to
- * the whole field set (the websocket protocol has no per-field commands —
- * see `_SERVICE_COMMANDS` in the vex_tm integration), so the buttons live
- * here, above the set's field cards. */
-function TmSectionHeader({ instance }: { instance: IntegrationInstance }) {
-  const canControl = usePermission('tm:control');
+function useFire(instance: IntegrationInstance) {
   const pushToast = useUiStore((s) => s.pushToast);
   const callService = useCallIntegrationService();
+  return {
+    pending: callService.isPending,
+    fire: (service: string, data?: Record<string, unknown>) =>
+      callService.mutate(
+        { entityId: instance.entity_id, service, data },
+        {
+          onSuccess: () => pushToast(`${service} sent to ${instance.entity_id}`, 'success'),
+          onError: (err) => pushToast(err instanceof Error ? err.message : 'Service call failed', 'error'),
+        },
+      ),
+  };
+}
+
+/** Start / Stop / Reset. Tournament Manager commands apply to the whole field set. */
+function FieldButtons({ instance }: { instance: IntegrationInstance }) {
+  const canControl = usePermission('tm:control');
+  const { fire, pending } = useFire(instance);
+  return (
+    <div className="flex gap-2">
+      <Button variant="primary" className="flex-1" disabled={!canControl || pending} onClick={() => fire('start_match')}><Play size={14} /> Start</Button>
+      <Button className="flex-1" disabled={!canControl || pending} onClick={() => fire('end_early')}><Square size={14} /> Stop</Button>
+      <Button aria-label="Reset" title="Reset" disabled={!canControl || pending} onClick={() => fire('reset')}><RotateCcw size={14} /></Button>
+    </div>
+  );
+}
+
+/** Queue, abort, skills and audience display for one Tournament Manager instance. */
+function Controls({ instance }: { instance: IntegrationInstance }) {
+  const canControl = usePermission('tm:control');
+  const { fire, pending } = useFire(instance);
   const [skillsId, setSkillsId] = useState('');
   const [display, setDisplay] = useState('');
-
-  function fire(service: string, data?: Record<string, unknown>) {
-    callService.mutate(
-      { entityId: instance.entity_id, service, data },
-      {
-        onSuccess: () => pushToast(`${service} sent to ${instance.entity_id}`, 'success'),
-        onError: (err) => pushToast(err instanceof Error ? err.message : 'Service call failed', 'error'),
-      },
-    );
-  }
-
-  const simpleServices: { label: string; service: string }[] = [
-    { label: 'Queue Prev', service: 'queue_prev_match' },
-    { label: 'Queue Next', service: 'queue_next_match' },
-    { label: 'Start Match', service: 'start_match' },
-    { label: 'End Early', service: 'end_early' },
-    { label: 'Abort', service: 'abort' },
-    { label: 'Reset', service: 'reset' },
-  ];
-
+  // Whatever TM last set it to; TM sends audienceDisplayChanged whoever changed it (this page or TM itself).
+  const current = useWsStore((s) => s.audienceDisplays[instance.entity_id]);
   return (
-    <div className="mb-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">
-          {instance.display_name}
-        </h2>
-        <IntegrationStatusChip integration={instance} />
-        <span className="text-xs text-vmd-textSubtle">{instance.entity_id}</span>
+    <Section title={instance.display_name} description={instance.entity_id} action={<StatusBadge status={instance.status} />}>
+      <div className="flex flex-col gap-4 p-4">
+        {!canControl && <p className="text-xs text-vmd-textSubtle">You lack the <code>tm:control</code> permission, so controls are read-only.</p>}
+        <div className="grid grid-cols-2 gap-2">
+          <Button disabled={!canControl || pending} onClick={() => fire('queue_prev_match')}>Queue prev</Button>
+          <Button disabled={!canControl || pending} onClick={() => fire('queue_next_match')}>Queue next</Button>
+          <Button variant="danger" className="col-span-2" disabled={!canControl || pending} onClick={() => fire('abort')}>Abort match</Button>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[13px] font-medium text-neutral-700">Skills run</div>
+          <div className="flex gap-2">
+            <Input type="number" min={1} step={1} placeholder="Skills ID" aria-label="Skills ID" value={skillsId} onChange={(e) => setSkillsId(e.target.value)} />
+            <Button disabled={!canControl || !skillsId || pending} onClick={() => fire('queue_skills', { skills_id: Number(skillsId) })}>Queue</Button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between text-[13px] font-medium text-neutral-700">
+            <span>Audience display</span>
+            <span className="text-xs font-normal text-vmd-textSubtle">Showing <span className="font-medium text-vmd-textStrong" data-testid="audience-current">{current ?? 'unknown'}</span></span>
+          </div>
+          <div className="flex gap-2">
+            <Select aria-label="Audience display" value={display || current || ''} onChange={(e) => setDisplay(e.target.value)}>
+              <option value="">Choose…</option>
+              {current && !(AUDIENCE_DISPLAY_MODES as readonly string[]).includes(current) && <option value={current}>{current}</option>}
+              {AUDIENCE_DISPLAY_MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
+            </Select>
+            <Button disabled={!canControl || !display || display === current || pending} onClick={() => { fire('set_audience_display', { display }); setDisplay(''); }}>Set</Button>
+          </div>
+        </div>
       </div>
-
-      {!canControl && (
-        <p className="mb-2 text-xs text-vmd-textSubtle">
-          You lack the <code>tm:control</code> permission — controls are read-only.
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        {simpleServices.map(({ label, service }) => (
-          <Button key={service} disabled={!canControl || callService.isPending} onClick={() => fire(service)}>
-            {label}
-          </Button>
-        ))}
-
-        <span className="mx-1 hidden h-6 w-px bg-vmd-border sm:block" />
-
-        {/* GAP (AUDIT_FINDINGS.md 3.5): no backend "list skills runs" endpoint
-            exists to populate a real dropdown of available skills-run IDs
-            (checked backend/routers/teams.py and the vex_tm integration's
-            exposed data — nothing fetchable). Using a numeric input with a
-            sensible min/step instead of a fully free-text field. */}
-        <Input
-          type="number"
-          min={1}
-          step={1}
-          placeholder="Skills ID"
-          value={skillsId}
-          onChange={(e) => setSkillsId(e.target.value)}
-          className="w-28"
-        />
-        <Button
-          disabled={!canControl || !skillsId || callService.isPending}
-          onClick={() => fire('queue_skills', { skills_id: Number(skillsId) })}
-        >
-          Queue Skills
-        </Button>
-
-        <span className="mx-1 hidden h-6 w-px bg-vmd-border sm:block" />
-
-        <Select value={display} onChange={(e) => setDisplay(e.target.value)} className="w-52">
-          <option value="">Audience display…</option>
-          {AUDIENCE_DISPLAY_MODES.map((mode) => (
-            <option key={mode} value={mode}>
-              {mode}
-            </option>
-          ))}
-        </Select>
-        <Button
-          disabled={!canControl || !display || callService.isPending}
-          onClick={() => fire('set_audience_display', { display })}
-        >
-          Set Display
-        </Button>
-      </div>
-    </div>
+    </Section>
   );
 }

@@ -26,21 +26,18 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.brand import PRODUCT_NAME
-from backend.core.db import async_session_factory, check_db_connection, engine, get_db
+from backend.core.db import async_session_factory, check_db_connection, engine
 from backend.core.redis import check_redis_connection, redis_client
 from backend.core.command_bus import CommandBus
 from backend.core.public_cache import PublicCacheMiddleware
 from backend.core.request_context import RequestContextMiddleware
-from backend.core.security import validate_prompter_token
 from backend.core.settings import settings
 from backend.loader import Loader
 from backend.modules.leader_commands import StateMirror, register_handlers
@@ -54,24 +51,22 @@ from backend.routers.audit import router as audit_router
 from backend.routers.auth import router as auth_router
 from backend.routers.button_pages import router as button_pages_router
 from backend.routers.capture import router as capture_router
-from backend.routers.comms import router as comms_router
+from backend.routers.agenda import router as agenda_router
 from backend.routers.automations import router as automations_router
 from backend.routers.debug import router as debug_router
 from backend.routers.fields import router as fields_router
 from backend.routers.integrations import router as integrations_router
 from backend.routers.notifications import router as notifications_router
 from backend.routers.overlays import router as overlays_router
-from backend.routers.public_pages import router as public_pages_router
+from backend.routers.public_prompter import router as public_prompter_router
 from backend.routers.public_site import router as public_site_router
 from backend.routers.site_admin import router as site_admin_router
 from backend.routers.rooms import router as rooms_router
 from backend.routers.scripts import router as scripts_router
 from backend.routers.settings import router as settings_router
-from backend.routers.static_pages import router as static_pages_router
 from backend.routers.status import router as status_router
 from backend.routers.team_photos import router as team_photos_router
 from backend.routers.teams import router as teams_router
-from backend.routers.timers import get_timer_or_404
 from backend.routers.timers import router as timers_router
 from backend.routers.ws import manager as ws_manager
 from backend.routers.ws import router as ws_router
@@ -118,13 +113,15 @@ _FRONTEND_DIST = _STATIC_DIR / "frontend"
 
 logger = logging.getLogger(__name__)
 
-# Read once at import time and cached in memory — per Appendix C.5's
-# no-blocking-I/O-in-request-handlers rule, `serve_prompter` below must not
-# do a synchronous file read on every request. `prompter.html` is a static
-# asset baked into the image, so a process restart is required (and already
-# expected) to pick up a change to it.
-_PROMPTER_HTML = (_STATIC_DIR / "prompter.html").read_text(encoding="utf-8")
-
+# Files from the built SPA that need more than the default response: the service worker must be
+# revalidated every time and may claim the root scope; the PWA manifest has its own media type.
+_SPA_FILE_OPTIONS: dict[str, dict] = {
+    "sw.js": {
+        "media_type": "text/javascript",
+        "headers": {"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+    },
+    "notify.webmanifest": {"media_type": "application/manifest+json"},
+}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -365,7 +362,7 @@ def create_app() -> FastAPI:
     app.include_router(public_site_router)
     app.include_router(site_admin_router)
     app.include_router(button_pages_router)
-    app.include_router(comms_router)
+    app.include_router(agenda_router)
     app.include_router(notifications_router)
     app.include_router(auth_router)
     app.include_router(integrations_router)
@@ -376,45 +373,7 @@ def create_app() -> FastAPI:
     app.include_router(status_router)
     app.include_router(debug_router)
     app.include_router(fields_router)
-    # `/overlay/{entity_id}` (standalone HTML, plan Appendix B.3) and
-    # `/prompter` (bare teleprompter index, Appendix B.4) — registered here,
-    # before the SPA catch-all below, same reasoning as `/prompter/{entity_id}`.
-    app.include_router(static_pages_router)
-    app.include_router(public_pages_router)
-
-    @app.get("/prompter/{entity_id}", response_class=HTMLResponse, tags=["prompter"])
-    async def serve_prompter(
-        entity_id: str, token: str = "", session: AsyncSession = Depends(get_db)
-    ):
-        """Serves the standalone teleprompter page (plan Appendix B.3/B.4),
-        with `entity_id`/`token` injected into a `<script>` block per the
-        plan's templating instructions.
-
-        Per Appendix B.8, the HMAC token is validated here (in addition to
-        Wave 3's WebSocket-upgrade-time validation) purely so an invalid/
-        stale link 403s immediately on page load rather than only failing
-        silently once the WebSocket tries to connect. This is a page-level
-        courtesy check, not a substitute for Wave 3's own validation at
-        `/ws/prompter/{entity_id}`. Validation uses the same constant-time
-        `validate_prompter_token` helper Wave 3's WS endpoint is expected to
-        use, rather than a plain `!=` comparison, to avoid leaking timing
-        information about the correct token.
-        """
-        # Reuses routers/timers.py's lookup (same 404 semantics) instead of
-        # duplicating the query here.
-        row = await get_timer_or_404(session, entity_id)
-
-        if not validate_prompter_token(row.entity_id, row.token_nonce, token):
-            raise HTTPException(status_code=403, detail="Invalid or expired teleprompter token")
-
-        # JSON-encode before substitution (not a plain string replace) so an
-        # entity_id/token containing quotes or other JS-special characters
-        # can't break out of the `entityId: "__ENTITY_ID__"` string literal
-        # and inject script into the page.
-        html = _PROMPTER_HTML.replace('"__ENTITY_ID__"', json.dumps(entity_id))
-        html = html.replace('"__TOKEN__"', json.dumps(token))
-        return HTMLResponse(content=html)
-
+    app.include_router(public_prompter_router)
     app.include_router(timers_router)
     app.include_router(automations_router)
     app.include_router(scripts_router)
@@ -450,7 +409,7 @@ def create_app() -> FastAPI:
                 and candidate.is_file()
                 and candidate.is_relative_to(_FRONTEND_DIST.resolve())
             ):
-                return FileResponse(candidate)
+                return FileResponse(candidate, **_SPA_FILE_OPTIONS.get(full_path, {}))
             return FileResponse(_spa_index)
 
     return app

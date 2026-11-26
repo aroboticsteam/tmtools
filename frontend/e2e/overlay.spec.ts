@@ -12,7 +12,8 @@ test('the operator spotlights a team and the stream overlay switches to it and b
     await overlay.waitForTimeout(1500); // let the websocket connect
 
     await page.goto('/overlays');
-    const card = page.locator('div', { hasText: entityId }).filter({ has: page.getByLabel(`Spotlight team for ${entityId}`) }).last();
+    await page.getByRole('button', { name: 'E2E overlay', exact: true }).click(); // opens the detail panel
+    const card = page;
     await card.getByLabel(`Spotlight team for ${entityId}`).fill('E2E1A');
     await card.getByRole('button', { name: 'Show team' }).click();
     await expect(page.getByText('Spotlighting E2E1A')).toBeVisible();
@@ -39,7 +40,7 @@ test('the robot name appears on the overlay only when the setting allows it', as
     expect((await feed()).show_robot_name).toBe(false);
 
     await page.goto('/settings');
-    await page.locator('text=Show robot names on the overlay').locator('..').getByRole('switch').click();
+    await page.getByRole('switch', { name: 'Show robot names on the overlay' }).click();
     await page.getByRole('button', { name: /^Save/ }).first().click();
     await expect(page.getByText('Settings saved')).toBeVisible();
     expect((await feed()).show_robot_name).toBe(true);

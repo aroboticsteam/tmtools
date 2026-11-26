@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from "react-router-dom";
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisPage } from './Analysis';
+import { useWsStore } from '../stores/ws';
 
 const mark = vi.fn();
 const play = vi.fn();
@@ -22,6 +24,7 @@ vi.mock('../api/capture', () => ({
   useCaptureRecordings: () => ({ data: recordings }),
   useCaptureStatus: () => ({ data: { connected: true, agent: {}, recording: recordings[1] } }),
   useMarkMoment: () => ({ mutate: mark, isPending: false }),
+  useRecordingUrl: () => ({ data: { url: 'http://media.test/match.mp4', label: 'Q 2' }, isError: false, refetch: vi.fn() }),
   useReplayState: () => ({ data: { playing: false } }),
   useReplayPlay: () => ({ mutate: play, isPending: false }),
   useReplayControl: () => ({ mutate: control, isPending: false }),
@@ -29,7 +32,10 @@ vi.mock('../api/capture', () => ({
 vi.mock('../api/integrations', () => ({
   useIntegrations: () => ({ data: [{ entity_id: 'obs.main', domain: 'obs', display_name: 'OBS' }] }),
   useCallIntegrationService: () => ({ mutate: vi.fn() }),
+  useIntegrationState: () => ({ data: { state: { current_scene: 'Program' } } }),
 }));
+vi.mock('../hooks/useWebSocket', () => ({ useWebSocket: () => undefined }));
+vi.mock('../lib/fields', () => ({ useFieldSeed: () => undefined }));
 vi.mock('../api/teams', () => ({
   useTeams: () => ({ data: [{ team_number: '1234A', robot_name: 'Bolt', cached_stats: { rank: 3 } }] }),
 }));
@@ -52,10 +58,11 @@ describe('AnalysisPage', () => {
     control.mockClear();
     perms = true;
     stubStorage();
+    useWsStore.setState({ currentMatches: {} });
   });
 
   it('follows the live recording and lists moments with upload state', () => {
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     expect(screen.getByTestId('current-match')).toHaveTextContent('Q 2');
     expect(screen.getByLabelText('Moment 1')).toHaveTextContent('Ready');
     expect(screen.getByLabelText('Moment 2')).toHaveTextContent('Uploading');
@@ -63,19 +70,37 @@ describe('AnalysisPage', () => {
     expect(screen.getByLabelText('Send moment 2 to program')).toBeDisabled();
   });
 
+  it('lists a match as soon as TM puts it on a field, and not twice once it has a recording', async () => {
+    useWsStore.setState({
+      currentMatches: {
+        '3': { matchNum: 9, round: 'QUAL', redTeams: ['111A'], blueTeams: ['222B'] },
+        '1': { matchNum: 2, round: 'QUAL', redTeams: ['1234A'], blueTeams: ['5678B'] }, // already recorded as Q 2
+      },
+    });
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 2'); // live recording still wins
+    await userEvent.click(screen.getByLabelText('Next match'));
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 9');
+    expect(screen.getByText('Field 3')).toBeInTheDocument();
+    expect(screen.getByText('111A')).toBeInTheDocument();
+    expect(screen.getByText(/waiting to start/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Next match')); // nothing after the queued match, and no duplicate Q 2
+    expect(screen.getByTestId('current-match')).toHaveTextContent('Q 9');
+  });
+
   it('marks via buttons and keyboard, and sends a moment at the chosen speed', async () => {
-    render(<AnalysisPage />);
-    await userEvent.click(screen.getByText('Mark last 5s'));
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
+    await userEvent.click(screen.getByLabelText('Cut last 5 seconds'));
     expect(mark.mock.calls[0][0]).toBe(5);
     await userEvent.keyboard('3');
     expect(mark.mock.calls[1][0]).toBe(10);
-    await userEvent.click(screen.getByText('0.25×'));
+    await userEvent.click(within(screen.getByLabelText('Program speed')).getByText('0.25×'));
     await userEvent.click(screen.getByLabelText('Send moment 1 to program'));
     expect(play.mock.calls[0][0]).toEqual({ kind: 'moment', id: 'm1', rate: 0.25 });
   });
 
   it('navigates between matches and shows team stats without predictions', async () => {
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     await userEvent.click(screen.getByLabelText('Previous match'));
     expect(screen.getByTestId('current-match')).toHaveTextContent('Q 1');
     await userEvent.click(screen.getByRole('tab', { name: 'Stats' }));
@@ -86,7 +111,7 @@ describe('AnalysisPage', () => {
 
   it('hides everything without analysis:view and disables controls without capture:control', () => {
     perms = false;
-    render(<AnalysisPage />);
+    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     expect(screen.getByText(/do not have access/i)).toBeInTheDocument();
   });
 });

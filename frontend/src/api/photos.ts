@@ -51,3 +51,18 @@ export function useUploadPhoto() {
 }
 
 export const PHOTO_KIND_LABEL: Record<PhotoKind, string> = { bot_photo: 'Robot photo', team_photo: 'Team photo' };
+
+/** Presigned URLs of a team's processed robot and team photos (null where missing). */
+export function useTeamPhotoUrls(number: string | null, version: string) {
+  return useQuery({
+    // `version` (the statuses) changes after an upload finishes, which refetches fresh URLs.
+    queryKey: ['teams', number, 'photo-urls', version],
+    queryFn: async () => {
+      const res = await apiFetch<{ photos: Record<string, Partial<Record<PhotoKind, string | null>>> }>(
+        `/api/v1/teams/batch/photos?teams=${encodeURIComponent(number!)}`,
+      );
+      return res.photos[number!] ?? {};
+    },
+    enabled: !!number,
+  });
+}

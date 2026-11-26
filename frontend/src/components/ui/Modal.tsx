@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 
@@ -14,22 +15,34 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-2 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`vmd-card max-h-[92dvh] sm:max-h-[85vh] w-full ${wide ? 'max-w-3xl' : 'max-w-md'} overflow-y-auto`}
+        className={`max-h-[92dvh] w-full ${wide ? 'sm:max-w-3xl' : 'sm:max-w-md'} overflow-y-auto rounded-t-2xl border border-vmd-border bg-white p-5 sm:rounded-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-vmd-textStrong">{title}</h2>
-          <button onClick={onClose} className="text-vmd-textMuted hover:text-vmd-textStrong">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-vmd-textStrong">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"
+          >
             <X size={18} />
           </button>
         </div>

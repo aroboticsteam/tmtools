@@ -439,6 +439,8 @@ export interface FieldStateEvent {
   type: string;
   entity_id: string;
   timestamp: number;
+  /** Only on audienceDisplayChanged: the new display, e.g. IN_MATCH. */
+  display?: string;
 }
 
 export interface FieldStateSnapshot {
@@ -446,6 +448,8 @@ export interface FieldStateSnapshot {
   matches: Record<string, FieldStateEntry>;
   /** Last few events per fieldID, newest first. */
   events: Record<string, FieldStateEvent[]>;
+  /** Last audience display each TM instance reported (one per TM, not per field). */
+  audience?: Record<string, { display: string; timestamp: number }>;
 }
 
 export interface EventBusMessage {
@@ -564,41 +568,12 @@ export interface TeamPhotos {
   photos: Record<PhotoKind, TeamPhotoStatus>;
 }
 
-// ── Comms: stations, presets, agenda, inbox (issue #8) ─────────────────
-
-export type StationRole = 'emcee' | 'floor_manager' | 'camera';
-export type CommsScreen = 'messages' | 'countdown' | 'display' | 'timer' | 'agenda_day' | 'agenda_finals';
-
-export interface Station {
-  slug: string;
-  name: string;
-  role: StationRole;
-  /** The link needs the station key (and the PIN too when `has_pin`). */
-  secured: boolean;
-  has_pin: boolean;
-  /** An iPad page is connected right now / when one last pinged (epoch s). */
-  connected: boolean;
-  last_seen: number | null;
-}
-
-export interface StationLink {
-  access_key: string;
-  path: string;
-}
+// ── Event agenda ───────────────────────────────────────────────────────
 
 export interface AgendaImportResult {
   created: number;
   errors: { line: number; error: string }[];
   items: { start_time: string; end_time: string | null; title: string; details: string | null }[];
-}
-
-export interface CommsPreset {
-  id: string;
-  label: string;
-  message: string;
-  flash: boolean;
-  role: StationRole | null;
-  position: number;
 }
 
 export interface AgendaItem {
@@ -611,14 +586,6 @@ export interface AgendaItem {
   position: number;
   /** Minutes before start to announce to rooms; null = default, 0 = never. */
   announce_lead_minutes: number | null;
-}
-
-export interface StationMessage {
-  id: string;
-  station_slug: string;
-  text: string;
-  acknowledged: boolean;
-  created_at: string;
 }
 
 // ── Capture / analysis desk (issues #38, #41, #42, #45) ─────────────────

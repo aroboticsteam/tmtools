@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { ExternalLink, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { DoorOpen, ExternalLink, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useBroadcast, useNotificationStats, useTestPush } from '../api/notifications';
 import { useCreateRoom, useDeleteRoom, useRooms, useUpdateRoom } from '../api/rooms';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { Button } from '../components/ui/Button';
-import { Card, PageHeader } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
+import { DataTable } from '../components/ui/DataTable';
+import { SplitLayout, Check } from '../components/ui/Layouts';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Input, Label, Textarea } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Toggle } from '../components/ui/Toggle';
@@ -37,11 +40,12 @@ export function RoomsPage() {
     });
   }
 
+  const list = rooms ?? [];
   return (
     <div>
       <PageHeader
         title="Rooms"
-        subtitle="Team allocations with a display page (livestream + match alerts). Phone notifications are open to everyone at /notify (any team, no QR)."
+        subtitle="Team allocations and the display page for each room."
         action={
           canManage && (
             <Button variant="primary" onClick={() => setEditing('new')}>
@@ -52,55 +56,56 @@ export function RoomsPage() {
       />
 
       {stats && !stats.push_configured && (
-        <p className="mb-4 rounded-lg border border-vmd-border bg-vmd-surfaceSubtle px-3 py-2 text-sm text-vmd-textMuted">
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Phone push notifications are not configured on this server (set <code>VAPID_PRIVATE_KEY</code> /{' '}
           <code>VAPID_PUBLIC_KEY</code>; see <code>tools/generate_vapid_keys.py</code>). Room displays still receive alerts.
         </p>
       )}
 
-      {isLoading && <p className="text-sm text-vmd-textSubtle">Loading…</p>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(rooms ?? []).map((room) => (
-          <Card key={room.slug}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-vmd-textStrong">{room.name}</p>
-                <p className="text-xs text-vmd-textSubtle">/room/{room.slug}</p>
-              </div>
-              {stats && <span className="vmd-chip">{stats.subscriptions_by_room[room.slug] ?? 0} phones</span>}
-            </div>
-            <p className="mt-2 text-sm text-vmd-textMuted">
-              {room.teams.length} team{room.teams.length === 1 ? '' : 's'}
-              {room.stream_url ? ' · livestream' : ''}
-            </p>
-            <p className="mt-1 line-clamp-2 text-xs text-vmd-textSubtle">{room.teams.join(', ') || 'No teams yet'}</p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <a href={`/room/${room.slug}`} target="_blank" rel="noreferrer">
-                <Button variant="secondary" type="button">
-                  <ExternalLink size={14} /> Display
-                </Button>
-              </a>
-              {canManage && (
-                <>
-                  <Button variant="ghost" onClick={() => setEditing(room)} title="Edit">
-                    <Pencil size={14} />
-                  </Button>
-                  <Button variant="ghost" onClick={() => remove(room)} title="Delete">
-                    <Trash2 size={14} />
-                  </Button>
-                </>
-              )}
-            </div>
-          </Card>
-        ))}
-      </div>
-      {!isLoading && (rooms ?? []).length === 0 && (
-        <p className="text-sm text-vmd-textSubtle">No rooms yet. Create one and assign the teams that are in it.</p>
-      )}
-
-      {canBroadcast && (rooms ?? []).length > 0 && <BroadcastCard rooms={rooms ?? []} />}
-      {canBroadcast && (rooms ?? []).length > 0 && <TeamAlertCard />}
-      {canSeeStats && stats?.push_configured && <StaffPushCard staffCount={stats.staff_subscriptions} />}
+      <SplitLayout
+        main={
+          <Section title="All rooms" description="Phone alerts are open to everyone at /notify, for any team.">
+            {isLoading ? (
+              <p className="px-4 py-6 text-sm text-vmd-textSubtle">Loading…</p>
+            ) : (
+              <DataTable
+                minWidth={620}
+                rows={list}
+                rowKey={(r) => r.slug}
+                empty={<EmptyState icon={DoorOpen} title="No rooms yet">Create one and assign the teams that are in it.</EmptyState>}
+                columns={[
+                  { key: 'name', header: 'Room', width: '1.4fr', render: (r) => (<><div className="font-medium text-vmd-textStrong">{r.name}</div><div className="text-xs text-vmd-textSubtle">/room/{r.slug}</div></>) },
+                  { key: 'teams', header: 'Teams', width: '2fr', render: (r) => (<><div className="text-vmd-text">{r.teams.length} team{r.teams.length === 1 ? '' : 's'}{r.stream_url ? ' · livestream' : ''}</div><div className="truncate text-xs text-vmd-textSubtle">{r.teams.join(', ') || 'No teams yet'}</div></>) },
+                  { key: 'phones', header: 'Phones', width: '80px', render: (r) => <span className="text-vmd-textMuted">{stats ? (stats.subscriptions_by_room[r.slug] ?? 0) : '—'}</span> },
+                  {
+                    key: 'act',
+                    header: '',
+                    width: '150px',
+                    render: (r) => (
+                      <span className="flex justify-end gap-1">
+                        <a href={`/room/${r.slug}`} target="_blank" rel="noreferrer"><Button size="sm"><ExternalLink size={14} /> Display</Button></a>
+                        {canManage && (
+                          <>
+                            <button type="button" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)} className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong"><Pencil size={14} /></button>
+                            <button type="button" aria-label={`Delete ${r.name}`} onClick={() => remove(r)} className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-red-50 hover:text-vmd-danger"><Trash2 size={14} /></button>
+                          </>
+                        )}
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Section>
+        }
+        aside={
+          <>
+            {canBroadcast && list.length > 0 && <BroadcastCard rooms={list} />}
+            {canBroadcast && list.length > 0 && <TeamAlertCard />}
+            {canSeeStats && stats?.push_configured && <StaffPushCard staffCount={stats.staff_subscriptions} />}
+          </>
+        }
+      />
 
       <RoomFormModal key={editing === null ? 'closed' : editing === 'new' ? 'new' : editing.slug} editing={editing} onClose={() => setEditing(null)} />
     </div>
@@ -198,44 +203,38 @@ function BroadcastCard({ rooms }: { rooms: Room[] }) {
   }
 
   return (
-    <Card className="mt-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Broadcast</h2>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <div>
-            <Label>Title</Label>
-            <Input maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div>
-            <Label>Message</Label>
-            <Textarea rows={3} maxLength={500} className="font-sans" value={message} onChange={(e) => setMessage(e.target.value)} />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label>Also push to phones</Label>
-            <Toggle checked={push} onChange={setPush} />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label>Full-screen popup on room displays</Label>
-            <Toggle checked={modal} onChange={setModal} />
-          </div>
+    <Section title="Broadcast" description="Send a message to room displays and phones.">
+      <div className="flex flex-col gap-3 p-4">
+        <div>
+          <Label>Title</Label>
+          <Input maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <Label>Message</Label>
+          <Textarea rows={3} maxLength={500} className="font-sans" value={message} onChange={(e) => setMessage(e.target.value)} />
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span>Also push to phones</span>
+          <Toggle checked={push} onChange={setPush} label="Also push to phones" />
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span>Full-screen popup on displays</span>
+          <Toggle checked={modal} onChange={setModal} label="Full-screen popup on displays" />
         </div>
         <div>
           <Label>Rooms ({selected.length === 0 ? 'all rooms' : `${selected.length} selected`})</Label>
-          <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-vmd-border p-2">
+          <div className="grid max-h-40 gap-1.5 overflow-auto">
             {rooms.map((room) => (
-              <label key={room.slug} className="flex items-center gap-2 text-sm text-vmd-text">
-                <input type="checkbox" checked={selected.includes(room.slug)} onChange={() => toggleRoom(room.slug)} />
-                {room.name}
-              </label>
+              <Check key={room.slug} checked={selected.includes(room.slug)} onChange={() => toggleRoom(room.slug)} label={room.name} />
             ))}
           </div>
           <p className="mt-1 text-xs text-vmd-textSubtle">Leave all unchecked to send to every room.</p>
-          <Button variant="primary" className="mt-3" onClick={send} disabled={broadcast.isPending || !title.trim() || !message.trim()}>
-            <Send size={14} /> Send broadcast
-          </Button>
         </div>
+        <Button variant="primary" onClick={send} disabled={broadcast.isPending || !title.trim() || !message.trim()}>
+          <Send size={14} /> Send broadcast
+        </Button>
       </div>
-    </Card>
+    </Section>
   );
 }
 
@@ -243,16 +242,9 @@ function StaffPushCard({ staffCount }: { staffCount: number }) {
   const testPush = useTestPush();
   const pushToast = useUiStore((s) => s.pushToast);
   return (
-    <Card className="mt-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Staff push alerts</h2>
-          <p className="mt-1 text-sm text-vmd-textMuted">
-            {staffCount} staff device{staffCount === 1 ? '' : 's'} subscribed. Staff turn alerts on with the bell in the top bar.
-          </p>
-        </div>
+    <Section title="Staff push alerts" description={`${staffCount} staff device${staffCount === 1 ? '' : 's'} subscribed. Staff turn alerts on from the Staff alerts button.`}>
+      <div className="p-4">
         <Button
-          variant="secondary"
           disabled={testPush.isPending || staffCount === 0}
           onClick={() =>
             testPush.mutate(undefined, {
@@ -264,6 +256,6 @@ function StaffPushCard({ staffCount }: { staffCount: number }) {
           Send test
         </Button>
       </div>
-    </Card>
+    </Section>
   );
 }

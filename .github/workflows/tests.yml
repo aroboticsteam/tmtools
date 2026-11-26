@@ -221,7 +221,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          rm -rf ../backend/static/frontend
+          rm -rf ../backend/static/frontend && mkdir -p ../backend/static
           cp -R dist ../backend/static/frontend
 
       - name: Start the backend

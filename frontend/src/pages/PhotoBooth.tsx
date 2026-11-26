@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, RefreshCw, Upload } from 'lucide-react';
 import { useTeams } from '../api/teams';
-import { PHOTO_KIND_LABEL, useTeamPhotos, useUploadPhoto } from '../api/photos';
+import { PHOTO_KIND_LABEL, useUploadPhoto } from '../api/photos';
 import { useSettings } from '../api/settings';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
 import { ChromaKeyPreview } from '../components/teams/ChromaKeyPreview';
-import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { Card, PageHeader } from '../components/ui/Card';
+import { PageHeader, Section } from '../components/ui/Card';
+import { TeamPhotosPanel } from '../components/teams/TeamPhotosPanel';
 import { Input, Label, Select } from '../components/ui/Input';
 import {
   PHOTO_COUNTDOWN_SECONDS,
@@ -57,7 +57,6 @@ export function PhotoBoothPage() {
 
   const validTeam = isValidTeamNumber(team);
   const number = team.trim().toUpperCase();
-  const { data: photos } = useTeamPhotos(validTeam ? number : null);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -177,54 +176,49 @@ export function PhotoBoothPage() {
     <div>
       <PageHeader
         title="Photo booth"
-        subtitle="Take a square photo of a bot or team in front of the green screen. It's keyed to a transparent PNG for the stream graphics."
+        subtitle="Photograph a bot or team in front of the green screen. It is keyed to a transparent PNG for the stream graphics."
       />
       {!canUpload && <p className="mb-3 text-sm text-vmd-danger">You need the video upload permission to take photos.</p>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
-          <div className="relative mx-auto aspect-square w-full max-w-xl overflow-hidden rounded-xl bg-black">
-            {/* The live camera is always mounted (object-cover = the same centred square that gets snapped). */}
-            <video
-              ref={videoRef}
-              className={`h-full w-full object-cover ${phase === 'review' ? 'hidden' : ''}`}
-              playsInline
-              muted
-            />
-            {phase === 'review' && photo && <ChromaKeyPreview file={photo.file} params={key} />}
-            {phase === 'countdown' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-8xl font-bold text-white">
-                {countdown}
-              </div>
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <Section title="Camera" description={validTeam ? `${number}, ${PHOTO_KIND_LABEL[kind].toLowerCase()}` : 'Enter a team number to start'}>
+          <div className="p-4">
+            <div className="relative mx-auto aspect-square w-full max-w-xl overflow-hidden rounded-xl bg-black">
+              {/* The live camera is always mounted (object-cover = the same centred square that gets snapped). */}
+              <video ref={videoRef} className={`h-full w-full object-cover ${phase === 'review' ? 'hidden' : ''}`} playsInline muted />
+              {phase === 'review' && photo && <ChromaKeyPreview file={photo.file} params={key} />}
+              {phase === 'countdown' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-8xl font-bold text-white">{countdown}</div>
+              )}
+            </div>
+            {cameraError && <p className="mt-2 text-sm text-vmd-danger">{cameraError}</p>}
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {phase === 'review' ? (
+                <>
+                  <Button onClick={retake}>
+                    <RefreshCw size={14} /> Retake
+                  </Button>
+                  <Button variant="primary" size="lg" onClick={submit} disabled={!validTeam || !canUpload || upload.isPending}>
+                    <Upload size={16} /> {upload.isPending ? 'Uploading…' : 'Upload photo'}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" size="lg" onClick={startCountdown} disabled={!validTeam || !canUpload || !!cameraError || busy}>
+                  <Camera size={16} /> Take photo
+                </Button>
+              )}
+            </div>
+            {cameraError && canUpload && (
+              <p className="mt-2 text-center text-xs text-vmd-textSubtle">
+                No camera? Add a photo from a file on the team&apos;s page instead (Teams, then the team, then Take or upload photos).
+              </p>
             )}
           </div>
-          {cameraError && <p className="mt-2 text-sm text-vmd-danger">{cameraError}</p>}
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {phase === 'review' ? (
-              <>
-                <Button variant="secondary" onClick={retake}>
-                  <RefreshCw size={14} /> Retake
-                </Button>
-                <Button variant="primary" onClick={submit} disabled={!validTeam || !canUpload || upload.isPending}>
-                  <Upload size={14} /> {upload.isPending ? 'Uploading…' : 'Upload photo'}
-                </Button>
-              </>
-            ) : (
-              <Button variant="primary" onClick={startCountdown} disabled={!validTeam || !canUpload || !!cameraError || busy}>
-                <Camera size={14} /> Take photo
-              </Button>
-            )}
-          </div>
-          {cameraError && canUpload && (
-            <p className="mt-2 text-center text-xs text-vmd-textSubtle">
-              No camera? Add a photo from a file on the team&apos;s page instead (Teams, then the team, then Robot &amp; Team Photos).
-            </p>
-          )}
-        </Card>
+        </Section>
 
-        <div className="space-y-4">
-          <Card>
-            <div className="space-y-3">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Section title="Shot setup">
+            <div className="flex flex-col gap-3 p-4">
               <div>
                 <Label>Team number</Label>
                 <Input list="booth-teams" value={team} onChange={(e) => setTeam(e.target.value.toUpperCase())} placeholder="21549A" disabled={busy} />
@@ -253,23 +247,8 @@ export function PhotoBoothPage() {
                 </Select>
               </div>
             </div>
-          </Card>
-          {validTeam && (
-            <Card>
-              <p className="mb-2 text-sm font-medium text-vmd-textStrong">{number} photos</p>
-              {(Object.keys(PHOTO_KIND_LABEL) as PhotoKind[]).map((k) => {
-                const p = photos?.photos[k];
-                return (
-                  <div key={k} className="flex items-center justify-between py-1 text-sm">
-                    <span className="text-vmd-textMuted">{PHOTO_KIND_LABEL[k]}</span>
-                    <span title={p?.error ?? undefined}>
-                      <StatusBadge status={p?.status ?? 'NONE'} />
-                    </span>
-                  </div>
-                );
-              })}
-            </Card>
-          )}
+          </Section>
+          {validTeam && <TeamPhotosPanel teamNumber={number} />}
         </div>
       </div>
     </div>

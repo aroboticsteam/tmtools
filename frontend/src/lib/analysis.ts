@@ -1,4 +1,5 @@
 import type { CaptureRecording } from '../types/api';
+import type { UpcomingMatchPayload } from '../stores/ws';
 
 /** Per-browser desk setup (which OBS/WLED instances, scene, key bindings). */
 export interface DeskSetup {
@@ -50,6 +51,40 @@ export function recordingLabel(r: Pick<CaptureRecording, 'match_type' | 'match_n
 
 export function momentLabel(r: Pick<CaptureRecording, 'match_type' | 'match_number'>, n: number): string {
   return `${recordingLabel(r)} · moment ${n}`;
+}
+
+/** A match TM has put on a field that has no recording yet, shown in the desk as a QUEUED entry so it can be
+ * picked (and its teams seen) before the recording starts. It is replaced by the real recording once that exists. */
+export function pendingFromFields(
+  currentMatches: Record<string, UpcomingMatchPayload>,
+  recordings: Pick<CaptureRecording, 'match_type' | 'match_number'>[],
+): CaptureRecording[] {
+  const out: CaptureRecording[] = [];
+  for (const [field, m] of Object.entries(currentMatches)) {
+    if (field.includes('.') || m.matchNum === undefined || m.matchNum === null) continue;
+    const type = String(m.round ?? 'QUAL').trim().toUpperCase() || 'QUAL';
+    const number = String(m.matchNum);
+    if (recordings.some((r) => r.match_type.toUpperCase() === type && r.match_number === number)) continue;
+    const red = m.redTeams ?? [];
+    const blue = m.blueTeams ?? [];
+    out.push({
+      id: `field-${field}`,
+      match_key: `field:${field}:${type}:${number}`,
+      match_type: type,
+      match_number: number,
+      teams: [...red, ...blue],
+      alliances: { red, blue, field },
+      status: 'QUEUED',
+      // Sorts after every real recording (their started_at is a date), then by match number. A letter, as localeCompare ranks punctuation first.
+      started_at: `zz${number.padStart(6, "0")}`,
+      stopped_at: null,
+      duration_s: null,
+      size_bytes: null,
+      error: null,
+      moments: [],
+    });
+  }
+  return out;
 }
 
 /** Recordings ordered oldest → newest, the order the arrows step through. */

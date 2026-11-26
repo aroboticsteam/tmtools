@@ -7,6 +7,7 @@ import { usePermission } from '../hooks/usePermission';
 import { PageHeader, Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input, Label, Textarea } from '../components/ui/Input';
+import { TeamPhotosPanel } from '../components/teams/TeamPhotosPanel';
 import { PhotoUploader } from '../components/teams/PhotoUploader';
 import { ChecklistCard } from '../components/teams/ChecklistCard';
 import { TeamRecordingsCard } from '../components/teams/TeamRecordingsCard';
@@ -42,14 +43,17 @@ export function TeamDetailPage() {
 
   return (
     <div>
-      <Link to="/teams" className="mb-4 inline-flex items-center gap-1 text-sm text-vmd-link hover:underline">
-        <ArrowLeft size={14} /> Back to Teams
-      </Link>
-      <PageHeader title={`Team ${number}`} subtitle={team?.robot_name ?? undefined} />
+      <PageHeader
+        title={`Team ${number}`}
+        subtitle={team?.robot_name ?? undefined}
+        action={<Link to="/teams"><Button><ArrowLeft size={14} /> All teams</Button></Link>}
+      />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <TeamPhotosPanel teamNumber={number} />
+
         <Card>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Profile</h2>
+          <h2 className="mb-3 text-[15px] font-semibold text-vmd-textStrong">Profile</h2>
           <div className="space-y-3">
             <div>
               <Label>Pit Location</Label>
@@ -123,7 +127,7 @@ export function TeamDetailPage() {
             )}
           </div>
 
-          <h2 className="mb-2 mt-5 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">
+          <h2 className="mb-2 mt-5 text-[15px] font-semibold text-vmd-textStrong">
             Stats (from scraper cache)
           </h2>
           {Object.keys(stats).length === 0 ? (
@@ -145,8 +149,8 @@ export function TeamDetailPage() {
         <TeamRecordingsCard teamNumber={number} />
 
         <Card>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">
-            Robot &amp; Team Photos
+          <h2 className="mb-3 text-[15px] font-semibold text-vmd-textStrong">
+            Take or upload photos
           </h2>
           <PhotoUploader teamNumber={number} />
         </Card>

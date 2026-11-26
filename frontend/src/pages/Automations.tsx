@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, FolderPlus, History, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FolderPlus, Pencil, Play, Plus, Search, Trash2, Workflow } from 'lucide-react';
 import {
   useAutomationFolders,
-  useAutomationRuns,
   useAutomations,
   useCreateAutomationFolder,
   useDeleteAutomation,
@@ -13,54 +13,57 @@ import {
 } from '../api/automations';
 import { usePermission } from '../hooks/usePermission';
 import { useUiStore } from '../stores/ui';
-import { PageHeader, Card } from '../components/ui/Card';
+import { useWsStore } from '../stores/ws';
+import { timeAgo } from '../lib/alerts';
+import { thenSummary, whenSummary } from '../lib/automationSummary';
+import { PageHeader, Section } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { Toggle } from '../components/ui/Toggle';
-import { AutomationEditorModal } from '../components/automations/AutomationEditorModal';
+import { EmptyState } from '../components/ui/EmptyState';
 import type { Automation, AutomationFolder } from '../types/api';
 
 export function AutomationsPage() {
-  const { data: folders } = useAutomationFolders();
-  const { data: automations, isLoading } = useAutomations();
+  const navigate = useNavigate();
+  const { data: folders = [] } = useAutomationFolders();
+  const { data: automations = [], isLoading } = useAutomations();
   const createFolder = useCreateAutomationFolder();
   const updateFolder = useUpdateAutomationFolder();
   const deleteFolder = useDeleteAutomationFolder();
   const deleteAutomation = useDeleteAutomation();
   const updateAutomation = useUpdateAutomation();
   const triggerAutomation = useTriggerAutomation();
+  const lastRun = useWsStore((s) => s.automationLastRun);
   const canEdit = usePermission('automations:edit');
   const canTrigger = usePermission('automations:trigger');
   const pushToast = useUiStore((s) => s.pushToast);
 
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Automation | null>(null);
-  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
-  const filtered = (automations ?? []).filter((a) =>
-    selectedFolder === null ? true : a.folder_id === selectedFolder,
-  );
+  const counts = useMemo(() => {
+    const m = new Map<string | null, number>();
+    automations.forEach((a) => m.set(a.folder_id, (m.get(a.folder_id) ?? 0) + 1));
+    return m;
+  }, [automations]);
 
-  function handleRenameFolder(folder: AutomationFolder) {
+  const needle = query.trim().toLowerCase();
+  const filtered = automations
+    .filter((a) => selectedFolder === null || a.folder_id === selectedFolder)
+    .filter((a) => !needle || a.alias.toLowerCase().includes(needle));
+  const folderName = folders.find((f) => f.id === selectedFolder)?.name ?? 'All automations';
+
+  function renameFolder(folder: AutomationFolder) {
     const name = window.prompt('Rename folder', folder.name);
     if (!name || name === folder.name) return;
-    updateFolder.mutate(
-      { id: folder.id, body: { name } },
-      {
-        onSuccess: () => pushToast('Folder renamed', 'success'),
-        onError: (err) => pushToast(err instanceof Error ? err.message : 'Failed to rename folder', 'error'),
-      },
-    );
+    updateFolder.mutate({ id: folder.id, body: { name } }, {
+      onSuccess: () => pushToast('Folder renamed', 'success'),
+      onError: (err) => pushToast(err instanceof Error ? err.message : 'Failed to rename folder', 'error'),
+    });
   }
 
-  function handleDeleteFolder(folder: AutomationFolder) {
-    if (
-      !window.confirm(
-        `Delete folder "${folder.name}"? Automations inside it are not deleted, but will become unfiled.`,
-      )
-    ) {
-      return;
-    }
+  function removeFolder(folder: AutomationFolder) {
+    if (!window.confirm(`Delete folder "${folder.name}"? Automations inside it are not deleted, but become unfiled.`)) return;
     deleteFolder.mutate(folder.id, {
       onSuccess: () => {
         pushToast('Folder deleted', 'success');
@@ -70,219 +73,137 @@ export function AutomationsPage() {
     });
   }
 
+  function remove(a: Automation) {
+    if (!window.confirm(`Delete automation "${a.alias}"?`)) return;
+    deleteAutomation.mutate(a.id);
+  }
+
+  function result(a: Automation): { label: string; tone: 'ok' | 'danger' | 'neutral'; when: string } {
+    const live = lastRun[a.id];
+    const status = live?.status;
+    const when = live ? timeAgo(live.triggered_at) : a.last_triggered_at ? timeAgo(new Date(a.last_triggered_at).getTime() / 1000) : 'Never';
+    if (!a.enabled) return { label: 'Disabled', tone: 'neutral', when };
+    if (status) return { label: status === 'success' ? 'Done' : 'Failed', tone: status === 'success' ? 'ok' : 'danger', when };
+    return { label: a.last_triggered_at ? 'Done' : 'Not run', tone: a.last_triggered_at ? 'ok' : 'neutral', when };
+  }
+
+  const railItem = (active: boolean) =>
+    `flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${active ? 'bg-neutral-100 font-medium text-vmd-textStrong' : 'text-neutral-600 hover:bg-neutral-50'}`;
+
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-      <aside>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-vmd-textMuted">Folders</h2>
+    <div>
+      <PageHeader
+        title="Automations"
+        subtitle="When something happens at the event, do something."
+        action={
+          <>
+            <Link to="/scripts"><Button>Scripts</Button></Link>
+            {canEdit && (
+              <Link to="/automations/new">
+                <Button variant="primary"><Plus size={16} /> New automation</Button>
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <aside className="shrink-0 rounded-xl border border-vmd-border bg-white p-2 lg:w-[220px]">
+          <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+            <li className="flex shrink-0 lg:shrink">
+              <button type="button" onClick={() => setSelectedFolder(null)} className={railItem(selectedFolder === null)}>
+                <span className="flex-1 whitespace-nowrap">All automations</span>
+                <span className="text-xs text-vmd-textSubtle">{automations.length}</span>
+              </button>
+            </li>
+            {folders.map((f) => (
+              <li key={f.id} className="group flex shrink-0 items-center lg:shrink">
+                <button type="button" onClick={() => setSelectedFolder(f.id)} className={railItem(selectedFolder === f.id)}>
+                  <span className="flex-1 whitespace-nowrap">{f.name}</span>
+                  <span className="text-xs text-vmd-textSubtle">{counts.get(f.id) ?? 0}</span>
+                </button>
+                {canEdit && (
+                  <span className="hidden items-center lg:flex lg:opacity-0 lg:group-hover:opacity-100">
+                    <button type="button" onClick={() => renameFolder(f)} title="Rename folder" className="flex h-7 w-7 items-center justify-center rounded text-vmd-textSubtle hover:text-vmd-textStrong"><Pencil size={12} /></button>
+                    <button type="button" onClick={() => removeFolder(f)} title="Delete folder" className="flex h-7 w-7 items-center justify-center rounded text-vmd-textSubtle hover:text-vmd-danger"><Trash2 size={12} /></button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
           {canEdit && (
             <button
+              type="button"
               onClick={() => {
                 const name = window.prompt('Folder name');
                 if (name) createFolder.mutate({ name });
               }}
-              className="text-vmd-textSubtle hover:text-vmd-textStrong"
+              className="mt-1 flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-vmd-textSubtle hover:bg-neutral-50 hover:text-vmd-textStrong"
             >
-              <FolderPlus size={16} />
+              <FolderPlus size={14} /> New folder
             </button>
           )}
-        </div>
-        <ul className="space-y-1 text-sm">
-          <li>
-            <button
-              onClick={() => setSelectedFolder(null)}
-              className={`w-full rounded-lg px-2 py-1 text-left ${selectedFolder === null ? 'bg-vmd-surfaceSubtle text-vmd-textStrong' : 'text-vmd-textMuted'}`}
-            >
-              All automations
-            </button>
-          </li>
-          {folders?.map((f) => (
-            <li key={f.id} className="group flex items-center gap-1">
-              <button
-                onClick={() => setSelectedFolder(f.id)}
-                className={`flex-1 rounded-lg px-2 py-1 text-left ${selectedFolder === f.id ? 'bg-vmd-surfaceSubtle text-vmd-textStrong' : 'text-vmd-textMuted'}`}
-              >
-                {f.name}
-              </button>
-              {canEdit && (
-                <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                  <button
-                    onClick={() => handleRenameFolder(f)}
-                    className="text-vmd-textSubtle hover:text-vmd-textStrong"
-                    title="Rename folder"
-                  >
-                    <Pencil size={12} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteFolder(f)}
-                    className="text-vmd-textSubtle hover:text-vmd-danger"
-                    title="Delete folder"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </aside>
+        </aside>
 
-      <div>
-        <PageHeader
-          title="Automations"
-          subtitle="YAML/Jinja2 trigger-condition-action rules."
+        <Section
+          className="min-w-0 flex-1"
+          title={folderName}
           action={
-            canEdit && (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setEditing(null);
-                  setModalOpen(true);
-                }}
-              >
-                <Plus size={16} /> New Automation
-              </Button>
-            )
+            <label className="flex h-8 w-full items-center gap-2 rounded-lg border border-vmd-border px-2.5 text-[13px] text-vmd-textSubtle focus-within:border-neutral-900 sm:w-[220px]">
+              <Search size={14} aria-hidden="true" />
+              <input aria-label="Search automations" placeholder="Search automations" value={query} onChange={(e) => setQuery(e.target.value)} className="min-w-0 flex-1 bg-transparent text-vmd-text outline-none placeholder:text-vmd-textSubtle" />
+            </label>
           }
-        />
-
-        {isLoading && <p className="text-sm text-vmd-textSubtle">Loading…</p>}
-        <div className="space-y-3">
-          {filtered.map((automation) => (
-            <Card key={automation.id}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-vmd-textStrong">{automation.alias}</p>
-                  <p className="text-xs text-vmd-textSubtle">
-                    {automation.last_triggered_at
-                      ? `Last triggered ${new Date(automation.last_triggered_at).toLocaleString()}`
-                      : 'Never triggered'}
-                  </p>
+        >
+          {isLoading && <p className="px-4 py-6 text-sm text-vmd-textSubtle">Loading…</p>}
+          {!isLoading && filtered.length === 0 && (
+            <EmptyState icon={Workflow} title="No automations here yet">Create one to react to match events.</EmptyState>
+          )}
+          {filtered.map((a) => {
+            const r = result(a);
+            return (
+              <div key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-100 px-4 py-3 last:border-b-0">
+                <Toggle checked={a.enabled} disabled={!canEdit} label={`Enable ${a.alias}`} onChange={(enabled) => updateAutomation.mutate({ id: a.id, body: { enabled } })} />
+                <div className="min-w-0 flex-1 basis-60">
+                  <Link to={`/automations/${a.id}`} className="block truncate font-medium text-vmd-textStrong hover:underline">{a.alias}</Link>
+                  <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-vmd-textMuted">When {whenSummary(a.trigger_yaml)}</span>
+                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-vmd-textMuted">Then {thenSummary(a.action_yaml)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Toggle
-                    checked={automation.enabled}
-                    disabled={!canEdit}
-                    onChange={(enabled) => updateAutomation.mutate({ id: automation.id, body: { enabled } })}
-                  />
+                <div className="w-24 text-xs text-vmd-textSubtle">{r.when}</div>
+                <Badge tone={r.tone}>{r.label}</Badge>
+                <div className="flex items-center gap-1">
                   {canTrigger && (
                     <button
+                      type="button"
+                      aria-label={`Run ${a.alias} now`}
+                      title="Run now"
                       onClick={() =>
-                        triggerAutomation.mutate(automation.id, {
+                        triggerAutomation.mutate(a.id, {
                           onSuccess: (res) => pushToast(`Test run: ${res.status}`, res.status === 'success' ? 'success' : 'error'),
+                          onError: (err) => pushToast(err instanceof Error ? err.message : 'Run failed', 'error'),
                         })
                       }
-                      className="text-vmd-textSubtle hover:text-vmd-textStrong"
-                      title="Test Run"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-vmd-border bg-white text-neutral-700 hover:bg-neutral-50"
                     >
-                      <Play size={16} />
+                      <Play size={14} />
                     </button>
                   )}
-                  <button
-                    onClick={() =>
-                      setExpandedHistory((cur) => (cur === automation.id ? null : automation.id))
-                    }
-                    className="flex items-center gap-1 text-vmd-textSubtle hover:text-vmd-textStrong"
-                    title="Execution History"
-                  >
-                    <History size={16} />
-                    {expandedHistory === automation.id ? (
-                      <ChevronDown size={14} />
-                    ) : (
-                      <ChevronRight size={14} />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditing(automation);
-                      setModalOpen(true);
-                    }}
-                    className="text-sm text-vmd-link hover:underline"
-                  >
-                    Edit
+                  <button type="button" aria-label={`Edit ${a.alias}`} title="Edit" onClick={() => navigate(`/automations/${a.id}`)} className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-neutral-100 hover:text-vmd-textStrong">
+                    <Pencil size={14} />
                   </button>
                   {canEdit && (
-                    <button
-                      onClick={() => deleteAutomation.mutate(automation.id)}
-                      className="text-vmd-textSubtle hover:text-vmd-danger"
-                    >
-                      <Trash2 size={16} />
+                    <button type="button" aria-label={`Delete ${a.alias}`} title="Delete" onClick={() => remove(a)} className="flex h-8 w-8 items-center justify-center rounded-lg text-vmd-textSubtle hover:bg-red-50 hover:text-vmd-danger">
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>
               </div>
-
-              {expandedHistory === automation.id && <AutomationHistoryPanel automationId={automation.id} />}
-            </Card>
-          ))}
-          {filtered.length === 0 && !isLoading && (
-            <p className="text-sm text-vmd-textSubtle">No automations in this folder yet.</p>
-          )}
-        </div>
+            );
+          })}
+        </Section>
       </div>
-
-      <AutomationEditorModal open={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
-    </div>
-  );
-}
-
-/**
- * Plan Appendix A.7 / audit finding 4.2: the backend has always written
- * `AutomationRun` rows and exposed `GET /{id}/runs`, but no frontend view
- * ever consumed `useAutomationRuns()`. This panel renders it as a simple
- * table: when it ran, a summary of the trigger event, success/failure, and
- * which action index failed (if any).
- */
-function AutomationHistoryPanel({ automationId }: { automationId: string }) {
-  const { data: runs, isLoading } = useAutomationRuns(automationId);
-
-  return (
-    <div className="mt-3 border-t border-vmd-border pt-3">
-      {isLoading && <p className="text-sm text-vmd-textSubtle">Loading history…</p>}
-      {!isLoading && (!runs || runs.length === 0) && (
-        <p className="text-sm text-vmd-textSubtle">No executions recorded yet.</p>
-      )}
-      {runs && runs.length > 0 && (
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-vmd-textSubtle">
-              <th className="pb-2">Triggered At</th>
-              <th className="pb-2">Trigger Event</th>
-              <th className="pb-2">Status</th>
-              <th className="pb-2">Failed Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => (
-              <tr key={run.id} className="border-t border-vmd-border align-top">
-                <td className="py-1.5 whitespace-nowrap">{new Date(run.triggered_at).toLocaleString()}</td>
-                <td className="py-1.5 max-w-xs truncate text-vmd-textMuted" title={JSON.stringify(run.trigger_event)}>
-                  {run.trigger_event ? JSON.stringify(run.trigger_event) : '—'}
-                </td>
-                <td className="py-1.5">
-                  <span
-                    className={run.status === 'success' ? 'text-vmd-success' : 'text-vmd-danger'}
-                  >
-                    {run.status}
-                  </span>
-                </td>
-                <td className="py-1.5">
-                  {run.failed_action_index !== null ? (
-                    <span title={run.error ?? undefined}>
-                      #{run.failed_action_index}
-                      {run.error ? ` — ${run.error}` : ''}
-                    </span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      )}
     </div>
   );
 }

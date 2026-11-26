@@ -98,7 +98,7 @@ def validate_prompter_token(entity_id: str, nonce: str, token: str) -> bool:
     """Constant-time validation of a teleprompter token against the expected
     value for `entity_id` + `nonce`. Used server-side at WebSocket upgrade
     time (Wave 3's `/ws/prompter/<entity_id>` endpoint) and when rendering
-    the standalone `prompter.html` page."""
+    the SPA teleprompter page."""
     if not token:
         return False
     expected = generate_prompter_token(entity_id, nonce)

@@ -13,6 +13,7 @@ vi.mock('../api/settings', () => ({ useSettings: () => ({ data: [] }) }));
 vi.mock('../api/photos', () => ({
   PHOTO_KIND_LABEL: { bot_photo: 'Robot photo', team_photo: 'Team photo' },
   useTeamPhotos: () => ({ data: undefined }),
+  useTeamPhotoUrls: () => ({ data: undefined }),
   useUploadPhoto: () => ({ mutate, isPending: false }),
 }));
 vi.mock('../stores/ui', () => ({ useUiStore: (sel: (s: { pushToast: typeof pushToast }) => unknown) => sel({ pushToast }) }));

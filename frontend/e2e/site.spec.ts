@@ -13,7 +13,7 @@ test.describe('public site and its admin tools', () => {
     await request.delete('/api/v1/teams/E2E1A/logo');
   });
 
-  test('visitors browse the event, a team page and the live leaderboards', async ({ browser }) => {
+  test('visitors browse the event and a team page', async ({ browser }) => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
     await page.goto('/site#event');
@@ -26,20 +26,13 @@ test.describe('public site and its admin tools', () => {
     await expect(page.getByRole('heading', { name: /E2E1A — Gearsquad E2E/ })).toBeVisible();
     await expect(page.getByText('Excellence').or(page.getByText('Awards')).first()).toBeVisible();
 
-    await page.goto('/site/leaderboard?panel=2&programme=8');
-    await expect(page.locator('#prog')).toHaveText(/VIQRC|V5RC/);
-    const seen = new Set<string>();
-    for (let i = 0; i < 12 && seen.size < 3; i++) {
-      seen.add((await page.locator('#tabs .on').textContent()) ?? '');
-      await page.waitForTimeout(1000);
-    }
-    expect(seen.size).toBeGreaterThanOrEqual(3); // it rotates through panels on its own
     await context.close();
   });
 
   test('the site title, sponsors and next competition are edited in a form and appear publicly', async ({ page, request }) => {
     const title = uid('E2E Title');
     await page.goto('/settings');
+    await page.getByRole('tab', { name: 'Event site' }).click();
     await page.getByLabel('Site title').fill(title);
     await page.getByLabel('Next competition name').fill('E2E Nationals');
     await page.getByLabel('Next competition date').fill('2999-01-02');
@@ -58,11 +51,13 @@ test.describe('public site and its admin tools', () => {
     expect(overview.sponsors.map((s) => s.name)).toEqual(['Kingston']);
 
     await page.reload();
+    await page.getByRole('tab', { name: 'Event site' }).click();
     await expect(page.getByLabel('Site title')).toHaveValue(title);
   });
 
   test('an unsafe link is refused before saving', async ({ page }) => {
     await page.goto('/settings');
+    await page.getByRole('tab', { name: 'Event site' }).click();
     await page.getByLabel('Event page link').fill('javascript:alert(1)');
     await expect(page.getByTestId('site-problems')).toContainText('Next competition link');
     await page.getByRole('button', { name: /^Save/ }).first().click();
@@ -71,6 +66,7 @@ test.describe('public site and its admin tools', () => {
 
   test('a map image is uploaded, pins are placed by clicking, and visitors see them', async ({ page, request }) => {
     await page.goto('/settings');
+    await page.getByRole('tab', { name: 'Event site' }).click();
     await page.getByLabel('Upload map image').setInputFiles({ name: 'map.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.getByTestId('map-canvas')).toBeVisible();
     await page.getByRole('button', { name: /add room pin/i }).click();
@@ -87,6 +83,7 @@ test.describe('public site and its admin tools', () => {
 
   test('a match recording link and a team logo/website show up on the public site', async ({ page, browser, request }) => {
     await page.goto('/settings');
+    await page.getByRole('tab', { name: 'Event site' }).click();
     await page.getByLabel('Recording division').fill('1');
     await page.getByLabel('Recording match').fill('Q1');
     await page.getByLabel('Recording link').fill('https://videos.example.com/q1');

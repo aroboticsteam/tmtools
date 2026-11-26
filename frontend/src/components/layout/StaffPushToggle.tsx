@@ -3,36 +3,34 @@ import { Bell, BellOff } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import { currentStaffSubscription, disableStaffPush, enableStaffPush, pushSupported } from '../../lib/push';
 import { useUiStore } from '../../stores/ui';
+import { Toggle } from '../ui/Toggle';
 
-/** Navbar bell: lets a staff member (permission `notifications:receive`) turn
- * Web Push alerts on or off for this browser — system alerts (integration
- * degraded, leader failover, ...) and staff broadcasts. */
-export function StaffPushToggle() {
+/** State + actions for this browser's staff Web Push subscription. */
+export function useStaffPush() {
   const allowed = usePermission('notifications:receive');
   const pushToast = useUiStore((s) => s.pushToast);
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const supported = allowed && pushSupported();
 
   useEffect(() => {
-    if (!allowed || !pushSupported()) return;
+    if (!supported) return;
     currentStaffSubscription()
       .then((sub) => setEnabled(sub !== null && Notification.permission === 'granted'))
       .catch(() => setEnabled(false));
-  }, [allowed]);
+  }, [supported]);
 
-  if (!allowed || !pushSupported()) return null;
-
-  async function toggle() {
+  async function set(next: boolean) {
     setBusy(true);
     try {
-      if (enabled) {
-        await disableStaffPush();
-        setEnabled(false);
-        pushToast('Push alerts turned off for this browser', 'info');
-      } else {
+      if (next) {
         await enableStaffPush(null);
         setEnabled(true);
         pushToast('Push alerts turned on for this browser', 'success');
+      } else {
+        await disableStaffPush();
+        setEnabled(false);
+        pushToast('Push alerts turned off for this browser', 'info');
       }
     } catch (err) {
       pushToast(err instanceof Error ? err.message : 'Could not change push alerts', 'error');
@@ -41,15 +39,22 @@ export function StaffPushToggle() {
     }
   }
 
+  return { supported, enabled, busy, set };
+}
+
+/** Switch row used inside the Staff alerts panel. */
+export function StaffPushToggle() {
+  const { supported, enabled, busy, set } = useStaffPush();
+  if (!supported) {
+    return <p className="text-[13px] text-vmd-textSubtle">Push alerts are not available in this browser.</p>;
+  }
   return (
-    <button
-      onClick={toggle}
-      disabled={busy}
-      className="navbar-anim-link rounded-lg px-1.5 py-1.5 disabled:opacity-40"
-      title={enabled ? 'Turn off push alerts' : 'Turn on push alerts'}
-    >
-      {enabled ? <Bell size={18} className="text-vmd-success" /> : <BellOff size={18} className="text-vmd-textMuted" />}
-      <span className="nav-label">{enabled ? 'Alerts on' : 'Alerts off'}</span>
-    </button>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 text-sm text-vmd-text">
+        {enabled ? <Bell size={16} className="text-vmd-success" /> : <BellOff size={16} className="text-vmd-textSubtle" />}
+        Push alerts on this device
+      </div>
+      <Toggle checked={enabled} disabled={busy} onChange={set} label="Push alerts on this device" />
+    </div>
   );
 }

@@ -265,10 +265,11 @@ async def admin_client(fake_redis):
         yield c
 
 
-async def test_admin_login_page_renders(admin_client):
+async def test_admin_login_page_is_not_served_by_the_backend(admin_client):
+    """The page is the SPA's route; the backend only owns the POST."""
     resp = await admin_client.get("/admin_login")
-    assert resp.status_code == 200
-    assert "admin_local" in resp.text
+    assert resp.status_code in (404, 405)
+    assert "<form" not in resp.text
 
 
 async def test_admin_login_correct_password_creates_session(admin_client, fake_redis):

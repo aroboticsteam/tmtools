@@ -55,13 +55,28 @@ async def test_events_are_per_field_newest_first_and_capped(redis):
     assert "3" not in snap["matches"]  # only assignments populate the match map
 
 
+async def test_audience_display_is_recorded_so_a_reload_can_show_countdown(redis):
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 1, "display": "IN_MATCH"}, ts=1))
+    await fs.record(redis, ev("matchStarted", {"fieldID": 1}, ts=2))
+    rows = (await fs.snapshot(redis))["events"]["1"]
+    assert rows[1]["display"] == "IN_MATCH"
+    assert "display" not in rows[0]
+
+
+async def test_audience_display_is_kept_per_tm_not_per_field(redis):
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 1, "display": "IN_MATCH"}, ts=1))
+    await fs.record(redis, ev("audienceDisplayChanged", {"fieldID": 3, "display": "RANKINGS"}, ts=2))
+    audience = (await fs.snapshot(redis))["audience"]
+    assert audience == {"vex_tm.main": {"display": "RANKINGS", "timestamp": 2}}
+
+
 async def test_unrelated_and_malformed_events_are_ignored_and_never_raise(redis):
     await fs.record(redis, ev("timer_started", {"duration_s": 60}))
     await fs.record(redis, ev("fieldMatchAssigned", {"matchNum": 1}))  # no fieldID
     await fs.record(redis, ev("fieldMatchAssigned", {"fieldID": ""}))
     await fs.record(redis, {"type": "fieldMatchAssigned", "payload": "not a dict"})
     await fs.record(redis, {})
-    assert await fs.snapshot(redis) == {"matches": {}, "events": {}}
+    assert await fs.snapshot(redis) == {"matches": {}, "events": {}, "audience": {}}
 
     class Broken:
         def pipeline(self):
@@ -131,7 +146,7 @@ async def test_endpoint_requires_integrations_read(redis, _cleanup):
 async def test_endpoint_empty_when_nothing_recorded(redis, _cleanup):
     async with await _client(redis, {"integrations:read"}) as c:
         r = await c.get("/api/v1/fields/state")
-    assert r.status_code == 200 and r.json() == {"matches": {}, "events": {}}
+    assert r.status_code == 200 and r.json() == {"matches": {}, "events": {}, "audience": {}}
 
 
 async def test_loader_event_listener_records_field_state(redis):

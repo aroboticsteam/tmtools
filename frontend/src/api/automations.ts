@@ -49,8 +49,9 @@ export function useDeleteAutomationFolder() {
   });
 }
 
-export function useAutomations() {
+export function useAutomations(enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ['automations'],
     queryFn: () => apiFetch<Automation[]>('/api/v1/automations'),
   });

@@ -135,6 +135,34 @@ async def test_mark_requires_agent(redis):
         await service.mark_moment(redis, async_session_factory, 5)
 
 
+async def test_starting_the_match_already_recording_keeps_the_take(agent):
+    first = (await service.start_recording(agent, async_session_factory, _match(9010)))["recording"]
+    await service.mark_moment(agent, async_session_factory, 5)
+    again = (await service.start_recording(agent, async_session_factory, _match(9010)))["recording"]
+    assert again["id"] == first["id"]
+    async with async_session_factory() as session:
+        moments = (await session.execute(select(CaptureMoment).where(CaptureMoment.recording_id == uuid.UUID(first["id"])))).scalars().all()
+        assert len(moments) == 1
+
+
+async def test_reconnecting_idle_closes_a_recording_the_agent_lost(agent):
+    rec = (await service.start_recording(agent, async_session_factory, _match(9011)))["recording"]
+    await service.close_orphaned_recording(agent, async_session_factory, "recording")  # a blip: still recording
+    async with async_session_factory() as session:
+        assert (await session.get(CaptureRecording, uuid.UUID(rec["id"]))).status == "RECORDING"
+    await service.close_orphaned_recording(agent, async_session_factory, "idle")  # restarted: lost it
+    async with async_session_factory() as session:
+        row = await session.get(CaptureRecording, uuid.UUID(rec["id"]))
+        assert row.status == "STOPPED" and row.error
+
+
+async def test_stop_works_while_the_agent_is_offline(agent):
+    rec = (await service.start_recording(agent, async_session_factory, _match(9012)))["recording"]
+    await hub.clear_presence(agent)
+    stopped = await service.stop_recording(agent, async_session_factory)
+    assert stopped["recording"]["id"] == rec["id"] and stopped["recording"]["status"] == "STOPPED"
+
+
 async def test_restarting_a_match_resets_its_take(agent):
     await service.start_recording(agent, async_session_factory, _match(9006))
     await service.mark_moment(agent, async_session_factory, 5)

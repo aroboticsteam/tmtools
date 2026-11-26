@@ -15,13 +15,14 @@ export function useCaptureStatus() {
   });
 }
 
-export function useCaptureRecordings(params: { team?: string; matchType?: string; limit?: number } = {}) {
+export function useCaptureRecordings(params: { team?: string; matchType?: string; limit?: number; enabled?: boolean } = {}) {
   const qs = new URLSearchParams();
   if (params.team) qs.set('team', params.team);
   if (params.matchType) qs.set('match_type', params.matchType);
   if (params.limit) qs.set('limit', String(params.limit));
   const query = qs.toString();
   return useQuery({
+    enabled: params.enabled ?? true,
     queryKey: [...RECORDINGS, query],
     queryFn: () => apiFetch<CaptureRecording[]>(`/api/v1/capture/recordings${query ? `?${query}` : ''}`),
     refetchInterval: 3000,
@@ -72,5 +73,17 @@ export function useReplayControl(replayId: string) {
     mutationFn: (body: { action: ReplayAction; value?: number }) =>
       apiFetch<unknown>(`/api/v1/capture/replay/${encodeURIComponent(replayId)}/control`, { method: 'POST', body }),
     onSuccess: invalidate,
+  });
+}
+
+/** Short-lived presigned link to a recording's MP4 (re-fetched before it expires). */
+export function useRecordingUrl(recordingId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['capture', 'url', recordingId],
+    enabled: Boolean(recordingId) && enabled,
+    queryFn: () => apiFetch<{ url: string; label: string }>(`/api/v1/capture/recordings/${recordingId}/url`),
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    retry: 1,
   });
 }

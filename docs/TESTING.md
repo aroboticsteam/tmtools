@@ -11,9 +11,8 @@ CI runs all three (`backend-tests`, `frontend-build`, `e2e`).
 ## End-to-end tests
 
 They drive a real backend that serves the built SPA, with a synthetic 60 fps camera for the recorder.
-Covered: sign-in, button pages (visual builder, confirm, feedback, drag-and-drop), comms desk ↔ station iPad
-(messages, presence, timers and colour cues, secured link + PIN, agenda DnD/import), recorder, the public site and
-its admin tools (config form, map upload, recordings, team logo/website, leaderboard rotation), overlay spotlight.
+Covered: sign-in, button pages (visual builder, confirm, feedback, drag-and-drop), recorder, the public site and
+its admin tools (config form, map upload, recordings, team logo/website), overlay spotlight, and the signed-out public pages (room, notify, teleprompter, replay) with no admin shell.
 
 ```bash
 # 1. backend env (same variables as CI) and a migrated database
@@ -21,7 +20,7 @@ alembic upgrade head
 python tools/e2e_seed.py                      # fixture teams + a cached TM schedule (python tools/e2e_seed.py --cleanup to remove)
 
 # 2. build the SPA into the backend and start it
-(cd frontend && npm run build) && rm -rf backend/static/frontend && cp -R frontend/dist backend/static/frontend
+(cd frontend && npm run build) && rm -rf backend/static/frontend && mkdir -p backend/static && cp -R frontend/dist backend/static/frontend
 python -m uvicorn backend.main:app --port 8765
 
 # 3. run
