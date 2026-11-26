@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { currentAgendaIndex } from '../lib/stationClock';
+import { currentAgendaIndex } from '../lib/agendaClock';
 import { usePageChrome } from './usePageChrome';
 import { useSiteQuery } from './siteData';
 import { STATIC_SITE } from './siteUrl';

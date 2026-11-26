@@ -44,7 +44,7 @@ export default defineConfig({
         changeOrigin: true,
         bypass: (req) => (req.method === 'POST' ? undefined : req.url),
       },
-      // The public/OBS pages (/site, /room, /station, /prompter, /overlay, /replay, /notify) are
+      // The public/OBS pages (/site, /room, /prompter, /overlay, /replay, /notify) are
       // SPA routes now, so the dev server renders them itself; only API, auth and sockets proxy.
       '/ws': { target: backendTarget, changeOrigin: true, ws: true },
     },

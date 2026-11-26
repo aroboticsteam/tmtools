@@ -13,7 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.core.settings import settings
-from backend.models.comms import AgendaItem
+from backend.models.agenda import AgendaItem
 from backend.models.room import Room
 from backend.models.settings import SystemSetting
 from backend.models.team import TeamProfile

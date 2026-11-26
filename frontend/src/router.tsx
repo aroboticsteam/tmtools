@@ -38,7 +38,6 @@ const publicRoutes: RouteObject[] = [
   publicRoute('/site', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
   publicRoute('/notify', async () => ({ Component: (await import('./public/NotifyPage')).NotifyPage })),
   publicRoute('/room/:slug', async () => ({ Component: (await import('./public/RoomPage')).RoomPage })),
-  publicRoute('/station/:slug', async () => ({ Component: (await import('./public/StationPage')).StationPage })),
   publicRoute('/prompter', async () => ({ Component: (await import('./public/PrompterIndexPage')).PrompterIndexPage })),
   publicRoute('/prompter/:entityId', async () => ({ Component: (await import('./public/PrompterPage')).PrompterPage })),
   publicRoute('/overlay/:entityId', async () => ({ Component: (await import('./public/OverlayPage')).OverlayPage })),

@@ -56,9 +56,8 @@ PERMISSIONS: list[PermissionInfo] = [
         "analysis:view": "Open the Analysis desk",
     }),
     *_p("Comms and notifications", {
-        "comms:read": "View Comms",
-        "comms:send": "Send Comms messages",
-        "comms:manage": "Manage Comms stations and access",
+        "comms:read": "View the event agenda",
+        "comms:manage": "Edit the event agenda",
         "notifications:receive": "Receive notifications",
         "notifications:broadcast": "Broadcast notifications",
         "notifications:manage": "Manage notification settings",

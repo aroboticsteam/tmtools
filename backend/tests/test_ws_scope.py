@@ -1,5 +1,5 @@
 """Only the authenticated `/ws/events` feed gets the broadcast-all firehose;
-public pages (room, station, overlay, prompter) get their own bucket only.
+public pages (room, overlay, prompter) get their own bucket only.
 
 Two layers: (1) wiring tests drive each real endpoint (DB/Redis lookups
 stubbed) and check which sockets end up in the broadcast-all set; (2)
@@ -53,7 +53,7 @@ async def test_connect_defaults_to_not_receiving_broadcast_all(mgr):
 
 @pytest.mark.parametrize(
     "bucket",
-    ["room:r1", "station:emcee-1", "overlay.f1", "timer.main"],  # room, station, overlay, prompter
+    ["room:r1", "overlay.f1", "timer.main"],  # room, overlay, prompter
 )
 async def test_public_socket_never_sees_internal_events(mgr, bucket):
     public = FakeWs()
@@ -64,9 +64,8 @@ async def test_public_socket_never_sees_internal_events(mgr, bucket):
 
 
 async def test_public_sockets_still_get_their_dedicated_messages(mgr):
-    room, station, overlay = FakeWs(), FakeWs(), FakeWs()
+    room, overlay = FakeWs(), FakeWs()
     await mgr.connect("room:r1", room)
-    await mgr.connect("station:emcee-1", station)
     await mgr.connect("overlay.f1", overlay)
 
     await mgr._dispatch(
@@ -74,14 +73,9 @@ async def test_public_sockets_still_get_their_dedicated_messages(mgr):
          "payload": {"id": "n1", "rooms": ["r1"], "title": "T", "message": "M"}}
     )
     await mgr._dispatch(
-        {"entity_id": "comms", "type": "station_message", "timestamp": 1.0,
-         "payload": {"stations": ["emcee-1"], "id": "m1", "text": "Hi", "flash": False, "sent_at": 1.0}}
-    )
-    await mgr._dispatch(
         {"entity_id": "overlay.f1", "type": "overlay_show_team", "timestamp": 1.0, "payload": {"team": "1234A"}}
     )
     assert [m["type"] for m in room.sent] == ["notice"]
-    assert [m["type"] for m in station.sent] == ["message"]
     assert [m["type"] for m in overlay.sent] == ["show_team"]
 
 
@@ -120,7 +114,6 @@ class _Session:
 def stubbed(monkeypatch):
     row = types.SimpleNamespace(slug="x", access_key=None, tags=[], token_nonce="n")
     monkeypatch.setattr(ws_mod, "async_session_factory", lambda: _Session(row))
-    monkeypatch.setattr(ws_mod.station_access, "check_access", lambda *_a, **_k: None)
     monkeypatch.setattr(ws_mod, "validate_prompter_token", lambda *_a, **_k: True)
 
     async def _noop(*_a, **_k):
@@ -129,9 +122,6 @@ def stubbed(monkeypatch):
     async def _cues(_eid):
         return {}
 
-    monkeypatch.setattr(ws_mod.station_presence, "mark_connected", _noop)
-    monkeypatch.setattr(ws_mod.station_presence, "touch", _noop)
-    monkeypatch.setattr(ws_mod.station_presence, "mark_disconnected", _noop, raising=False)
     monkeypatch.setattr(ws_mod, "_cues_snapshot", _cues)
     monkeypatch.setattr(ws_mod, "_ws_is_authenticated", _authed)
     return row
@@ -146,7 +136,6 @@ async def _authed(_ws):
     [
         ("/ws/events", True),
         ("/ws/room/r1", False),
-        ("/ws/station/emcee-1", False),
         ("/ws/overlay/overlay.f1", False),
         ("/ws/prompter/timer.main?token=t", False),
     ],

@@ -377,7 +377,7 @@ async def test_category_opt_out_skips_push(svc, session_factory, fake_redis, pus
 async def agenda_rows(session_factory):
     from sqlalchemy import delete
 
-    from backend.models.comms import AgendaItem
+    from backend.models.agenda import AgendaItem
 
     async def _wipe():
         async with session_factory() as session:

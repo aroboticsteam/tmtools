@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.dependencies import get_db, get_redis
-from backend.models.comms import AgendaItem
+from backend.models.agenda import AgendaItem
 from backend.models.capture import CaptureRecording
 from backend.models.match_recording import MatchRecording
 from backend.models.room import Room

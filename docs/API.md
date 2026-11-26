@@ -13,7 +13,7 @@ RBAC permission the specific route requires; see `backend/core/dependencies.py`
 and plan §13 for the permission list. `/healthz`, `/readyz`, `/admin_login`,
 `/auth/*`, the `/api/v1/public/*` endpoints and the `/ws/*` sockets of the public/OBS pages are the
 only endpoints reachable without a prior session. The backend serves **no UI pages of its own**: every
-page below (including `/site`, `/room/{slug}`, `/station/{slug}`, `/prompter`, `/overlay/{id}`,
+page below (including `/site`, `/room/{slug}`, `/prompter`, `/overlay/{id}`,
 `/replay/{id}`, `/notify`) is a route of the React SPA, which the catch-all serves as `index.html`.
 
 ## Health & Status
@@ -172,7 +172,6 @@ their data (below) plus two static files from the built SPA:
 | GET | `/site` | Competitor site (hash-routed SPA page). Data: `/api/v1/public/site/*`. |
 | GET | `/room/{slug}` | Room display: livestream embed, team list and live alerts over `/ws/room/{slug}`. Shows "Room not found" for an unknown room (the data call 404s). |
 | GET | `/notify` | Public phone page: pick any team(s) (list from `/api/v1/public/site/teams`) and turn on notifications. No QR, room or login. |
-| GET | `/station/{slug}` | iPad station (`?k=` key, PIN gate). |
 | GET | `/overlay/{entity_id}`, `/replay/{entity_id}` | OBS browser sources (fixed 1920x1080, transparent; `/overlay` also `?mode=iq\|vrc`, `?team=`, `?robot_name=1`; `/replay` `?label=1`). |
 | GET | `/sw.js` | Service worker (file from the built SPA; `Cache-Control: no-cache`, `Service-Worker-Allowed: /`). |
 | GET | `/notify.webmanifest` | PWA manifest (`application/manifest+json`; iOS only delivers push to a web app added to the Home Screen). |
@@ -246,24 +245,15 @@ Besides `service`, `script`, `delay`, `condition` and `repeat`, action chains (b
 | POST | `/api/v1/overlays/{entity_id}/show-team` | Finals spotlight: show one team on an overlay; `{"team": null}` returns to the match view (`overlays:edit`). |
 
 
-## Comms (issue #8)
+## Agenda
 
-Staff (`comms:read` / `comms:send` / `comms:manage`):
+Staff (`comms:read` to list, `comms:manage` to write; the keys keep their old names). The agenda is shown on the public site and announced to the rooms. There is no admin page for it.
 
-| Method | Path | Description |
+| Method | Path | Notes |
 |---|---|---|
-| GET/POST | `/api/v1/comms/stations` | List / create stations (`manage` to write). |
-| PUT/DELETE | `/api/v1/comms/stations/{slug}` | Update / delete a station. |
-| GET/POST, PUT/DELETE | `/api/v1/comms/presets[/{id}]` | Canned messages (optionally per role, optionally flashing). |
-| GET/POST, PUT/DELETE | `/api/v1/comms/agenda[/{id}]` | Day / finals agenda items (ordered by `position`; a new item without one slots in by start time). `announce_lead_minutes` (null = default, 0 = never) schedules an automatic room + push announcement before `start_time` (event timezone set in the `notifications` setting). |
-| POST | `/api/v1/comms/send` | Send text (optional flash) to stations, roles or everyone. |
-| POST | `/api/v1/comms/screen` | Push a screen (`messages`, `countdown`, `agenda_day`, `agenda_finals`); stations whose role can't show it are skipped. |
-| GET | `/api/v1/comms/inbox` | Messages typed on iPads (`?unacknowledged=true`). |
-| POST | `/api/v1/comms/inbox/{id}/ack` | Mark read. |
-| DELETE | `/api/v1/comms/inbox` | Clear read messages. |
-
-Public (the station slug is the credential): `GET /api/v1/public/stations/{slug}`, `.../agenda`, `.../next-match` (emcees only), `POST .../messages`; SPA page `/station/{slug}`; socket `/ws/station/{slug}`.
-
+| GET/POST, PUT/DELETE | `/api/v1/comms/agenda[/{id}]` | Day / finals agenda items (ordered by `position`; a new item without one slots in by start time). `announce_lead_minutes` (null = default, 0 = never) schedules the room announcement. |
+| PUT | `/api/v1/comms/agenda/order` | `{scope, ids}` drag-and-drop order. |
+| POST | `/api/v1/comms/agenda/import` | `{scope, text, replace, dry_run}`; lines `HH:MM[-HH:MM] Title [\| details]`, all-or-nothing with per-line errors. |
 
 ## Public website data (issue #10)
 
@@ -283,22 +273,6 @@ Unauthenticated, display-safe. The page itself is at `/site` (hash-routed: `#eve
 `agenda_announcements_enabled` / `agenda_lead_minutes` (default 10) / `timezone` (IANA, default `UTC`): announce agenda items to every room and to subscribers who kept the `announcement` category.
 
 The `overlay` system setting (`{"show_robot_name": true}`) makes `GET /api/v1/public/overlay/teams` return `show_robot_name: true`, which makes the overlay print each team's robot name. Opt-in because robot names need VEX Events approval; `?robot_name=1` on the overlay URL forces it for one browser source.
-
-### Comms: station timer screen, secured stations, presence, agenda tools (issue #27)
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/comms/screen` with `"screen": "timer"` | Shows a Timer-Teleprompter timer instance on the stations' timer screen (`comms:send`): body `{stations?, roles?, screen: "timer", timer: "<entity_id>"}` (422 if the timer is unknown or missing). The iPads then follow that instance live; it is started/stopped/reset through `/api/v1/timers/{entity_id}/start|stop|reset` like the prompter. The old ad-hoc `POST /api/v1/comms/timer` (count-up, pause, ±1 min) is gone. |
-| POST | `/api/v1/comms/stations/{slug}/rotate-link` | Secures the station (if needed) and issues a new key; old links/tokens stop working (`comms:manage`). Returns `{access_key, path}`. |
-| GET | `/api/v1/comms/stations/{slug}/link` | The current private link (`comms:manage`). |
-| PUT | `/api/v1/comms/stations/{slug}/pin` | `{"pin": "4821"}` (4-8 digits) sets a PIN on top of the key; `null` clears it. |
-| DELETE | `/api/v1/comms/stations/{slug}/link` | Removes key and PIN (the plain link works again). |
-| PUT | `/api/v1/comms/agenda/order` | `{scope, ids}` drag-and-drop order. |
-| POST | `/api/v1/comms/agenda/import` | `{scope, text, replace, dry_run}`; lines `HH:MM[-HH:MM] Title [\| details]`, all-or-nothing with per-line errors. |
-
-`GET /api/v1/comms/stations` also reports `secured`, `has_pin`, `connected` and `last_seen` (presence: each open page pings its websocket every ~25 s).
-
-Secured stations: the page link is `/station/{slug}?k=<key>`; every public call needs the key (`X-Station-Key` header or `k`), plus — when a PIN is set — an unlock token (`X-Station-Token` or `t`) from `POST /api/v1/public/stations/{slug}/unlock {pin}` (valid 12 h, revoked by any key/PIN change; 10 wrong PINs lock the station for 10 minutes). 401 `detail` is `key` or `pin` so the page knows what to ask for.
 
 ### Public site extras (issue #28)
 
