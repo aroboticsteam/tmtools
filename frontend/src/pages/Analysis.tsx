@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Send, Undo2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Send, Undo2, Zap } from 'lucide-react';
 import {
   useCaptureRecordings,
   useCaptureStatus,
@@ -38,7 +38,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Segmented, Tabs } from '../components/ui/Tabs';
 import { MatchPlayer, type SeekRequest } from '../components/analysis/MatchPlayer';
 import { Input, Label, Select } from '../components/ui/Input';
-import type { CaptureRecording, ReplayAction, ReplayState } from '../types/api';
+import type { CaptureRecording } from '../types/api';
 
 type Tab = 'stats' | 'match';
 
@@ -133,61 +133,6 @@ function AnalysisDesk() {
           />
         )}
       </div>
-    </div>
-  );
-}
-
-function clock(sec: number | null | undefined): string {
-  const t = Math.max(0, Math.floor(sec ?? 0));
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-}
-
-/** What is on program right now: the clip, a live progress bar and position reported by the replay page itself. */
-function OnProgram({ replay, replayId, speed, canControl, onControl }: {
-  replay: ReplayState;
-  replayId: string;
-  speed: number;
-  canControl: boolean;
-  onControl: (body: { action: ReplayAction; value?: number }) => void;
-}) {
-  const live = useWsStore((s) => s.replayStatus[replayId]);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  const offline = !live || !live.player;
-  const stalled = !!live && live.player && !live.paused && !live.ended && now - live.at > 3000;
-  // The page's own report wins while it is fresh; a silent or missing page falls back to what was last commanded.
-  const fresh = !!live && live.player && now - live.at < 3000;
-  const paused = fresh ? !!live.paused : !!replay.paused;
-  const duration = live?.duration ?? 0;
-  const position = live?.position ?? 0;
-  const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-  const state = live?.ended ? 'Finished' : paused ? 'Paused' : 'Playing';
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-vmd-border bg-white p-3 text-sm" aria-label="On program" data-testid="on-program">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-auto text-vmd-textMuted">
-          On program: <span className="font-medium text-vmd-textStrong">{replay.label ?? 'Replay'}</span>
-          <span className="mx-2" data-testid="on-program-state">{offline ? 'Waiting for the replay page' : stalled ? 'Stalled' : state}</span>
-          at {live?.rate ?? replay.rate ?? speed}×
-        </span>
-        <Button disabled={!canControl} onClick={() => onControl({ action: paused ? 'resume' : 'pause' })}>
-          {paused ? <Play size={16} /> : <Pause size={16} />}
-          {paused ? 'Resume' : 'Pause'}
-        </Button>
-        <Button disabled={!canControl} onClick={() => onControl({ action: 'restart' })}>
-          <RotateCcw size={16} /> Restart
-        </Button>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
-          <div className="h-full bg-neutral-800" style={{ width: `${pct}%` }} />
-        </div>
-        <span className="tabular-nums text-xs text-vmd-textMuted" data-testid="on-program-time">{clock(position)} / {clock(duration)}</span>
-      </div>
-      {offline && <p className="text-xs text-vmd-textSubtle">No replay page is connected. Add <code>/replay/{replayId}</code> as a browser source (or open it) to see it play.</p>}
     </div>
   );
 }
@@ -427,7 +372,6 @@ function MatchTab({
   const player = (
     <>
       <MatchPlayer recording={recording} seek={seek} />
-      {replay?.playing && <OnProgram replay={replay} replayId={setup.replayId} speed={speed} canControl={canControl} onControl={(body) => control.mutate(body)} />}
     </>
   );
 

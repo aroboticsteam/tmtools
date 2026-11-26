@@ -101,22 +101,6 @@ describe('AnalysisPage', () => {
     expect(play.mock.calls[0][0]).toEqual({ kind: 'moment', id: 'm1', rate: 0.25 });
   });
 
-  it('shows what is on program live, from the replay page itself', () => {
-    replayState.value = { playing: true, paused: false, label: 'Q 2', rate: 0.5 };
-    useWsStore.setState({ replayStatus: { main: { player: true, position: 65, duration: 130, rate: 0.5, paused: false, at: Date.now() } } });
-    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
-    expect(screen.getByTestId('on-program')).toHaveTextContent('Q 2');
-    expect(screen.getByTestId('on-program-state')).toHaveTextContent('Playing');
-    expect(screen.getByTestId('on-program-time')).toHaveTextContent('1:05 / 2:10');
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
-  });
-
-  it('says when no replay page is connected to play it', () => {
-    replayState.value = { playing: true, paused: false, label: 'Q 2', rate: 0.5 };
-    render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
-    expect(screen.getByTestId('on-program-state')).toHaveTextContent('Waiting for the replay page');
-  });
-
   it('navigates between matches and shows team stats without predictions', async () => {
     render(<MemoryRouter><AnalysisPage /></MemoryRouter>);
     await userEvent.click(screen.getByLabelText('Previous match'));
