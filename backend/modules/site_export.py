@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 #: The built SPA baked into the image (see `backend/main.py`). Absent in a bare backend checkout.
 _FRONTEND_DIST = Path(__file__).parent.parent / "static" / "frontend"
 #: Marks the SPA as the static copy (frontend/src/public/siteUrl.ts); `<base>` keeps the relative
-#: `data/`, `images/` and `files/` URLs working from deep links like `/site/leaderboard`.
+#: `data/`, `images/` and `files/` URLs working from deep links like `/site/x`.
 _STATIC_FLAG = '<base href="/"><script>window.__SITE_STATIC__=true</script>'
 _IMAGE_PATH = re.compile(r"^/api/v1/public/site/image/([0-9a-f]{32}\.(?:png|jpg|gif|webp))$")
 _EXT_BY_TYPE = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}

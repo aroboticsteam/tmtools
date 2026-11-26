@@ -348,7 +348,7 @@ async def leaderboards(
 ) -> dict[str, Any]:
     """Overall / tournament / skills / awards leaderboards per programme, with
     the rotation timing (`panel_seconds` per panel, `programme_seconds` before
-    switching IQ <-> VRC) that the `/site/leaderboard` display page follows."""
+    switching IQ <-> VRC) (site setting `leaderboard`)."""
     profiles = list((await db.execute(select(TeamProfile))).scalars())
     schedules = await _schedules(redis)
     division_programme = {d: _programme(ms) for d, ms in schedules.items()}

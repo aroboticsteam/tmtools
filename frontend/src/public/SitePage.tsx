@@ -173,7 +173,7 @@ function Home({ o, d }: { o: SiteOverview; d: SiteEvent }) {
   }
   const links: [string, string][] = [
     ['#event', 'Agenda, matches & rankings'], ['#teams', 'Team profiles'], ['#live', 'Livestreams'], ['#map', 'Event map'],
-    ['/site/leaderboard', 'Live leaderboards'], ...(STATIC_SITE ? [] : [['/notify', 'Get match alerts on your phone'] as [string, string]]),
+    ...(STATIC_SITE ? [] : [['/notify', 'Get match alerts on your phone'] as [string, string]]),
   ];
   return (
     <div>

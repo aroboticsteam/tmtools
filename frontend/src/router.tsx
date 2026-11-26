@@ -36,7 +36,6 @@ const publicRoute = (path: string, load: () => Promise<{ Component: React.Compon
 
 const publicRoutes: RouteObject[] = [
   publicRoute('/site', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
-  publicRoute('/site/leaderboard', async () => ({ Component: (await import('./public/LeaderboardPage')).LeaderboardPage })),
   publicRoute('/notify', async () => ({ Component: (await import('./public/NotifyPage')).NotifyPage })),
   publicRoute('/room/:slug', async () => ({ Component: (await import('./public/RoomPage')).RoomPage })),
   publicRoute('/station/:slug', async () => ({ Component: (await import('./public/StationPage')).StationPage })),
@@ -52,7 +51,6 @@ const publicRoutes: RouteObject[] = [
 const staticSiteRoutes: RouteObject[] = [
   publicRoute('/', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
   publicRoute('/site', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
-  publicRoute('/site/leaderboard', async () => ({ Component: (await import('./public/LeaderboardPage')).LeaderboardPage })),
   publicRoute('*', async () => ({ Component: (await import('./public/SitePage')).SitePage })),
 ];
 

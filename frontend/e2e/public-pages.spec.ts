@@ -54,8 +54,6 @@ test.describe('public pages (signed out, no admin shell)', () => {
 
       await page.goto('/replay/e2e-main');
       await expect(page.locator('#player')).toBeAttached();
-      await page.goto('/site/leaderboard');
-      await expect(page.locator('#prog')).toBeAttached();
       await ctx.close();
     } finally {
       await request.delete(`/api/v1/timers/${timerId}`);

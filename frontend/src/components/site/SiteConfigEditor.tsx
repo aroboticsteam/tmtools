@@ -2,8 +2,6 @@ import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Plus, Trash2, Upload } from 'lucide-react';
 import { usePublicOverview, useUploadSiteImage } from '../../api/site';
 import {
-  DEFAULT_PANEL_SECONDS,
-  DEFAULT_PROGRAMME_SECONDS,
   parseTeamList,
   percentPosition,
   siteProblems,
@@ -52,7 +50,6 @@ export function SiteConfigEditor({
   const nc = value.next_competition ?? {};
   const setNc = (patch: Partial<NonNullable<SiteConfig['next_competition']>>) => set({ next_competition: { ...nc, ...patch } });
   const problems = siteProblems(value);
-  const lb = value.leaderboard ?? {};
 
   return (
     <div className="space-y-5" data-testid="site-config">
@@ -104,36 +101,6 @@ export function SiteConfigEditor({
       <HeroImageEditor config={value} onChange={set} disabled={disabled} />
       <SponsorsEditor sponsors={value.sponsors ?? []} onChange={(sponsors) => set({ sponsors })} disabled={disabled} />
       <MapEditor map={value.map ?? {}} onChange={(map) => set({ map })} disabled={disabled} />
-
-      <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-vmd-textMuted">Leaderboards (/site/leaderboard)</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <Label>Seconds per panel (overall → tournament → skills → awards)</Label>
-            <Input
-              type="number"
-              min={5}
-              max={3600}
-              value={lb.panel_seconds ?? DEFAULT_PANEL_SECONDS}
-              onChange={(e) => set({ leaderboard: { ...lb, panel_seconds: Number(e.target.value) } })}
-              disabled={disabled}
-              aria-label="Seconds per panel"
-            />
-          </div>
-          <div>
-            <Label>Seconds before swapping IQ ↔ VRC</Label>
-            <Input
-              type="number"
-              min={5}
-              max={3600}
-              value={lb.programme_seconds ?? DEFAULT_PROGRAMME_SECONDS}
-              onChange={(e) => set({ leaderboard: { ...lb, programme_seconds: Number(e.target.value) } })}
-              disabled={disabled}
-              aria-label="Seconds per programme"
-            />
-          </div>
-        </div>
-      </section>
 
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-vmd-textMuted">Match recordings</h3>

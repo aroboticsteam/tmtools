@@ -28,13 +28,12 @@ describe('helpers', () => {
 });
 
 describe('siteProblems', () => {
-  it('flags unsafe links, bad dates and out-of-range timings', () => {
+  it('flags unsafe links and bad dates', () => {
     const problems = siteProblems({
       next_competition: { name: 'N', url: 'javascript:x', registration_url: 'https://ok.example', date: '10/01/2027' },
       sponsors: [{ name: 'A', url: 'nope' }],
       hero_image_url: 'ftp://x',
       recording_url_template: 'file:///{label}',
-      leaderboard: { panel_seconds: 1, programme_seconds: 99999 },
     });
     expect(problems).toEqual([
       'Next competition link must start with http:// or https://',
@@ -42,8 +41,6 @@ describe('siteProblems', () => {
       'Homepage image URL must start with http:// or https://',
       'Recording URL template must start with http:// or https://',
       'Next competition date must be YYYY-MM-DD',
-      'Panel seconds must be between 5 and 3600',
-      'Programme seconds must be between 5 and 3600',
     ]);
   });
   it('accepts a clean config and templates with placeholders', () => {

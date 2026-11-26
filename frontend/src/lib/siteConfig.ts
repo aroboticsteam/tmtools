@@ -29,7 +29,6 @@ export interface SiteConfig {
   };
   sponsors?: SiteSponsor[];
   map?: { image_key?: string; image_url?: string; rooms?: SiteRoom[] };
-  leaderboard?: { panel_seconds?: number; programme_seconds?: number };
   recording_url_template?: string;
   /** Colour overrides for the public site: CSS tokens (primary, accent, bg, ...) to `#hex`, per mode. Unset = neutral defaults. */
   theme?: { dark?: Record<string, string>; light?: Record<string, string> };
@@ -39,8 +38,6 @@ export interface SiteConfig {
   [key: string]: unknown;
 }
 
-export const DEFAULT_PANEL_SECONDS = 60;
-export const DEFAULT_PROGRAMME_SECONDS = 240;
 
 /** `{x, y}` in percent (0–100, one decimal) of a click inside a rectangle. */
 export function percentPosition(
@@ -77,10 +74,6 @@ export function siteProblems(config: SiteConfig): string[] {
     out.push('Recording URL template must start with http:// or https://');
   }
   if (nc?.date && nc.date.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(nc.date.trim())) out.push('Next competition date must be YYYY-MM-DD');
-  const lb = config.leaderboard;
-  for (const [label, value] of [['Panel seconds', lb?.panel_seconds], ['Programme seconds', lb?.programme_seconds]] as const) {
-    if (value !== undefined && (!Number.isFinite(value) || value < 5 || value > 3600)) out.push(`${label} must be between 5 and 3600`);
-  }
   return out;
 }
 

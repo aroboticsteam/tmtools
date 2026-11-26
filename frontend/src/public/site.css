@@ -147,3 +147,22 @@
 .pubsite .map {max-height: 60vh;}
 }
 .pubsite { min-height: 100vh; }
+
+/* Alerts sign-up (/notify): the site's look, one narrow column. */
+.pubsite.notify-page {min-height: 100vh;}
+.pubsite.notify-page main {max-width: 520px; padding-bottom: 2rem;}
+.pubsite.notify-page h2 {margin-top: 0;}
+.pubsite.notify-page p.muted {margin: .25rem 0 1rem;}
+.pubsite.notify-page .card {margin-bottom: 1rem;}
+.pubsite.notify-page input[type=search] {width: 100%; padding: .7rem; font-size: 1rem;}
+.pubsite.notify-page .list {max-height: 45vh; overflow: auto; margin-top: .6rem; border: 1px solid var(--line); border-radius: 8px;}
+.pubsite.notify-page label.row {display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border-bottom: 1px solid var(--line); font-size: 1.05rem;}
+.pubsite.notify-page label.row:last-child {border-bottom: 0;}
+.pubsite.notify-page label.row input {width: 1.2rem; height: 1.2rem; padding: 0; accent-color: var(--accent);}
+.pubsite.notify-page .count {color: var(--muted); font-size: .9rem; margin-top: .5rem;}
+.pubsite.notify-page fieldset {border: 1px solid var(--line); border-radius: 8px; margin: .8rem 0 0; padding: .4rem .6rem;}
+.pubsite.notify-page button.wide {width: 100%; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: .9rem; font: inherit; font-size: 1.05rem; font-weight: 600; margin-top: .6rem; cursor: pointer;}
+.pubsite.notify-page button.wide.secondary {background: var(--raise); color: var(--ink); border: 1px solid var(--line);}
+.pubsite.notify-page button:disabled {opacity: .5; cursor: default;}
+.pubsite.notify-page .msg {padding: .7rem .9rem; border-radius: 8px; margin-bottom: 1rem; background: var(--raise); border: 1px solid var(--line);}
+.pubsite.notify-page .msg.err {border-color: var(--red); color: var(--red);}

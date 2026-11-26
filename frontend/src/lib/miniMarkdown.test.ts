@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { schedule } from './leaderboardSchedule';
 import { formatAwards, formatClock, normalizePrompterTeam, renderMarkdown } from './miniMarkdown';
 
 describe('teleprompter helpers', () => {
@@ -17,14 +16,5 @@ describe('teleprompter helpers', () => {
     expect(formatAwards([])).toBeNull();
     expect(normalizePrompterTeam('1A')).toMatchObject({ team_number: '1A', rank: null, awards: [] });
     expect(normalizePrompterTeam({ number: 7, name: 'Bot', rank: 2 })).toMatchObject({ team_number: '7', team_name: 'Bot', rank: 2 });
-  });
-});
-
-describe('leaderboard rotation', () => {
-  it('is a pure function of the clock: panels cycle, programmes alternate', () => {
-    expect(schedule(0, 1, 10, 40)).toEqual({ group: 0, panel: 0, progress: 0 });
-    expect(schedule(25, 1, 10, 40)).toMatchObject({ group: 0, panel: 2, progress: 0.5 });
-    expect(schedule(45, 2, 10, 40)).toMatchObject({ group: 1, panel: 0 });
-    expect(schedule(85, 2, 10, 40)).toMatchObject({ group: 0 });
   });
 });

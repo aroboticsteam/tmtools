@@ -70,7 +70,6 @@ describe('public site', () => {
     expect(await screen.findByRole('heading', { name: 'Welcome to Example Battle' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Top 50 qualification rankings' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Top 50 skills' })).toBeTruthy();
-    expect(screen.getByText('Live leaderboards').getAttribute('href')).toBe('/site/leaderboard');
     expect(screen.getByText('Get match alerts on your phone').getAttribute('href')).toBe('/notify');
     expect(document.querySelector('aside')).toBeNull();
     expect(document.querySelector('.pubsite style')?.textContent).toContain('--primary:#112233');

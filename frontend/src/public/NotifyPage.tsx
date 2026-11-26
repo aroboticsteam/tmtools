@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/http';
+import { themeCss } from './SitePage';
+import { useSiteQuery } from './siteData';
+import type { SiteOverview } from './siteData';
 import { usePageChrome } from './usePageChrome';
-import './screens.css';
+import './site.css';
 
 const STORE = 'tmtools-notify';
 const CATEGORIES: [string, string][] = [
@@ -37,10 +41,13 @@ const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'No
 
 /** Public "follow any teams" page (`/notify`): Web Push subscription for spectators. */
 export function NotifyPage() {
+  // Same look as /site: its colours come from the `site` setting's theme.
+  const overview = useSiteQuery<SiteOverview>('overview');
+  const siteTitle = overview.data?.title || 'Competition';
+  const css = useMemo(() => themeCss(overview.data?.theme), [overview.data?.theme]);
   usePageChrome({
     title: 'Match alerts',
-    body: { background: '#0f1115' },
-    themeColor: '#0f1115',
+    themeColor: overview.data?.theme?.dark?.primary || '#171717',
     manifest: '/notify.webmanifest',
     meta: { 'apple-mobile-web-app-capable': 'yes', 'mobile-web-app-capable': 'yes' },
   });
@@ -173,9 +180,19 @@ export function NotifyPage() {
   }
 
   return (
-    <div className="pub-screen notify-page">
+    <div className="pubsite notify-page">
+      {css ? <style>{css}</style> : null}
+      <header>
+        <div className="bar">
+          <h1>{siteTitle}</h1>
+          <nav>
+            <Link to="/site">Site</Link>
+            <Link to="/notify" className="active">Alerts</Link>
+          </nav>
+        </div>
+      </header>
       <main>
-        <h1>Match alerts</h1>
+        <h2>Match alerts</h2>
         <p className="muted">Pick any team(s) and get a notification before each match and when scores are posted.</p>
         {msg ? <div className={`msg${msg.err ? ' err' : ''}`} role={msg.err ? 'alert' : 'status'}>{msg.text}</div> : null}
         {isIos && !standalone ? (

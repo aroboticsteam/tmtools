@@ -1,4 +1,4 @@
-/* Standalone dark screens: room display, notify, leaderboards, station iPads.
+/* Standalone dark screens: room display, station iPads.
    Scoped so they never leak into the admin shell. */
 .pub-screen { color-scheme: dark; background: #0f1115; color: #eceff4; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
 .pub-screen *, .pub-screen *::before, .pub-screen *::after { box-sizing: border-box; }
@@ -23,47 +23,7 @@
 .room-modal .box { background: #1b2030; border: 1px solid #3a4666; border-radius: 16px; padding: 2rem; max-width: 640px; width: 100%; text-align: center; }
 .room-modal h2 { margin: 0 0 .75rem; font-size: 1.8rem; font-weight: 700; }
 .room-modal p { margin: 0 0 1.25rem; font-size: 1.3rem; white-space: pre-wrap; }
-.room-modal button, .notify-page button.primary { background: #3b6fe0; color: #fff; border: 0; border-radius: 8px; padding: .6rem 1.4rem; font-size: 1rem; }
-
-/* ── Notify ── */
-.notify-page { min-height: 100vh; padding: max(1rem, env(safe-area-inset-top)) 1rem 2rem; }
-.notify-page main { max-width: 520px; margin: 0 auto; }
-.notify-page h1 { font-size: 1.4rem; font-weight: 700; margin: .5rem 0 .25rem; }
-.notify-page p.muted { color: #9aa3b8; margin: .25rem 0 1rem; }
-.notify-page .card { background: #161a23; border: 1px solid #262c3c; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
-.notify-page input[type=search] { width: 100%; padding: .7rem; font-size: 1rem; border-radius: 8px; border: 1px solid #333b52; background: #0f1219; color: inherit; }
-.notify-page .list { max-height: 45vh; overflow: auto; margin-top: .6rem; border: 1px solid #262c3c; border-radius: 8px; }
-.notify-page label.row { display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border-bottom: 1px solid #1f2535; font-size: 1.05rem; }
-.notify-page label.row:last-child { border-bottom: 0; }
-.notify-page label.row input { width: 1.2rem; height: 1.2rem; }
-.notify-page button.wide { width: 100%; background: #3b6fe0; color: #fff; border: 0; border-radius: 10px; padding: .9rem; font-size: 1.05rem; margin-top: .6rem; }
-.notify-page button.wide.secondary { background: #262c3c; }
-.notify-page button:disabled { opacity: .5; cursor: default; }
-.notify-page .msg { padding: .7rem .9rem; border-radius: 8px; margin-bottom: 1rem; background: #1f2638; border: 1px solid #3a4666; }
-.notify-page .msg.err { border-color: #a14a4a; background: #2a1a1a; }
-.notify-page .count { color: #9aa3b8; font-size: .9rem; margin-top: .5rem; }
-.notify-page fieldset { border: 1px solid #262c3c; border-radius: 8px; margin: .8rem 0 0; padding: .4rem .6rem; }
-
-/* ── Big-screen leaderboards ── */
-.lb-page { --lb-line: #262c3c; --lb-muted: #8e97ad; --lb-accent: #3b6fe0; background: #0b0d12; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-.lb-page header { display: flex; align-items: baseline; gap: 1.5rem; padding: 1rem 2rem .6rem; }
-.lb-page header h1 { margin: 0; font-size: clamp(1.6rem, 3.2vw, 3rem); font-weight: 700; flex: 1; }
-.lb-page .prog { font-size: clamp(1.1rem, 2.2vw, 2rem); color: var(--lb-accent); font-weight: 700; }
-.lb-page .tabs { display: flex; gap: .5rem; padding: 0 2rem; }
-.lb-page .tabs span { padding: .3rem 1rem; border-radius: 999px; border: 1px solid var(--lb-line); color: var(--lb-muted); font-size: clamp(.9rem, 1.6vw, 1.4rem); }
-.lb-page .tabs span.on { background: var(--lb-accent); border-color: var(--lb-accent); color: #fff; }
-.lb-page .bar { height: 6px; background: var(--lb-line); margin: .8rem 2rem 0; border-radius: 3px; overflow: hidden; }
-.lb-page .bar i { display: block; height: 100%; background: var(--lb-accent); transition: width .25s linear; }
-.lb-page main { flex: 1; padding: 1rem 2rem 2rem; overflow: hidden; }
-.lb-page table { width: 100%; border-collapse: collapse; font-size: clamp(1rem, 2.2vw, 2rem); }
-.lb-page th, .lb-page td { padding: .35em .7em; text-align: left; border-bottom: 1px solid var(--lb-line); }
-.lb-page th { color: var(--lb-muted); font-weight: 600; font-size: .7em; text-transform: uppercase; letter-spacing: .05em; }
-.lb-page td.n, .lb-page th.n { text-align: right; font-variant-numeric: tabular-nums; }
-.lb-page td.rank { width: 3.5em; font-weight: 800; color: #fff; }
-.lb-page tr:nth-child(1) td.rank { color: #ffd166; } .lb-page tr:nth-child(2) td.rank { color: #cfd5e4; } .lb-page tr:nth-child(3) td.rank { color: #e29a5d; }
-.lb-page .name { color: var(--lb-muted); font-size: .8em; margin-left: .6em; }
-.lb-page .empty { color: var(--lb-muted); font-size: 1.6rem; text-align: center; margin-top: 4rem; }
-.lb-page main.fade { animation: lb-fade .5s ease; } @keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.room-modal button { background: #3b6fe0; color: #fff; border: 0; border-radius: 8px; padding: .6rem 1.4rem; font-size: 1rem; }
 
 /* ── Station iPads ── */
 .station-page { height: 100vh; display: flex; flex-direction: column; -webkit-text-size-adjust: 100%; }
