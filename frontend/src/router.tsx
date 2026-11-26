@@ -20,6 +20,7 @@ import { ButtonPagesPage } from './pages/ButtonPages';
 import { AnalysisPage } from './pages/Analysis';
 import { PhotoBoothPage } from './pages/PhotoBooth';
 import { TimersPage } from './pages/Timers';
+import { AgendaPage } from './pages/Agenda';
 import { AuditLogPage } from './pages/AuditLog';
 import { SettingsPage } from './pages/Settings';
 import { UsersPage } from './pages/Users';
@@ -83,8 +84,9 @@ export const router = createBrowserRouter(STATIC_SITE ? staticSiteRoutes : [
       { path: 'analysis', element: <AnalysisPage /> },
       { path: 'record', element: <PhotoBoothPage /> },
       { path: 'timers', element: <TimersPage /> },
-      // The Comms page was removed; old bookmarks land on Timers.
-      { path: 'comms', element: <Navigate to="/timers" replace /> },
+      { path: 'agenda', element: <AgendaPage /> },
+      // The Comms page was removed; old bookmarks land on the agenda.
+      { path: 'comms', element: <Navigate to="/agenda" replace /> },
       { path: 'audit', element: <AuditLogPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'users', element: <UsersPage /> },
