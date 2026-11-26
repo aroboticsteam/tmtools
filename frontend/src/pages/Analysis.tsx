@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Send, Undo2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Send, Undo2, Zap } from 'lucide-react';
 import {
   useCaptureRecordings,
   useCaptureStatus,
