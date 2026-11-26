@@ -27,11 +27,30 @@ export function ReplayPage() {
   const video = useRef<HTMLVideoElement>(null);
   const label = useRef<HTMLDivElement>(null);
   const rate = useRef(0.5);
+  // True from a new source until its play() has settled: Chrome fires play/pause/ratechange while it loads, and
+  // reporting those made the analysis desk flash "Paused" for a clip that was starting fine.
+  const starting = useRef(false);
 
   usePageChrome({
     title: 'TMTools Replay',
     body: { background: 'transparent', overflow: 'hidden', margin: '0', width: '1920px', height: '1080px' },
   });
+
+  // A browser tab (not OBS) blocks autoplay until someone clicks the page; a muted start is always allowed, so
+  // fall back to that rather than sit on the first frame.
+  const start = useCallback((v: HTMLVideoElement) => {
+    starting.current = true;
+    const settle = () => {
+      starting.current = false;
+      v.dispatchEvent(new Event('statusnow'));
+    };
+    v.play().then(settle, (err: unknown) => {
+      // AbortError = a newer source replaced this one (its own start() follows); only a blocked autoplay needs muting.
+      if (!(err instanceof DOMException) || err.name !== 'NotAllowedError') return;
+      v.muted = true;
+      v.play().then(settle, settle);
+    });
+  }, []);
 
   const handle = useCallback(
     (msg: unknown) => {
@@ -52,19 +71,22 @@ export function ReplayPage() {
             l.textContent = m.label;
             l.classList.add('on');
           }
-          const p = m.paused ? null : v.play();
-          if (p && p.catch) p.catch(() => undefined);
+          if (m.paused) {
+            starting.current = false;
+          } else {
+            start(v);
+          }
           break;
         }
         case 'pause':
           v.pause();
           break;
         case 'resume':
-          v.play().catch(() => undefined);
+          start(v);
           break;
         case 'restart':
           v.currentTime = 0;
-          v.play().catch(() => undefined);
+          start(v);
           break;
         case 'rate':
           rate.current = Number(m.value) || rate.current;
@@ -89,7 +111,7 @@ export function ReplayPage() {
           break;
       }
     },
-    [showLabel],
+    [showLabel, start],
   );
 
   // The browser resets playbackRate when the source changes; keep it applied.
@@ -117,8 +139,8 @@ export function ReplayPage() {
     const report = (force: boolean) => {
       const now = Date.now();
       if (!force && now - last < 500) return;
+      if (starting.current || !v.getAttribute('src')) return;
       last = now;
-      if (!v.getAttribute('src')) return;
       send({
         type: 'status',
         position: v.currentTime,
@@ -130,10 +152,12 @@ export function ReplayPage() {
     };
     const tick = () => report(false);
     const now = () => report(true);
+    v.addEventListener('statusnow', now);
     v.addEventListener('timeupdate', tick);
     for (const ev of ['play', 'pause', 'ended', 'seeked', 'ratechange', 'loadedmetadata']) v.addEventListener(ev, now);
     return () => {
       v.removeEventListener('timeupdate', tick);
+      v.removeEventListener('statusnow', now);
       for (const ev of ['play', 'pause', 'ended', 'seeked', 'ratechange', 'loadedmetadata']) v.removeEventListener(ev, now);
     };
   }, [send]);

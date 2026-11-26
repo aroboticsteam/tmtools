@@ -158,7 +158,9 @@ function OnProgram({ replay, replayId, speed, canControl, onControl }: {
   }, []);
   const offline = !live || !live.player;
   const stalled = !!live && live.player && !live.paused && !live.ended && now - live.at > 3000;
-  const paused = live ? !!live.paused : !!replay.paused;
+  // The page's own report wins while it is fresh; a silent or missing page falls back to what was last commanded.
+  const fresh = !!live && live.player && now - live.at < 3000;
+  const paused = fresh ? !!live.paused : !!replay.paused;
   const duration = live?.duration ?? 0;
   const position = live?.position ?? 0;
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
