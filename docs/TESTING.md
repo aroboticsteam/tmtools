@@ -20,7 +20,7 @@ alembic upgrade head
 python tools/e2e_seed.py                      # fixture teams + a cached TM schedule (python tools/e2e_seed.py --cleanup to remove)
 
 # 2. build the SPA into the backend and start it
-(cd frontend && npm run build) && rm -rf backend/static/frontend && cp -R frontend/dist backend/static/frontend
+(cd frontend && npm run build) && rm -rf backend/static/frontend && mkdir -p backend/static && cp -R frontend/dist backend/static/frontend
 python -m uvicorn backend.main:app --port 8765
 
 # 3. run
