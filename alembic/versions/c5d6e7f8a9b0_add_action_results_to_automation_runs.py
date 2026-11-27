@@ -4,7 +4,7 @@ Revision ID: c5d6e7f8a9b0
 Revises: f7a8b9c0d1e2
 Create Date: 2026-09-20 00:00:00.000000
 
-QA HIGH fix (Appendix A.7): `automation_runs.failed_action_index`/`error`
+QA HIGH fix: `automation_runs.failed_action_index`/`error`
 only ever recorded the *first* action failure in a chain, even though a
 failed action now correctly retries once and then lets the remaining
 actions run (see `AutomationEngine._execute_action_chain`). Multiple

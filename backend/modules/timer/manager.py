@@ -1,4 +1,4 @@
-"""Timer-Teleprompter instance manager (plan §5.10 / §7 / §C.2 / Appendix A.3).
+"""Timer-Teleprompter instance manager.
 
 FROZEN PUBLIC API — do not change method signatures without coordinating all
 dependent waves (plan §C.2):
@@ -213,8 +213,7 @@ class TimerManager:
         logger.info("TimerManager.reload(): %d timer instance(s) loaded", len(new_configs))
 
     async def start_countdown(self, entity_id: str) -> None:
-        """Begin (or restart) the countdown for `entity_id` (Appendix A.3:
-        triggered only by the EMCEE's "Start Countdown" button)."""
+        """Begin (or restart) the countdown for `entity_id` (triggered only by the EMCEE's "Start Countdown" button)."""
         cfg = self._require_config(entity_id)
         if not cfg.enabled:
             raise ValueError(f"Timer instance {entity_id!r} is disabled")
@@ -246,7 +245,7 @@ class TimerManager:
         self._ensure_tick_task(entity_id)
 
     async def stop_timer(self, entity_id: str) -> None:
-        """Manual stop (Appendix A.3 / plan §7 `timer_stopped`)."""
+        """Manual stop (`timer_stopped`)."""
         cfg = self._require_config(entity_id)
         state = await self._read_state(entity_id)
         elapsed = self._compute_elapsed(state)
@@ -458,7 +457,7 @@ class TimerManager:
 
     async def _transition_to_match_running(self, entity_id: str, cfg: _TimerConfig) -> None:
         """At T-0: emit `timer_finished`, then switch to a count-up "Match
-        Running" timer (Appendix A.3) until `matchStopped` is observed."""
+        Running" timer until `matchStopped` is observed."""
         now = time.time()
         state = {
             "phase": PHASE_MATCH_RUNNING,
@@ -479,7 +478,7 @@ class TimerManager:
 
     async def _complete_match(self, entity_id: str, cfg: _TimerConfig) -> None:
         """Transition to "Match Complete" on observing `matchStopped`
-        (Appendix A.3). Freezes the elapsed count-up value."""
+. Freezes the elapsed count-up value."""
         state = await self._read_state(entity_id)
         elapsed = self._compute_elapsed(state)
         await self._cancel_tick_task(entity_id)
@@ -516,7 +515,7 @@ class TimerManager:
     async def _events_listener(self) -> None:
         """Subscribes to `tmtools:events` to detect `matchStopped` events from
         the bound TM field and transition matching timers to "Match
-        Complete" (Appendix A.3)."""
+        Complete"."""
         pubsub = self._redis.pubsub()
         try:
             await pubsub.subscribe(EVENTS_CHANNEL)

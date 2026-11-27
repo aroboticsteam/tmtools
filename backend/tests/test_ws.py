@@ -120,7 +120,7 @@ def test_ws_overlay_connects_without_auth():
     with TestClient(app) as client:
         entity_id = f"overlay.test_{uuid.uuid4().hex[:8]}"
         with client.websocket_connect(f"/ws/overlay/{entity_id}") as ws:
-            # No auth required (plan Appendix A.1) — the connection simply
+            # No auth required — the connection simply
             # accepts. Publish a fieldMatchAssigned event for a field this
             # overlay isn't bound to (no OverlayInstance row exists for it),
             # so nothing should arrive; the connection itself succeeding

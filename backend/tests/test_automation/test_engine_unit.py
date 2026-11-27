@@ -172,7 +172,7 @@ def test_eval_bool_condition_true_and_false():
 
 
 def test_jinja_sandbox_blocks_class_escape():
-    """Appendix C.5: the Jinja2 environment must be a SandboxedEnvironment
+    """the Jinja2 environment must be a SandboxedEnvironment
     with no ability to reach unsafe internals like `''.__class__`."""
     from jinja2.exceptions import SecurityError
 
@@ -215,7 +215,7 @@ async def test_resolve_targets_by_tag_without_filter(engine, patch_loader):
 
 
 async def test_resolve_targets_by_tag_with_target_filter_intersect(engine, patch_loader):
-    """Appendix B.6 / plan §3.6: `target_filter` narrows a tag-targeted set
+    """`target_filter` narrows a tag-targeted set
     via `trigger.entity.tags | intersect(target.tags)` — only the entity
     sharing a field tag with the triggering entity should be selected."""
     patch_loader["spotify.fs1_field1"] = FakeIntegration(entity_id="spotify.fs1_field1", tags=["fieldAudio", "fs1"])
@@ -233,7 +233,7 @@ async def test_resolve_targets_by_tag_with_target_filter_intersect(engine, patch
 
 
 async def test_service_action_fires_tag_targets_simultaneously(engine, patch_loader):
-    """Appendix B.6: "Ordering: Simultaneous (not sequential)" — two slow
+    """"Ordering: Simultaneous (not sequential)" — two slow
     targets must both be mid-flight at the same time, not one after another."""
 
     class SlowIntegration(FakeIntegration):
@@ -266,7 +266,7 @@ async def test_service_action_no_targets_is_a_failure(engine, patch_loader):
     assert "No targets resolved" in err
 
 
-# ── Retry-once-then-continue error handling (Appendix A.7) ───────────────
+# ── Retry-once-then-continue error handling ───────────────
 
 
 async def test_action_retries_once_then_succeeds(engine, patch_loader):

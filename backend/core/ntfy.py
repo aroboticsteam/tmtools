@@ -1,11 +1,11 @@
-"""ntfy.sh-compatible push notification client (Appendix A.8).
+"""ntfy.sh-compatible push notification client.
 
 Reads `server_url`/`topic`/`enabled` from the `notifications` row of the
 `system_settings` table (Settings page -> Notifications section) and, when
 enabled and configured, POSTs to the ntfy server's simple HTTP API
 (`POST {server_url}/{topic}`, body = message, `Title`/`Priority` headers).
 
-Per Appendix C.2, `backend/core/` may only depend on stdlib + third-party
+`backend/core/` may only depend on stdlib + third-party
 packages — it must not import from `backend/models/`. Rather than import
 `backend.models.settings.SystemSetting` (the narrow exception
 `backend/core/dependencies.py` documents for RBAC), this reads the

@@ -45,7 +45,7 @@ const publicRoutes: RouteObject[] = [
   publicRoute('/replay/:entityId', async () => ({ Component: (await import('./public/ReplayPage')).ReplayPage })),
 ];
 
-// createBrowserRouter with nested routes (plan Appendix B.2). The public
+// createBrowserRouter with nested routes. The public
 // pages above sit outside ProtectedLayout, so they never ask for a login.
 // The exported static copy of the public site only has these routes (see public/siteUrl.ts).
 const staticSiteRoutes: RouteObject[] = [

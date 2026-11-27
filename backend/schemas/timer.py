@@ -14,7 +14,7 @@ class TimerInstanceBase(BaseModel):
     field_id: int
     tags: list[str] = Field(default_factory=list)
     enabled: bool = True
-    # Wave 2b addition — see backend/models/timer.py docstring. Appendix A.3:
+    # Wave 2b addition — see backend/models/timer.py docstring.
     # "Countdown duration ... Configurable per Timer instance in the UI (a
     # number field, in seconds). Not inside automation YAML."
     duration_s: int = Field(default=120, ge=1, description="Countdown duration in seconds.")
@@ -31,7 +31,7 @@ class TimerInstanceUpdate(BaseModel):
     tags: list[str] | None = None
     enabled: bool | None = None
     duration_s: int | None = Field(default=None, ge=1)
-    # Appendix B.8: "Regeneration ... Creates a new HMAC using a per-instance
+    # "Regeneration ... Creates a new HMAC using a per-instance
     # nonce stored in Postgres. Old tokens are immediately invalid." Setting
     # this true on a PUT rotates `token_nonce`, invalidating the previously
     # issued teleprompter link.
@@ -45,7 +45,7 @@ class TimerInstanceRead(TimerInstanceBase):
     created_at: datetime
     updated_at: datetime
     # Computed (not an ORM column name) — the current HMAC token for this
-    # instance's teleprompter link, per Appendix B.8. Populated by the
+    # instance's teleprompter link. Populated by the
     # router from `entity_id` + `token_nonce`; `token_nonce` itself is never
     # serialized to clients.
     prompter_token: str = Field(

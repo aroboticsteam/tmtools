@@ -1,6 +1,6 @@
 """Automations + automation-folders FastAPI router (plan §11 "Automations").
 
-Per Appendix C.5 rule 6, routers are stateless: every handler completes
+Routers are stateless: every handler completes
 within one request/response cycle and never spawns background asyncio
 tasks — the long-running `AutomationEngine` (event-bus subscription, hot
 reload) is started once by `main.py`'s lifespan and reached here via
@@ -374,8 +374,8 @@ async def trigger_automation(
 async def list_automation_runs(
     automation_id: UUID, session: AsyncSession = Depends(get_db)
 ) -> list[AutomationRunRead]:
-    """Appendix A.7's per-automation execution history (also surfaced as one
-    of the three debug views in Appendix A.11, which gates all three debug
+    """Per-automation execution history (also surfaced as one
+    of the three debug views, which gate all three debug
     views — this one, Integration Debug Log, Live Event Bus — on
     `settings:edit`, not `automations:read`)."""
     await _get_automation_or_404(session, automation_id)
@@ -394,7 +394,7 @@ async def list_automation_runs(
     dependencies=[Depends(require_permission("automations:edit"))],
 )
 async def validate_automation(body: ValidateRequest) -> ValidateResponse:
-    """Appendix A.7's "Validate" button: YAML + Jinja2 syntax check only —
+    """The "Validate" button: YAML + Jinja2 syntax check only —
     never executes any service call."""
     valid, errors = validate_automation_yaml(body.trigger_yaml, body.condition_yaml, body.action_yaml)
     return ValidateResponse(valid=valid, errors=errors)

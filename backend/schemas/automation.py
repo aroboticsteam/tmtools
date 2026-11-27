@@ -1,7 +1,7 @@
 """Pydantic schemas mirroring `backend.models.automation` (plan §8).
 
-Wave 3a additions: `AutomationRunRead` (Appendix A.7 execution history),
-`ValidateRequest`/`ValidateResponse` (Appendix A.7's "Validate" button — YAML
+Wave 3a additions: `AutomationRunRead` (execution history),
+`ValidateRequest`/`ValidateResponse` (the "Validate" button — YAML
 + Jinja2 syntax check, no service execution), and `TriggerResponse` (the
 result shape returned by `POST /api/v1/automations/{id}/trigger`, which
 delegates to `AutomationEngine.trigger()`).
@@ -92,10 +92,10 @@ class ScriptRead(ScriptBase):
 
 
 class ActionResult(BaseModel):
-    """Outcome of a single action within one chain execution (Appendix A.7).
+    """Outcome of a single action within one chain execution.
     One entry per action actually attempted — `status` is `"success"` or
     `"failed"` (a failed action has already been retried once immediately,
-    per plan Appendix A.7, before landing here as `"failed"`)."""
+    per, before landing here as `"failed"`)."""
 
     index: int
     status: str
@@ -103,7 +103,7 @@ class ActionResult(BaseModel):
 
 
 class AutomationRunRead(BaseModel):
-    """One row of an automation's execution history (Appendix A.7)."""
+    """One row of an automation's execution history."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,7 +119,7 @@ class AutomationRunRead(BaseModel):
 
 
 class ValidateRequest(BaseModel):
-    """Body for the "Validate" button's backend (Appendix A.7): checks YAML
+    """Body for the "Validate" button's backend: checks YAML
     syntax + Jinja2 expression syntax without executing any services."""
 
     trigger_yaml: str
@@ -138,7 +138,7 @@ class TriggerResponse(BaseModel):
     `failed_action_index`/`error` are kept for backwards compatibility and
     still describe only the *first* action that failed. `actions_executed`
     is the true count of actions attempted (a failed action is retried once
-    and, if still failing, the chain continues to the rest — Appendix A.7),
+    and, if still failing, the chain continues to the rest),
     and `action_results` gives the real per-action breakdown so a caller can
     tell exactly which actions succeeded vs failed when more than one does.
     """

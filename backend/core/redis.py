@@ -1,6 +1,6 @@
 """Async Redis client.
 
-Per Appendix A.9, the app treats Redis as a single endpoint (`REDIS_URL`).
+The app treats Redis as a single endpoint (`REDIS_URL`).
 HAProxy/infra is responsible for Sentinel-aware failover; no Sentinel client
 is implemented here.
 """
@@ -27,7 +27,7 @@ async def get_redis() -> AsyncGenerator[redis.Redis, None]:
 async def check_redis_connection() -> bool:
     """Best-effort connectivity check used by /readyz. Never raises.
 
-    Per Appendix A.10, Redis being unavailable must never crash the app —
+    Redis being unavailable must never crash the app —
     callers should treat a False return as "degraded", not fatal.
     """
     try:

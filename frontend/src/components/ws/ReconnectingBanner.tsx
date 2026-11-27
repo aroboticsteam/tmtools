@@ -1,7 +1,7 @@
 import { WifiOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 
-/** Plan Appendix A.14: shown wherever `useWebSocket` is mounted (this
+/** shown wherever `useWebSocket` is mounted (this
  * component is rendered once in `PageLayout` since `useUiStore`'s
  * `reconnecting` flag is shared/global — every page that opens a socket
  * sets/clears the same flag). */

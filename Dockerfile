@@ -1,4 +1,4 @@
-# TMTools backend image (plan §15 / Appendix B.1).
+# TMTools backend image.
 #
 # Base image note: the plan's §15 example pins `python:3.12-slim`. Verified
 # against `backend/requirements.txt`'s actual pins (fastapi==0.115.6,
@@ -37,7 +37,7 @@ FROM python:3.12-slim AS backend
 
 # ffmpeg: required by backend/modules/media/processor.py's green-screen
 # keying pipeline. libvpx-dev: WebM/VP9 encoding support for the same
-# pipeline (plan §5.13 / Appendix A.5).
+# pipeline.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libvpx-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -65,7 +65,7 @@ RUN groupadd --system --gid 1000 tmtools && useradd --system --uid 1000 --gid tm
 RUN chown -R tmtools:tmtools /app
 USER tmtools
 
-# Exactly 1 worker per pod (Appendix B.1, critical) — multiple workers
+# Exactly 1 worker per pod — multiple workers
 # would each independently run their own LeaderElection/TimerManager/
 # AutomationEngine/Loader instance inside the SAME container, causing duplicate
 # `tmtools:events` publishers and dual-command integration conflicts. HA is

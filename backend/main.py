@@ -16,7 +16,7 @@ node regardless of leadership — see comment below). Wave 4b wires in
 `Scraper` (`backend.modules.scraper.scraper`) and `Predictor`
 (`backend.modules.predictor.predictor`) the same way.
 
-Run with (per Appendix B.1 — exactly 1 worker per pod):
+Run with (exactly 1 worker per pod):
 
     uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1
 """
@@ -108,7 +108,7 @@ _STATIC_DIR = Path(__file__).parent / "static"
 # straight from a venv during backend-only development) — every use below is
 # guarded on `_FRONTEND_DIST.is_dir()` so the app still boots and serves the
 # API-only surface in that case, matching this file's existing "never crash
-# on a missing optional dependency" posture (Appendix A.10).
+# on a missing optional dependency" posture.
 _FRONTEND_DIST = _STATIC_DIR / "frontend"
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Postgres not reachable at startup — /readyz will report degraded")
     if not redis_ok:
         logger.warning(
-            "Redis not reachable at startup (Appendix A.10: app degrades gracefully, "
+            "Redis not reachable at startup (app degrades gracefully, "
             "does not crash)"
         )
 
@@ -330,7 +330,7 @@ def create_app() -> FastAPI:
     async def readyz():
         """Readiness probe. Checks DB + Redis connectivity.
 
-        Per Appendix A.10, Redis being down must degrade gracefully rather
+        Redis being down must degrade gracefully rather
         than crash — Postgres remains the source of truth. We report 503 only
         when the *response itself* indicates the instance can't serve
         traffic acceptably; DB-only ("degraded") status is still reported
@@ -346,12 +346,12 @@ def create_app() -> FastAPI:
         # reported as "degraded" (DB-down is additionally reflected in the
         # HTTP status code below, since Postgres is the required source of
         # truth while Redis-only outages are a documented graceful-
-        # degradation mode per Appendix A.10).
+        # degradation mode).
         status = "ok" if (db_ok and redis_ok) else "degraded"
 
         payload = ReadyResponse(status=status, db=db_ok, redis=redis_ok)
         # Only a dead Postgres makes the pod truly not-ready; Redis-only
-        # outages are a documented graceful-degradation mode (Appendix A.10).
+        # outages are a documented graceful-degradation mode.
         http_status = 200 if db_ok else 503
         return JSONResponse(status_code=http_status, content=payload.model_dump())
 

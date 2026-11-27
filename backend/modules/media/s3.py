@@ -1,10 +1,9 @@
-"""S3 multipart upload / presign / delete helpers (plan §3.8 / §5.13 /
-Appendix A.5 / §C.2).
+"""S3 multipart upload / presign / delete helpers.
 
 Owns: S3 multipart upload, presigned URL generation, raw/processed key
 conventions, download.
 
-Key naming convention (must be followed exactly, per Appendix C.2):
+Key naming convention (must be followed exactly):
     raw photos:        teams/{team_number}/photos/{kind}/raw.{ext}
     processed photos:  teams/{team_number}/photos/{kind}/processed.png
     (videos of earlier versions stay under teams/{n}/video/ and teams/{n}/clips/;
@@ -32,7 +31,7 @@ from backend.models.settings import SystemSetting
 logger = logging.getLogger(__name__)
 
 # Multipart uploads use 8 MiB parts by default (S3's minimum part size,
-# except for the final part, is 5 MiB). Per Appendix A.5 every upload must
+# except for the final part, is 5 MiB). Every upload must
 # go through multipart — never a single PUT, regardless of file size (there
 # is no size threshold to gate on: `upload_multipart` always uses the
 # create/upload_part/complete multipart API).
@@ -143,7 +142,7 @@ async def upload_multipart(local_path: str, s3_key: str) -> None:
     """Upload `local_path` to `s3_key` using S3's multipart upload API.
 
     Always uses multipart (create/upload_part/complete), never a single PUT,
-    per Appendix A.5 — regardless of file size. Aborts the multipart upload
+    — regardless of file size. Aborts the multipart upload
     on any failure so no orphaned parts are left billing storage.
     """
     config = await _resolved_config()

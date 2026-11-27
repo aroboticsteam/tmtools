@@ -22,7 +22,7 @@ from backend.routers.timers import get_timer_or_404
 
 router = APIRouter(prefix="/api/v1/public", tags=["public-prompter"])
 
-#: `system_settings.key` gating the teleprompter index (Appendix B.4).
+#: `system_settings.key` gating the teleprompter index.
 _PROMPTER_INDEX_SETTINGS_KEY = "prompter_index_token"
 
 
@@ -50,7 +50,7 @@ async def check_prompter_link(
 async def prompter_index(
     session: Annotated[AsyncSession, Depends(get_db)], token: str = ""
 ) -> list[PrompterIndexEntry]:
-    """Every active timer with its own tokenised teleprompter link (Appendix B.4).
+    """Every active timer with its own tokenised teleprompter link.
 
     Gated by the single shared `?token=` stored in the `prompter_index_token` setting (403 when it
     is missing, unset or wrong; compared in constant time). Possessing it grants nothing beyond what

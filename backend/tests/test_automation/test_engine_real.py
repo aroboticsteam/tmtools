@@ -160,7 +160,7 @@ async def test_start_picks_up_matching_event_and_calls_service_and_logs_history(
 
         assert fake.calls == [("switch_input", {"input_index": 2})]
 
-        # Execution history (Appendix A.7) was logged.
+        # Execution history was logged.
         for _ in range(100):
             async with real_session_factory() as session:
                 result = await session.execute(

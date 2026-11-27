@@ -4,7 +4,7 @@ Revision ID: d4e5f6a7b8c9
 Revises: c3d4e5f6a7b8
 Create Date: 2026-09-18 00:00:00.000000
 
-Appendix B.4 (Teleprompter Index Page) gates the bare `GET /prompter` index
+The Teleprompter Index Page gates the bare `GET /prompter` index
 page — which lists every active `TimerInstance` with a direct per-instance
 teleprompter link — behind a `?token=<value>` query param checked against a
 `prompter_index_token` system_settings row. That row was never seeded by any
@@ -16,7 +16,7 @@ generic `PUT /api/v1/settings` endpoint.
 
 Seeds a randomly-generated default token (rather than an empty string) so
 the index page is usable out of the box while still requiring the token to
-be known — matching Appendix B.4's security model (the index page itself is
+be known — matching the index page's security model (the index page itself is
 gated the same way the per-instance teleprompter links are, by possession of
 an unguessable value). An operator can rotate it later via the existing
 generic settings endpoint.

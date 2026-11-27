@@ -10,7 +10,7 @@ void main() {
 `;
 
 // Chroma-key fragment shader: mirrors the backend's FFmpeg `colorkey=color:similarity:blend`
-// filter (plan §5.13/Appendix A.5) closely enough to give the operator an accurate live
+// filter closely enough to give the operator an accurate live
 // preview of what FFmpeg will actually produce, without running FFmpeg client-side.
 const FRAGMENT_SRC = `
 precision mediump float;

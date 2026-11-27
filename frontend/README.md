@@ -19,7 +19,7 @@ never write directly into the query cache, and a component never merges
 the two into one object.
 
 `/prompter/<entity_id>` and `/overlay/<entity_id>` are deliberately **not**
-part of this SPA (plan Appendix B.3) — they're standalone HTML pages
+part of this SPA — they're standalone HTML pages
 served by the backend (`backend/static/`).
 
 ## Development

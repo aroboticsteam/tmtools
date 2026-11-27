@@ -69,7 +69,7 @@ class Script(Base):
 
 
 class AutomationRun(Base):
-    """Per-automation execution history row (Appendix A.7). Not part of the
+    """Per-automation execution history row. Not part of the
     plan's §8 schema — added by Wave 3a's own migration (see module
     docstring)."""
 

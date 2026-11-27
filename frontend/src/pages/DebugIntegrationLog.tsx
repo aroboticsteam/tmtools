@@ -30,7 +30,7 @@ function formatTime(ts: number): string {
   return new Date(ms).toLocaleString();
 }
 
-/** Appendix A.11 debug view: last 100 raw events per integration instance,
+/** Debug view: last 100 raw events per integration instance,
  * backed by `GET /api/v1/debug/integrations/{entity_id}/log` (a ring
  * buffer landing from a parallel backend agent — see AUDIT_FINDINGS.md
  * 1.10). Gated on `settings:edit` like the other debug views. */
@@ -55,7 +55,7 @@ export function DebugIntegrationLogPage() {
     <div>
       <PageHeader
         title="Integration Debug Log"
-        subtitle="Last 100 raw events per integration instance (Appendix A.11)."
+        subtitle="Last 100 raw events per integration instance."
       />
 
       <div className="mb-4 max-w-xs">

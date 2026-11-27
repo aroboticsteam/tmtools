@@ -1,11 +1,11 @@
 """Fernet-based credential encryption utilities, plus teleprompter HMAC
 tokens.
 
-Per Appendix B.1, all `secret: true` integration config fields are encrypted
+All `secret: true` integration config fields are encrypted
 with Fernet before being written to Postgres JSONB columns. `ENCRYPTION_KEY`
 must be a 32-byte, base64url-encoded Fernet key.
 
-Per Appendix B.8, teleprompter links (`/prompter/<entity_id>?token=<hmac>`)
+Teleprompter links (`/prompter/<entity_id>?token=<hmac>`)
 carry an HMAC-SHA256 token derived from `entity_id` + a server secret
 (`SECRET_KEY`) + a per-instance nonce (`timer_instances.token_nonce`) so a
 "Regenerate Token" action in the UI can invalidate old links without
@@ -25,7 +25,7 @@ from backend.core.brand import API_KEY_PREFIX
 from backend.core.exceptions import TMToolsError
 from backend.core.settings import settings
 
-#: Prefix every generated API key is stamped with (plan Appendix B.7), so
+#: Prefix every generated API key is stamped with, so
 #: keys are recognisable at a glance / in logs without decoding anything.
 
 
@@ -63,7 +63,7 @@ def decrypt(value: str) -> str:
         raise EncryptionError("Failed to decrypt value: invalid token") from exc
 
 
-# ── Teleprompter token (plan Appendix A.1 / B.8) ────────────────────────
+# ── Teleprompter token ────────────────────────
 
 
 def _derive_instance_secret(nonce: str) -> bytes:
@@ -82,7 +82,7 @@ def _derive_instance_secret(nonce: str) -> bytes:
 def generate_prompter_token(entity_id: str, nonce: str) -> str:
     """Generate the HMAC-SHA256 teleprompter token for a Timer instance.
 
-    Per Appendix B.8: `HMAC-SHA256(entity_id + server_secret)` where
+    `HMAC-SHA256(entity_id + server_secret)` where
     `server_secret` is derived from `SECRET_KEY`, combined with a
     per-instance `nonce` (`timer_instances.token_nonce`) so regenerating the
     token (rotating the nonce) invalidates all previously issued links.
@@ -105,12 +105,12 @@ def validate_prompter_token(entity_id: str, nonce: str, token: str) -> bool:
     return hmac.compare_digest(expected, token)
 
 
-# ── API keys (plan Appendix B.7) ────────────────────────────────────────
+# ── API keys ────────────────────────────────────────
 
 
 def generate_api_key() -> str:
     """Generate a new raw API key: `tmt_` + a 43-char base64url token
-    (`secrets.token_urlsafe(32)`), per Appendix B.7. This raw value is shown
+    (`secrets.token_urlsafe(32)`). This raw value is shown
     to the operator exactly once and never stored — only its SHA-256 hash
     (see `hash_api_key`) is persisted."""
     return f"{API_KEY_PREFIX}{secrets.token_urlsafe(32)}"
@@ -118,6 +118,6 @@ def generate_api_key() -> str:
 
 def hash_api_key(raw_key: str) -> str:
     """SHA-256 hex digest of a raw API key, for storage/lookup in
-    `api_keys.key_hash`. Per Appendix B.7 the raw key itself is never
+    `api_keys.key_hash`. The raw key itself is never
     stored."""
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()

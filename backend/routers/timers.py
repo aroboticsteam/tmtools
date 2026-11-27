@@ -1,6 +1,6 @@
 """Timer-Teleprompter FastAPI router (plan §11 "Timers" + "Cues").
 
-Per Appendix C.5 rule 6, routers are stateless: every handler completes
+Routers are stateless: every handler completes
 within one request/response cycle and never spawns background asyncio
 tasks — the long-running `TimerManager` (tick loops, pub/sub listeners) is
 started once by `main.py`'s lifespan and reached here via
@@ -194,7 +194,7 @@ async def update_timer(
         changed_fields[field_name] = value
 
     if body.regenerate_token:
-        # Appendix B.8: rotating the nonce invalidates every previously
+        # rotating the nonce invalidates every previously
         # issued teleprompter link for this instance.
         row.token_nonce = secrets.token_urlsafe(16)
         changed_fields["regenerate_token"] = True
