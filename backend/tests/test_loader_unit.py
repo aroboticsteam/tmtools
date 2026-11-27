@@ -114,6 +114,22 @@ class FakeFailingIntegration(Integration):
         return {}
 
 
+class FakeSelfReportingIntegration(Integration):
+    """Reports DEGRADED during setup(), like capture does while no agent is connected."""
+
+    async def setup(self):
+        await self.report_status("DEGRADED")
+
+    async def teardown(self):
+        pass
+
+    async def call_service(self, service, data):
+        return {}
+
+    async def get_state(self):
+        return {}
+
+
 @pytest.fixture
 async def redis_client():
     client = fakeredis.aioredis.FakeRedis(decode_responses=True)
@@ -139,6 +155,19 @@ def reset_registry():
     yield
     loader_module.INTEGRATION_REGISTRY.clear()
     loader_module._MANIFESTS.clear()
+
+
+async def test_status_reported_during_setup_is_not_overwritten_as_connected(redis_client):
+    loader_module.INTEGRATION_REGISTRY["fake_selfreport"] = FakeSelfReportingIntegration
+    loader_module._MANIFESTS["fake_selfreport"] = {"config_schema": {}}
+    factory = FakeSessionFactory([FakeRow(entity_id="fake_selfreport.one", domain="fake_selfreport")])
+    ldr = loader_module.Loader(redis=redis_client, session_factory=factory)
+    await ldr.load_all()
+    try:
+        assert ldr.get_instance_status("fake_selfreport.one") == "DEGRADED"
+        assert await redis_client.get(loader_module.STATUS_KEY_TMPL.format(entity_id="fake_selfreport.one")) == "DEGRADED"
+    finally:
+        await ldr.teardown_all()
 
 
 def test_discover_finds_all_domains():

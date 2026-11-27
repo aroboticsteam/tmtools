@@ -69,10 +69,17 @@ class AtemIntegration(Integration):
     def _on_connect(self, _params: dict[str, Any]) -> None:
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._connected_event.set)
+            self._report_threadsafe("CONNECTED")
 
     def _on_disconnect(self, _params: dict[str, Any]) -> None:
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._connected_event.clear)
+            self._report_threadsafe("DEGRADED")
+
+    def _report_threadsafe(self, status: str) -> None:
+        """The switcher link dropping or coming back, reported from PyATEMMax's thread (status was CONNECTED forever)."""
+        if self._loop is not None and not self._loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.report_status(status), self._loop)
 
     # ── services ─────────────────────────────────────────────────────
     async def call_service(self, service: str, data: dict[str, Any]) -> dict[str, Any]:
