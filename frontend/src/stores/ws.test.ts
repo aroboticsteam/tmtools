@@ -71,3 +71,16 @@ describe('seedFields', () => {
     expect(useWsStore.getState().currentMatches['2'].matchNum).toBe(6);
   });
 });
+
+describe('replay_status', () => {
+  it('keeps the live player status per player id without filling the recent-events feed', () => {
+    useWsStore.setState({ replayStatus: {}, recentEvents: [] });
+    const dispatch = useWsStore.getState().dispatch;
+    dispatch({ entity_id: 'main', entity_tags: [], type: 'replay_status', timestamp: 1, payload: { player: true, position: 3, duration: 10, paused: false } });
+    dispatch({ entity_id: 'main', entity_tags: [], type: 'replay_status', timestamp: 2, payload: { player: false } });
+    const st = useWsStore.getState();
+    expect(st.recentEvents).toHaveLength(0);
+    expect(st.replayStatus.main.player).toBe(false);
+  });
+});
+

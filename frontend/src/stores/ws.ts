@@ -39,6 +39,19 @@ export interface CuesSnapshot {
   next: { id: string; content: string; type: string } | null;
 }
 
+/** Live state of a replay player page (OBS browser source), from `replay_status` events. */
+export interface ReplayPlayerStatus {
+  /** A replay page is connected. */
+  player: boolean;
+  position?: number | null;
+  duration?: number | null;
+  rate?: number | null;
+  paused?: boolean;
+  ended?: boolean;
+  /** When the last report arrived (ms), to spot a stalled player. */
+  at: number;
+}
+
 export interface WsState {
   /** Raw connection status per useWebSocket URL, for debugging/UI use. */
   connected: boolean;
@@ -61,6 +74,9 @@ export interface WsState {
   /** Last audience display per TM instance (entity_id -> display), whichever field the event was filed under. */
   audienceDisplays: Record<string, string>;
 
+  /** replay_status events, keyed by replay player id (never in `recentEvents`: they arrive twice a second). */
+  replayStatus: Record<string, ReplayPlayerStatus>;
+
   /** automation_executed-equivalent: last-run result per automation id, if published. */
   automationLastRun: Record<string, { status: string; triggered_at: number }>;
 
@@ -81,12 +97,23 @@ export const useWsStore = create<WsState>((set) => ({
   currentMatches: {},
   recentEvents: [],
   audienceDisplays: {},
+  replayStatus: {},
   automationLastRun: {},
 
   setConnected: (value) => set({ connected: value }),
 
   dispatch: (event) =>
     set((state) => {
+      if (event.type === 'replay_status') {
+        const p = event.payload as Partial<ReplayPlayerStatus>;
+        const prev = state.replayStatus[event.entity_id];
+        return {
+          replayStatus: {
+            ...state.replayStatus,
+            [event.entity_id]: { ...(p.player === undefined || p.player ? prev : undefined), ...p, player: p.player !== false, at: Date.now() } as ReplayPlayerStatus,
+          },
+        };
+      }
       const next: Partial<WsState> = {
         recentEvents: [event, ...state.recentEvents].slice(0, 50),
       };
