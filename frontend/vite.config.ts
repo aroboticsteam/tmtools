@@ -5,10 +5,10 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 //
 // The backend (FastAPI/uvicorn) runs on http://localhost:8000 in dev
-// (plan Appendix B.1). We proxy /api, /auth, /admin_login and /ws under the Vite dev server's own origin so the browser never
+//. We proxy /api, /auth, /admin_login and /ws under the Vite dev server's own origin so the browser never
 // needs CORS and cookies set by the backend are same-site. In production
 // the built SPA is served by the same origin as the backend (Traefik
-// IngressRoute per Appendix A.9), so no proxy/base-URL config is needed
+// IngressRoute), so no proxy/base-URL config is needed
 // there either — VITE_API_BASE_URL only ever needs to be set for a dev
 // server pointed at a non-default backend port/host.
 const backendTarget = process.env.VITE_API_BASE_URL || 'http://localhost:8000'

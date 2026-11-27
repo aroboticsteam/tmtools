@@ -119,7 +119,7 @@ async def test_competition_setting_accepts_only_known_programs(client, db_factor
             await session.commit()
 
 
-# ── api_keys (plan Appendix B.7) ───────────────────────────────────────────
+# ── api_keys ───────────────────────────────────────────
 
 
 async def test_create_api_key_shows_raw_key_once_and_hashes_at_rest(client, db_factory):

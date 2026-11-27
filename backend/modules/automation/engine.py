@@ -4,7 +4,7 @@ Owns: loading `automations`/`scripts` rows from Postgres, YAML parsing,
 Jinja2 template evaluation (via a `SandboxedEnvironment` — no filesystem
 access, no `os`/`subprocess`, per plan §C.5), action dispatch, script
 execution, non-blocking `delay` handling, and automation execution history
-logging (Appendix A.7, via the new `automation_runs` table — see
+logging (via the new `automation_runs` table — see
 `backend/models/automation.py`'s `AutomationRun` and the accompanying
 Alembic migration).
 
@@ -210,7 +210,7 @@ def eval_bool(expr: Any, context: dict[str, Any]) -> bool:
 def validate_automation_yaml(
     trigger_yaml: str, condition_yaml: str | None, action_yaml: str
 ) -> tuple[bool, list[str]]:
-    """Appendix A.7's "Validate" button backend: checks YAML syntax and
+    """The "Validate" button backend: checks YAML syntax and
     Jinja2 expression syntax without executing any services. Thin routers
     (`backend/routers/automations.py`) delegate here rather than embedding
     this logic themselves."""
@@ -621,14 +621,14 @@ class AutomationEngine:
                 return False
         return True
 
-    # ── action execution (plan §10 / Appendix A.7 / B.6) ─────────────────
+    # ── action execution ─────────────────
 
     async def _execute_action_chain(
         self, actions: list[dict[str, Any]], context: dict[str, Any]
     ) -> tuple[bool, str | None, int | None, int, list[dict[str, Any]]]:
         """Runs `actions` in order.
 
-        Per Appendix A.7: a failing action is retried once (inside the
+        A failing action is retried once (inside the
         per-action helpers below), then execution *continues* to the next
         action regardless of outcome — every action still runs, and every
         one's outcome is recorded in the returned `action_results` list (not
@@ -853,7 +853,7 @@ class AutomationEngine:
             except Exception as exc:
                 return f"{inst.entity_id}: {exc}"
 
-        # Per Appendix B.6: tag-intersection targeting fires on ALL matching
+        # Tag-intersection targeting fires on ALL matching
         # entities simultaneously — `asyncio.gather`, not sequentially. A
         # single `target:` entity goes through the same path (a 1-item
         # gather), so there is exactly one code path for both cases.
@@ -864,7 +864,7 @@ class AutomationEngine:
         return True, None
 
     async def _call_service_with_retry(self, instance: Any, service: str, data: dict[str, Any]) -> dict[str, Any]:
-        """Appendix A.7: "retry once (immediately)" on failure."""
+        """"retry once (immediately)" on failure."""
         try:
             return await instance.call_service(service, data)
         except Exception:
@@ -928,7 +928,7 @@ class AutomationEngine:
                 await self._log_run(automation.id, event.model_dump(), status, failed_index, error, action_results)
                 await self._touch_last_triggered(automation.id)
                 if status == "failed":
-                    # Appendix A.8: notify once the retry (Appendix A.7) is
+                    # notify once the retry is
                     # exhausted and the failure is on the record.
                     await send_ntfy_notification(
                         "Automation action failed",
@@ -999,7 +999,7 @@ class AutomationEngine:
                 await pubsub.unsubscribe(CONFIG_CHANGE_CHANNEL)
                 await pubsub.aclose()
 
-    # ── execution history (Appendix A.7) ─────────────────────────────────
+    # ── execution history ─────────────────────────────────
 
     async def _log_run(
         self,

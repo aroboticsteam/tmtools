@@ -1,4 +1,4 @@
-"""FFmpeg green-screen keying pipeline (plan §5.13 / Appendix A.5 / §C.2).
+"""FFmpeg green-screen keying pipeline.
 
 Owns: FFmpeg subprocess management, async polling of subprocess output,
 progress reporting, temp file lifecycle.
@@ -20,7 +20,7 @@ from backend.core.ntfy import send_ntfy_notification
 
 logger = logging.getLogger(__name__)
 
-# Per Appendix A.5, the pipeline always downscales to a maximum of 1920x1080
+# The pipeline always downscales to a maximum of 1920x1080
 # before keying, regardless of source resolution.
 _SCALE_PAD_FILTER = (
     "scale=1920:1080:force_original_aspect_ratio=decrease,"
@@ -151,7 +151,7 @@ async def process_video(
     clip: bool = False,
 ) -> None:
     """Run the FFmpeg green-screen keying pipeline, then re-raise on failure
-    after firing an Appendix A.8 ntfy notification (see `_process_video` for
+    after firing an ntfy notification (see `_process_video` for
     the actual pipeline; kept separate so this notify-and-reraise wrapper
     stays a single, minimal choke point instead of touching each of
     `_process_video`'s several `ProcessingError` raise sites individually).
@@ -174,7 +174,7 @@ async def _process_video(
     """Run the FFmpeg green-screen keying pipeline on `input_path`, writing a
     transparent VP9/webm to `output_path`.
 
-    Per Appendix A.5: always downscales to a maximum of 1920x1080 first, then
+    Always downscales to a maximum of 1920x1080 first, then
     applies chroma keying with the given colour/similarity/blend, encoding to
     `libvpx-vp9` with an alpha channel (`yuva420p`).
 

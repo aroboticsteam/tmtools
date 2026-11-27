@@ -53,7 +53,7 @@ def _redact_settings_value(value: object) -> object:
     return value
 
 
-# ── system_settings (plan §11 / Appendix A.8 / §3.8) ─────────────────────
+# ── system_settings ─────────────────────
 
 
 @router.get(
@@ -117,7 +117,7 @@ async def permission_catalog() -> dict[str, Any]:
     return {"permissions": PERMISSIONS, "presets": KEY_PRESETS}
 
 
-# ── api_keys (plan §11 / Appendix B.7) ────────────────────────────────────
+# ── api_keys ────────────────────────────────────
 
 
 @router.get(
@@ -151,7 +151,7 @@ async def create_api_key(
     await db.commit()
     await db.refresh(row)
     # The raw key itself is never logged (only shown once to the caller per
-    # plan Appendix B.7) — the audit trail records that a key was created,
+    #) — the audit trail records that a key was created,
     # by whom, with which name/permissions, not the credential itself.
     await log_action(
         db,
@@ -247,10 +247,10 @@ async def invalidate_user_session(
     redis_client: Any = Depends(get_redis),
 ) -> None:
     """Force-logs-out `user_id` by deleting their session key(s) from Redis
-    immediately (plan Appendix B.9's Users page "force session invalidation").
+    immediately (the Users page's "force session invalidation").
 
     There's no `users` table (identity comes entirely from OIDC groups/claims
-    resolved at login, per Appendix B.9) — `user_id` is the OIDC `sub`
+    resolved at login) — `user_id` is the OIDC `sub`
     (or `admin_local`) recorded on the session at `/auth/callback` /
     `/admin_login`, and "does this user exist" means "do they have an active
     session to invalidate"."""

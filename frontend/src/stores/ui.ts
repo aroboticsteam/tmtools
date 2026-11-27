@@ -13,7 +13,7 @@ let toastCounter = 0;
 export interface UiState {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
-  /** True while any mounted useWebSocket instance is reconnecting (plan Appendix A.14). */
+  /** True while any mounted useWebSocket instance is reconnecting. */
   reconnecting: boolean;
   setReconnecting: (value: boolean) => void;
   /** Alerts older than this (unix seconds) count as read. */

@@ -8,7 +8,7 @@ import type { AuditLogEntry, AuditLogFilters } from '../types/api';
  * should check `usePermission('settings:read')` before rendering the page,
  * same pattern as the Settings page's read-only views.
  *
- * Per Appendix C.8: this is the sole REST-owned source of audit history.
+ * This is the sole REST-owned source of audit history.
  * Live WS events (`useCacheSync`) may invalidate this query key but must
  * never be merged into its data.
  */

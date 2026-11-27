@@ -21,7 +21,7 @@ page below (including `/site`, `/room/{slug}`, `/prompter`, `/overlay/{id}`,
 | Method | Path | Description |
 |---|---|---|
 | GET | `/healthz` | Liveness probe. Always 200 while the process is alive — no dependency checks. |
-| GET | `/readyz` | Readiness probe. Checks Postgres + Redis. Returns `{status, db, redis}`; `status` is `"ok"` only when both are reachable, `"degraded"` if Redis alone is down (graceful degradation per Appendix A.10), and the HTTP status itself is 503 only when Postgres is unreachable (Postgres is the required source of truth). |
+| GET | `/readyz` | Readiness probe. Checks Postgres + Redis. Returns `{status, db, redis}`; `status` is `"ok"` only when both are reachable, `"degraded"` if Redis alone is down (graceful degradation), and the HTTP status itself is 503 only when Postgres is unreachable (Postgres is the required source of truth). |
 
 ## Auth (`/auth`, `/admin_login`, `/api/v1/auth`)
 
@@ -62,7 +62,7 @@ YAML + Jinja2 automation engine (plan §5.8/§10).
 | DELETE | `/api/v1/automations/{automation_id}` | Delete an automation. |
 | POST | `/api/v1/automations/validate` | Dry-run validate a YAML automation definition without saving it. |
 | POST | `/api/v1/automations/{automation_id}/trigger` | Manually fire an automation (bypassing its normal trigger condition). |
-| GET | `/api/v1/automations/{automation_id}/runs` | Execution history for one automation (plan Appendix A.11's debug view). |
+| GET | `/api/v1/automations/{automation_id}/runs` | Execution history for one automation (the debug view). |
 | GET | `/api/v1/automations/folders` | List automation folders. |
 | POST | `/api/v1/automations/folders` | Create an automation folder. |
 | GET | `/api/v1/scripts` | List reusable scripts (callable from automations). |
@@ -122,7 +122,7 @@ Team profiles + green-screen video upload pipeline (plan §5.11/§5.13).
 |---|---|---|
 | GET | `/api/v1/settings` | List system settings (Robot Events API token, high-potential threshold, etc). |
 | PUT | `/api/v1/settings` | Update system settings. |
-| GET | `/api/v1/api-keys` | List API keys (Stream Deck webhook auth, plan §5.15/Appendix B.7). |
+| GET | `/api/v1/api-keys` | List API keys (Stream Deck webhook auth). |
 | POST | `/api/v1/api-keys` | Create an API key. |
 | DELETE | `/api/v1/api-keys/{key_id}` | Revoke an API key. |
 | GET | `/api/v1/users/roles` | List RBAC group -> permission mappings. |
@@ -183,8 +183,8 @@ HTML routes made are public JSON endpoints, in addition to the WebSocket-upgrade
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/v1/public/prompter/{entity_id}?token=...` | 404 for an unknown timer, 403 for a missing/stale per-instance HMAC token (plan Appendix B.8, constant-time compare); 200 `{entity_id, display_name}` otherwise. The page shows the error instead of a dead teleprompter. |
-| GET | `/api/v1/public/prompter-index?token=...` | Active timers with their tokenised `/prompter/...` links (Appendix B.4). Gated by the shared `prompter_index_token` setting; 403 when missing/wrong. |
+| GET | `/api/v1/public/prompter/{entity_id}?token=...` | 404 for an unknown timer, 403 for a missing/stale per-instance HMAC token; 200 `{entity_id, display_name}` otherwise. The page shows the error instead of a dead teleprompter. |
+| GET | `/api/v1/public/prompter-index?token=...` | Active timers with their tokenised `/prompter/...` links. Gated by the shared `prompter_index_token` setting; 403 when missing/wrong. |
 
 ## WebSocket Channels
 
@@ -194,10 +194,10 @@ directly.
 
 | Path | Auth | Description |
 |---|---|---|
-| `/ws/events` | session | Raw `tmtools:events` bus fan-out (plan Appendix A.11's "Live Event Bus" debug view). |
-| `/ws/prompter/{entity_id}?token=...` | HMAC token query param (plan Appendix B.8) | Live countdown/cue/`high_potential` stream for one timer-teleprompter instance. The token is validated at WebSocket-upgrade time (constant-time comparison); an invalid/expired token closes the connection. Only the boolean `high_potential` flag from the AI predictor is ever sent — never the underlying predicted scores (see `backend/modules/predictor/predictor.py`'s module docstring). |
+| `/ws/events` | session | Raw `tmtools:events` bus fan-out (the "Live Event Bus" debug view). |
+| `/ws/prompter/{entity_id}?token=...` | HMAC token query param | Live countdown/cue/`high_potential` stream for one timer-teleprompter instance. The token is validated at WebSocket-upgrade time (constant-time comparison); an invalid/expired token closes the connection. Only the boolean `high_potential` flag from the AI predictor is ever sent — never the underlying predicted scores (see `backend/modules/predictor/predictor.py`'s module docstring). |
 | `/ws/room/{slug}` | none (the room slug is the only credential, like overlay URLs) | Room display feed: only that room's `notice` messages (`{type, id, title, message, modal, duration, timestamp}`). Closes with 4003 for an unknown room. |
-| `/ws/overlay/{entity_id}` | none (plan Appendix A.1: "security by obscurity of the entity_id") | Streams `upcoming_match`-shaped messages for the overlay instance's bound field set. |
+| `/ws/overlay/{entity_id}` | none: "security by obscurity of the entity_id") | Streams `upcoming_match`-shaped messages for the overlay instance's bound field set. |
 
 ## Notes on generation
 

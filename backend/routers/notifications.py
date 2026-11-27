@@ -56,7 +56,7 @@ _RATE_WINDOW_SECONDS = 600
 
 async def _rate_limit(request: Request, redis: Any, scope: str) -> None:
     """Fixed-window per-IP limiter on Redis. Fails open if Redis is down
-    (Appendix A.10 graceful degradation)."""
+    (graceful degradation)."""
     # Behind the ingress proxy the *last* X-Forwarded-For entry is the one the
     # proxy itself appended (earlier ones are client-supplied and spoofable).
     forwarded = request.headers.get("x-forwarded-for", "")

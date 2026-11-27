@@ -1,10 +1,10 @@
 """ORM models for timer_instances and prompter_cues (plan §8).
 
 Wave 2b addendum: the plan's §8 schema for `timer_instances` did not include
-a countdown-duration column even though Appendix A.3 explicitly resolves
+a countdown-duration column even though the design explicitly resolves
 "Countdown duration" as "Configurable per Timer instance in the UI (a number
-field, in seconds)". `duration_s` (and `token_nonce`, needed for Appendix
-B.8's regeneratable teleprompter HMAC token) are added here via a new Alembic
+field, in seconds)". `duration_s` (and `token_nonce`, needed for the
+regeneratable teleprompter HMAC token) are added here via a new Alembic
 migration (`alembic/versions/..._add_timer_duration_and_token_nonce.py`)
 rather than hand-editing Wave 1's already-merged initial migration.
 """

@@ -1,12 +1,12 @@
 """Shared FastAPI `Depends()` utilities used across routers.
 
-Per Appendix C.2, inter-router dependencies (auth/permission checks, common
+Inter-router dependencies (auth/permission checks, common
 query params, etc.) live here rather than being imported router-to-router.
 
-Wave 3b implements the real RBAC dependency (plan §13 / Appendix B.7 / B.9):
+Wave 3b implements the real RBAC dependency:
 `require_permission(permission)` accepts either a signed session cookie
 (OIDC login or `admin_local`, see `routers/auth.py`) or a `Bearer tmt_...`
-API key (Appendix B.7). `admin_local` and any session/key holding the
+API key. `admin_local` and any session/key holding the
 special `"*"` permission bypass all checks.
 
 Note on `backend/models/` import (deliberate, narrow exception to §C.2's
@@ -70,7 +70,7 @@ async def resolve_permissions_for_groups(
 ) -> list[str]:
     """Resolve a list of Authentik group names to the union of permissions
     mapped to them via `role_permissions` (plan §13). Used at OIDC login
-    time (Appendix B.9: evaluated once, cached in the session, only
+    time (evaluated once, cached in the session, only
     re-evaluated on next login)."""
     if not groups:
         return []

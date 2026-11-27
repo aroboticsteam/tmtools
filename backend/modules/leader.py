@@ -107,7 +107,7 @@ class LeaderElection:
         self._is_leader = False
         self._shutdown = asyncio.Event()
         self._task: asyncio.Task | None = None
-        # Holds fire-and-forget ntfy notification tasks (Appendix A.8) so
+        # Holds fire-and-forget ntfy notification tasks so
         # they aren't garbage-collected mid-flight (asyncio only guarantees
         # an unreferenced task keeps running until its next checkpoint, not
         # to completion).
@@ -351,7 +351,7 @@ class LeaderElection:
                 logger.exception("Error awaiting in-flight promotion before demotion")
 
     def _notify_failover(self, reason: str) -> None:
-        """Appendix A.8: fire an ntfy notification on unexpected demotion
+        """fire an ntfy notification on unexpected demotion
         (renewal failure / Redis outage). Fire-and-forget — must never delay
         or block the election loop."""
         task = asyncio.create_task(

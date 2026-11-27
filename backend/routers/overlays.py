@@ -284,8 +284,7 @@ async def preview_overlay(
 
     When no match is currently queued (or this node isn't the leader, so no
     live `vex_tm` instance state is reachable), returns the same
-    "transparent/empty" shape the overlay page (`OverlayPage.tsx`) renders as nothing per
-    Appendix A.6.
+    "transparent/empty" shape the overlay page (`OverlayPage.tsx`) renders as nothing.
     """
     row = await _get_or_404(db, entity_id)
 

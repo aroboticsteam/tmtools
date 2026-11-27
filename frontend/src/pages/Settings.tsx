@@ -317,7 +317,7 @@ export function SettingsPage() {
   );
 }
 
-/** Appendix B.4 / AUDIT_FINDINGS.md 1.3: the `/prompter` bare index route is
+/** The `/prompter` bare index route is
  * gated on a `prompter_index_token` system setting. This section shows the
  * current token with copy-to-clipboard, and a "Regenerate" button that
  * writes a freshly-generated token through the same generic

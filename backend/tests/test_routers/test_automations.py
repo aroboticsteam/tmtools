@@ -5,7 +5,7 @@ real test Postgres, following the exact fixture pattern established in
 promotion), override `get_db` to a test-scoped session factory, and use
 `httpx.AsyncClient` + `ASGITransport` against the real FastAPI app.
 
-Confirms: folder + automation CRUD, the "Validate" endpoint (Appendix A.7),
+Confirms: folder + automation CRUD, the "Validate" endpoint,
 `/trigger` correctly 503s with no `AutomationEngine` wired and succeeds once
 one is (calling into a mocked integration via a monkeypatched loader), and
 the execution-history `/runs` endpoint.

@@ -13,7 +13,7 @@ function formatTime(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString();
 }
 
-/** Appendix A.11 "Live Event Bus" debug view: a raw, unfiltered feed of
+/** "Live Event Bus" debug view: a raw, unfiltered feed of
  * everything flowing over `/ws/events`, for developers (AUDIT_FINDINGS.md
  * 1.10). Unlike `LiveEventFeed` (Dashboard's rolling last-50 buffer shared
  * via `useWsStore`), this page keeps its own capped-at-200 client-side
@@ -57,7 +57,7 @@ export function DebugEventBusPage() {
     <div>
       <PageHeader
         title="Live Event Bus"
-        subtitle={`Raw, unfiltered /ws/events feed — capped at ${CAP} client-side (Appendix A.11).`}
+        subtitle={`Raw, unfiltered /ws/events feed — capped at ${CAP} client-side.`}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

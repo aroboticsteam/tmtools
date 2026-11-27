@@ -1,6 +1,6 @@
 """Application settings, loaded from environment variables.
 
-This module owns nothing but configuration. Per Appendix C.2, `backend/core/`
+This module owns nothing but configuration. `backend/core/`
 must not import from anything else in `backend/` — stdlib + third-party only.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Central settings object. See plan §15 and Appendix B.1 for the full env
+    """Central settings object. See `.env.example` for the full env
     var contract."""
 
     model_config = SettingsConfigDict(
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(
         default="redis://localhost:6380/0",
         description=(
-            "Single Redis endpoint (per Appendix A.9, HAProxy/infra handles "
+            "Single Redis endpoint (HAProxy/infra handles "
             "Sentinel failover externally; the app treats this as one Redis)."
         ),
     )

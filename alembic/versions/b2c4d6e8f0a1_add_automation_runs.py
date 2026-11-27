@@ -5,7 +5,7 @@ Revises: 1f22770b6d2e
 Create Date: 2026-09-11 00:00:00.000000
 
 Wave 3a (Automation Engine) addendum. The plan's §8 schema does not define a
-table for the per-automation execution history required by Appendix A.7
+table for the per-automation execution history
 ("Automation execution history ... Shows: triggered at, trigger event,
 success/failure status, which action failed (if any)"). This is a new,
 additive table — no existing migration is edited. Chains off

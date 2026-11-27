@@ -1,4 +1,4 @@
-"""WebSocket routes (plan §11 "WebSocket Channels" / Appendix C.2 `ws.py`).
+"""WebSocket routes.
 
 Owns `ConnectionManager` (frozen public API, plan §C.2) and the three
 WebSocket endpoints: `/ws/events`, `/ws/prompter/{entity_id}`,
@@ -630,7 +630,7 @@ async def ws_prompter(websocket: WebSocket, entity_id: str) -> None:
 
 @router.websocket("/ws/overlay/{entity_id}")
 async def ws_overlay(websocket: WebSocket, entity_id: str) -> None:
-    """No auth (plan Appendix A.1: "security by obscurity of the
+    """No auth: "security by obscurity of the
     entity_id"). Streams `upcoming_match`-shaped messages for the entity's
     bound field set — see `ConnectionManager._dispatch_upcoming_match`."""
     await manager.connect(entity_id, websocket)

@@ -1,19 +1,18 @@
-"""Server-side session storage + signed session cookie helpers (plan
-Appendix B.1 / B.9).
+"""Server-side session storage + signed session cookie helpers.
 
-Per Appendix B.1: "Session middleware: `itsdangerous` for signed cookies +
+"Session middleware: `itsdangerous` for signed cookies +
 Redis for session store. Cookie contains a signed session ID; session data
 (user info, groups, permissions) stored in Redis hash at
 `tmtools:session:<id>` with 24h TTL."
 
-Per Appendix B.9: groups/permissions are evaluated once, at login time, and
+Groups/permissions are evaluated once, at login time, and
 cached in the session; they are only re-evaluated on the next login. Force
 logout is just deleting the session key from Redis.
 
 This lives in `backend/core/` (not `routers/auth.py`) so that
 `backend/core/dependencies.py`'s `require_permission()` — used by every
 router — can read the current session without importing `routers/auth.py`
-(routers must not import other routers, per Appendix C.2, and dependency
+(routers must not import other routers, and dependency
 helpers shared across routers live in `backend/core/`).
 """
 from __future__ import annotations
@@ -29,7 +28,7 @@ from itsdangerous import BadSignature, URLSafeSerializer
 from backend.core.settings import settings
 
 SESSION_KEY_TMPL = REDIS_PREFIX + "session:{session_id}"
-SESSION_TTL_SECONDS = 24 * 60 * 60  # 24h, per Appendix B.1/B.9
+SESSION_TTL_SECONDS = 24 * 60 * 60  # 24h
 
 _ADMIN_LOCAL_USER_ID = "admin_local"
 
@@ -69,7 +68,7 @@ async def create_session(
     """Create a new server-side session in Redis and return
     `(session_id, signed_cookie_value)`.
 
-    Per Appendix B.9, `permissions` must already be the fully-resolved set
+    `permissions` must already be the fully-resolved set
     for `groups` at login time — this function does not itself compute
     group -> permission mappings (see
     `backend.core.dependencies.resolve_permissions_for_groups`).
@@ -111,13 +110,13 @@ async def get_session(redis_client: Any, session_id: str) -> dict[str, Any] | No
 
 async def delete_session(redis_client: Any, session_id: str) -> None:
     """Delete a session immediately (logout, or admin-triggered force
-    logout per Appendix B.9)."""
+    logout)."""
     await redis_client.delete(_session_key(session_id))
 
 
 async def delete_sessions_for_user(redis_client: Any, user_id: str) -> int:
     """Force-logout every session belonging to `user_id` (Users page "force
-    logout", plan Appendix B.9). Scans the `tmtools:session:*` keyspace since
+    logout"). Scans the `tmtools:session:*` keyspace since
     sessions aren't indexed by user_id — acceptable for the expected session
     volume of a single-event control app."""
     deleted = 0

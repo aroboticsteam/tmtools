@@ -17,7 +17,7 @@ class TeamProfile(Base):
     pit_location: Mapped[str | None] = mapped_column(String(100), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     robot_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # Raw upload retained permanently (per Appendix A.5) so "Re-process" can
+    # Raw upload retained permanently so "Re-process" can
     # re-run FFmpeg without requiring a new upload. Not in the plan's §8 DDL
     # listing (which only lists `video_360_s3_key`) but required by A.5's
     # "Both raw and processed keys stored in team_profiles" resolution —

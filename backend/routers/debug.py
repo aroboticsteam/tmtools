@@ -1,6 +1,6 @@
-"""Developer/Debug Views API (plan Appendix A.11).
+"""Developer/Debug Views API.
 
-Of the three debug views Appendix A.11 calls for (Automation Execution
+Of the three debug views (Automation Execution
 History, Integration Debug Log, Live Event Bus), this router implements
 the second: `GET /api/v1/debug/integrations/{entity_id}/log`, reading the
 per-instance last-100-raw-events ring buffer that `backend/loader.py`'s
@@ -8,7 +8,7 @@ per-instance last-100-raw-events ring buffer that `backend/loader.py`'s
 `tmtools:integration:{entity_id}:debug_log` (LPUSH + LTRIM to 100 + a 7-day
 EXPIRE on every event mirrored off the `tmtools:events` pub/sub channel).
 
-Per Appendix A.11, all three debug views require `settings:edit`.
+All three debug views require `settings:edit`.
 """
 from __future__ import annotations
 

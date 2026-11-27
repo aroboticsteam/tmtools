@@ -3,7 +3,7 @@
 FROZEN INTERFACE — every wave depends on this exact shape. Do not rename
 fields or change types without coordinating all dependent agents.
 
-Per Appendix C.2, `backend/schemas/` may import ONLY stdlib + pydantic —
+`backend/schemas/` may import ONLY stdlib + pydantic —
 nothing else from `backend/`.
 """
 from __future__ import annotations

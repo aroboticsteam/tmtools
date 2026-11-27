@@ -1,6 +1,6 @@
 """Async SQLAlchemy engine + session factory.
 
-Per Appendix C.2, `backend/core/` may only depend on stdlib + third-party
+`backend/core/` may only depend on stdlib + third-party
 packages. `backend/models/` imports `Base` from here.
 """
 from __future__ import annotations

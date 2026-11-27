@@ -1,5 +1,5 @@
 /**
- * Native `fetch` wrapper (plan Appendix B.2: no Axios). This is the ONLY
+ * Native `fetch` wrapper: no Axios). This is the ONLY
  * place raw `fetch()` is allowed to appear outside `frontend/src/api/*.ts`
  * query/mutation functions (plan §C.5 rule 7 / §C.3) — pages and components
  * must go through TanStack Query hooks instead.

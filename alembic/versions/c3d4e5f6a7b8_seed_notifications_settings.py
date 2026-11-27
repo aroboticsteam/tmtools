@@ -4,7 +4,7 @@ Revision ID: c3d4e5f6a7b8
 Revises: 487e933ed4ef
 Create Date: 2026-09-18 00:00:00.000000
 
-Appendix A.8 (ntfy notifications) requires a `notifications` system_settings
+The ntfy notifications feature requires a `notifications` system_settings
 row holding `server_url`/`topic`/`enabled` — never seeded by the initial
 schema migration (`8c603463c7a8`), which only seeded `s3`,
 `robot_events_api`, `predictor`, and `chroma_key_defaults`. Per that

@@ -59,7 +59,7 @@ INTEGRATIONS_DIR = Path(__file__).parent / "modules" / "integrations"
 CONFIG_CHANGE_CHANNEL = REDIS_PREFIX + "config_change"
 EVENTS_CHANNEL = REDIS_PREFIX + "events"
 
-# Appendix A.11's Integration Debug Log: last-100-raw-events ring buffer per
+# Integration Debug Log: last-100-raw-events ring buffer per
 # integration instance, keyed the same way as `STATUS_KEY_TMPL` (see
 # `_events_debug_log_listener` below). A generous 7-day TTL is used instead
 # of no TTL at all so a long-deleted/renamed entity's debug log doesn't
@@ -162,7 +162,7 @@ class Loader:
         self._pubsub_task: asyncio.Task | None = None
         self._events_debug_task: asyncio.Task | None = None
         self._shutdown = asyncio.Event()
-        # Holds fire-and-forget ntfy notification tasks (Appendix A.8) so
+        # Holds fire-and-forget ntfy notification tasks so
         # they aren't garbage-collected mid-flight.
         self._bg_tasks: set[asyncio.Task] = set()
 
@@ -272,7 +272,7 @@ class Loader:
         except Exception:
             logger.exception("Failed to write status to Redis for '%s'", entity_id)
 
-        # Appendix A.8: notify on a transition INTO DEGRADED (not on every
+        # notify on a transition INTO DEGRADED (not on every
         # repeated retry-loop failure that re-sets the same status).
         if status == "DEGRADED" and previous != "DEGRADED":
             task = asyncio.create_task(
@@ -347,7 +347,7 @@ class Loader:
                 await pubsub.aclose()
 
     async def _events_debug_log_listener(self) -> None:
-        """Appendix A.11 Integration Debug Log: mirrors every message
+        """Integration Debug Log: mirrors every message
         published to `tmtools:events` into a per-entity ring buffer
         (`DEBUG_LOG_KEY_TMPL`) holding the most recent
         `DEBUG_LOG_MAX_ENTRIES` raw events, most-recent-first, refreshing a

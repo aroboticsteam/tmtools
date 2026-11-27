@@ -9,21 +9,21 @@ function resolveWsUrl(path: string): string {
   // path is like '/ws/events' or '/ws/prompter/timer.fs1_field1?token=...'.
   // In dev, Vite's proxy (vite.config.ts) forwards /ws/* with ws:true to
   // the backend; in prod the SPA is served from the same origin as the
-  // backend (Traefik IngressRoute, Appendix A.9), so a same-origin
+  // backend (Traefik IngressRoute), so a same-origin
   // ws(s):// URL works in both cases without an env var.
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${window.location.host}${path}`;
 }
 
 /**
- * Native WebSocket hook (plan Appendix B.2 / §C.8.5). Side-effect only —
+ * Native WebSocket hook / §C.8.5). Side-effect only —
  * never returns data. Consumers read live state from `useWsStore`, per the
  * hard rule in §C.8.5: "Never return data directly."
  *
  * - Opens a WebSocket to `path` (e.g. '/ws/events').
  * - On message: parses JSON and calls `useWsStore.getState().dispatch(...)`.
  * - On disconnect: sets the UI store's `reconnecting` flag and retries with
- *   exponential backoff (1s, 2s, 4s, 8s, 16s, 30s cap — Appendix A.14).
+ *   exponential backoff (1s, 2s, 4s, 8s, 16s, 30s cap).
  * - On unmount: closes cleanly and cancels any pending reconnect.
  */
 export function useWebSocket(path: string | null): void {

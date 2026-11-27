@@ -6,8 +6,8 @@ Create Date: 2026-08-28 17:30:00.000000
 
 Wave 2b (Timer & Prompter) addendum — see docstring in
 `backend/models/timer.py`. The plan's §8 schema for `timer_instances` omits a
-countdown-duration column despite Appendix A.3 requiring a per-instance,
-UI-configurable duration in seconds, and Appendix B.8 requires a per-instance
+countdown-duration column despite the design requiring a per-instance,
+UI-configurable duration in seconds, and the teleprompter link requires a per-instance
 nonce so the teleprompter HMAC token can be regenerated (invalidating old
 links). Both are additive, backward-compatible columns on the existing
 table — Wave 1's initial migration is left untouched.

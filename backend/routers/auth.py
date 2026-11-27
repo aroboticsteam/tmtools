@@ -1,4 +1,4 @@
-"""Auth router (plan §11 "Auth" / Appendix A.1 / B.9 / §3.9).
+"""Auth router.
 
 Owns:
   - `GET  /auth/login`    OIDC redirect (Authorization Code + PKCE).
@@ -225,7 +225,7 @@ def _set_session_cookie(response: Response, signed_value: str) -> None:
     )
 
 
-# ── OIDC login/callback/logout (Appendix A.1) ────────────────────────────
+# ── OIDC login/callback/logout ────────────────────────────
 
 
 @router.get("/auth/login")
@@ -278,7 +278,7 @@ async def oidc_callback(
     if isinstance(groups, str):
         groups = [groups]
 
-    # Appendix B.9: groups -> permissions resolved once, at login time.
+    # groups -> permissions resolved once, at login time.
     permissions = await resolve_permissions_for_groups(db, list(groups))
 
     session_id, signed_cookie = await create_session(
@@ -309,7 +309,7 @@ async def logout(
     return out
 
 
-# ── Local emergency admin (plan §3.9 / Appendix B.9) ─────────────────────
+# ── Local emergency admin ─────────────────────
 
 # The login *page* is the SPA's `/admin_login` route (the backend serves no UI
 # pages for it); only the form POST lives here.

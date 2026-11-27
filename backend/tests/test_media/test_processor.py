@@ -100,7 +100,7 @@ async def test_process_video_real_ffmpeg_produces_vp9_alpha_webm(tmp_path):
 @pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="ffmpeg/ffprobe not installed")
 async def test_process_video_small_source_not_upscaled(tmp_path):
     """A source smaller than 1920x1080 is padded to 1920x1080, not upscaled
-    beyond it or left at its native size (per Appendix A.5's scale+pad filter)."""
+    beyond it or left at its native size (the scale+pad filter)."""
     input_path = str(tmp_path / "small_input.mp4")
     output_path = str(tmp_path / "small_output.webm")
     _make_lavfi_clip(input_path, size="640x480")

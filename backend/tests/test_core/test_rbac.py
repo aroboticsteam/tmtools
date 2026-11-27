@@ -132,7 +132,7 @@ async def test_invalid_cookie_signature_is_treated_as_unauthenticated(client):
 
 
 async def test_force_logout_invalidates_session_immediately(client, fake_redis):
-    """Plan Appendix B.9: force logout deletes the session key from Redis
+    """force logout deletes the session key from Redis
     immediately."""
     from backend.core.sessions import delete_session, unsign_session_id
 
@@ -151,7 +151,7 @@ async def test_force_logout_invalidates_session_immediately(client, fake_redis):
     assert resp.status_code == 401
 
 
-# ── API key scoping (Appendix B.7) — needs real Postgres for `api_keys` ──
+# ── API key scoping — needs real Postgres for `api_keys` ──
 
 
 @pytest.fixture
@@ -226,7 +226,7 @@ async def test_api_key_scoped_to_its_permissions(client_with_db):
 
 async def test_api_key_hash_never_stores_plaintext(client_with_db):
     """Regression guard: `api_keys.key_hash` must never equal the raw key
-    (plan Appendix B.7 — SHA-256 hash only)."""
+    — SHA-256 hash only)."""
     from backend.models.settings import ApiKey
 
     _, factory = client_with_db
