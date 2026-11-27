@@ -6,8 +6,43 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# A newer push to the same PR cancels the run that is still going for it.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Decides what a pull request actually needs: a docs-only change runs nothing, a frontend-only change
+  # skips the backend suite. Pushes to main always run everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      e2e: ${{ steps.f.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: f
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            printf 'backend=true\nfrontend=true\ne2e=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "$files"
+          docs='^(docs/|.*\.md$|LICENSE$|\.gitignore$)'
+          any() { echo "$files" | grep -Eq "$1" && echo true || echo false; }
+          code=$(echo "$files" | grep -Ev "$docs" || true)
+          # backend: anything that is not docs and not under frontend/
+          if echo "$code" | grep -Evq '^(frontend/|$)'; then backend=true; else backend=false; fi
+          if [ -n "$code" ]; then e2e=true; else e2e=false; fi
+          printf 'backend=%s\nfrontend=%s\ne2e=%s\n' "$backend" "$(any '^(frontend/|\.github/)')" "$e2e" >> "$GITHUB_OUTPUT"
+
   backend-tests:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     services:
@@ -108,6 +143,8 @@ jobs:
         run: pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=80
 
   frontend-build:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -141,7 +178,8 @@ jobs:
     # Real browser against the real backend (serving the built SPA), Postgres,
     # Redis and MinIO. See docs/TESTING.md.
     runs-on: ubuntu-latest
-    needs: []
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
 
     services:
       postgres:

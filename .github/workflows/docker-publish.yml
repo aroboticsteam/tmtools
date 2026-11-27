@@ -31,6 +31,19 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+    # Only a change to what goes into the images needs the image build checked.
+    paths:
+      - Dockerfile
+      - backend/**
+      - frontend/**
+      - alembic/**
+      - alembic.ini
+      - .github/workflows/docker-publish.yml
+
+# A newer push to the same PR cancels the build that is still going for it.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -49,7 +62,8 @@ jobs:
       fail-fast: false
       matrix:
         component: [ backend, frontend ]
-        platform: [ linux/amd64, linux/arm64 ]
+        # A PR only checks that the Dockerfile builds (amd64); both architectures are built on main and tags.
+        platform: ${{ github.event_name == 'pull_request' && fromJSON('["linux/amd64"]') || fromJSON('["linux/amd64","linux/arm64"]') }}
     permissions:
       contents: read
       packages: write
