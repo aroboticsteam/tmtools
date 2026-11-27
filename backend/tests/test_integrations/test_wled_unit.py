@@ -2,6 +2,7 @@
 device (httpx.MockTransport implementing the bits of the JSON API we use)."""
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -182,3 +183,35 @@ async def test_unknown_service_and_not_connected(redis_client):
         await integ.call_service("nope", {})
     with pytest.raises(IntegrationError):
         await integ.call_service("set_power", {"on": True})
+
+
+async def test_status_follows_the_strip_after_setup(redis_client, monkeypatch):
+    device = MockWled()
+    alive = {"up": True}
+    real = httpx.AsyncClient
+
+    def handler(request):
+        if not alive["up"]:
+            raise httpx.ConnectError("unplugged")
+        return device.handler(request)
+
+    monkeypatch.setattr("backend.modules.integrations.wled.integration.WATCH_INTERVAL_S", 0.02)
+    monkeypatch.setattr("backend.modules.integrations.wled.integration.httpx.AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    statuses: list[str] = []
+
+    async def hook(_entity_id: str, status: str) -> None:
+        statuses.append(status)
+
+    integ = WledIntegration("w", {"host": "wled.local"}, redis_client, None)
+    integ._status_hook = hook
+    await integ.setup()
+    try:
+        alive["up"] = False
+        await asyncio.sleep(0.15)
+        assert statuses[-1:] == ["DEGRADED"]
+        alive["up"] = True
+        await asyncio.sleep(0.15)
+        assert statuses == ["DEGRADED", "CONNECTED"]
+    finally:
+        await integ.teardown()
+
