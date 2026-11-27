@@ -730,7 +730,8 @@ async def ws_replay(websocket: WebSocket, entity_id: str) -> None:
     """No auth, like the overlay: the replay player page is only ever pasted
     into an OBS browser source. Receives `play`, `pause`, `resume`, `rate`,
     `seek`, `restart` and `stop`; a fresh connection first gets the current
-    state so a reloaded source resumes what was on."""
+    state so a reloaded source resumes what was on. The page sends `status` frames (position, duration,
+    paused, ended); they are republished as `replay_status` events for the analysis desk."""
     if not replay_module.ENTITY_ID_RE.match(entity_id):
         await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason="Invalid replay id")
         return
@@ -749,9 +750,15 @@ async def ws_replay(websocket: WebSocket, entity_id: str) -> None:
                     "paused": bool(state.get("paused")),
                 }
             )
+        await replay_module.publish_status(redis_client, entity_id, {"player": True})
         while True:
-            await websocket.receive_text()  # keepalive pings from the page
+            raw = await websocket.receive_text()
+            # The page reports its real playback position (`status`); anything else is a keepalive ping.
+            report = replay_module.parse_status(raw)
+            if report is not None:
+                await replay_module.publish_status(redis_client, entity_id, report)
     except WebSocketDisconnect:
         pass
     finally:
         await manager.disconnect(bucket, websocket)
+        await replay_module.publish_status(redis_client, entity_id, {"player": False})

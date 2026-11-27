@@ -44,6 +44,23 @@ describe('replay player', () => {
     expect(video.play).toHaveBeenCalled();
   });
 
+  it('retries muted when the browser blocks autoplay, but not when a newer source just replaced this one', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+    play.mockRejectedValueOnce(new DOMException('blocked', 'NotAllowedError')).mockResolvedValue(undefined);
+    handle({ type: 'play', url: 'http://s3/x.mp4' });
+    await act(async () => undefined);
+    expect(video.muted).toBe(true);
+    expect(play).toHaveBeenCalledTimes(2);
+
+    video.muted = false;
+    play.mockClear();
+    play.mockRejectedValueOnce(new DOMException('interrupted', 'AbortError')).mockResolvedValue(undefined);
+    handle({ type: 'play', url: 'http://s3/y.mp4' });
+    await act(async () => undefined);
+    expect(video.muted).toBe(false);
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
   it('starts paused when told to, and handles pause/resume/rate/seek/restart', () => {
     handle({ type: 'play', url: 'http://s3/x.mp4', paused: true });
     expect(video.play).not.toHaveBeenCalled();

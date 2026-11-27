@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, Send, Undo2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Send, Undo2, Zap } from 'lucide-react';
 import {
   useCaptureRecordings,
   useCaptureStatus,
@@ -372,20 +372,6 @@ function MatchTab({
   const player = (
     <>
       <MatchPlayer recording={recording} seek={seek} />
-      {replay?.playing && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-vmd-border bg-white p-3 text-sm" aria-label="On program">
-          <span className="mr-auto text-vmd-textMuted">
-            On program: <span className="font-medium text-vmd-textStrong">{replay.label ?? 'Replay'}{replay.paused ? ' (paused)' : ''}</span> at {replay.rate ?? speed}×
-          </span>
-          <Button disabled={!canControl} onClick={() => control.mutate({ action: replay.paused ? 'resume' : 'pause' })}>
-            {replay.paused ? <Play size={16} /> : <Pause size={16} />}
-            {replay.paused ? 'Resume' : 'Pause'}
-          </Button>
-          <Button disabled={!canControl} onClick={() => control.mutate({ action: 'restart' })}>
-            <RotateCcw size={16} /> Restart
-          </Button>
-        </div>
-      )}
     </>
   );
 

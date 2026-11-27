@@ -9,7 +9,7 @@ OPTIONS = {
     "iconfile": str(here / "icons" / "app.icns"),
     "resources": [str(here / "icons" / "menubar.png"), str(here / "icons" / "menubar@2x.png")],
     "includes": ["agent", "core", "certifi", "websockets", "httpx", "h11", "httpcore", "anyio", "idna", "sniffio"],
-    "packages": ["rumps"],
+    "packages": ["rumps", "anyio"],
     "plist": {
         "CFBundleName": "TMTools Capture",
         "CFBundleDisplayName": "TMTools Capture",
