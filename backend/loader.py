@@ -367,6 +367,8 @@ class Loader:
                     if isinstance(data, bytes):
                         data = data.decode("utf-8")
                     parsed = json.loads(data)
+                    if parsed.get("type") == "replay_status":
+                        continue  # live player position, twice a second: not worth a debug-log slot
                     await field_state.record(self._redis, parsed)
                     entity_id = parsed.get("entity_id")
                     if not entity_id:

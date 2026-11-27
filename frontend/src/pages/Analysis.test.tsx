@@ -9,6 +9,7 @@ const mark = vi.fn();
 const play = vi.fn();
 const control = vi.fn();
 let perms = true;
+const replayState = vi.hoisted(() => ({ value: { playing: false } as Record<string, unknown> }));
 
 const moments = [
   { id: 'm1', number: 1, length_s: 5, status: 'READY', end_offset_ms: 1, ready_ms: 3000, requested_at: '', error: null },
@@ -25,7 +26,7 @@ vi.mock('../api/capture', () => ({
   useCaptureStatus: () => ({ data: { connected: true, agent: {}, recording: recordings[1] } }),
   useMarkMoment: () => ({ mutate: mark, isPending: false }),
   useRecordingUrl: () => ({ data: { url: 'http://media.test/match.mp4', label: 'Q 2' }, isError: false, refetch: vi.fn() }),
-  useReplayState: () => ({ data: { playing: false } }),
+  useReplayState: () => ({ data: replayState.value }),
   useReplayPlay: () => ({ mutate: play, isPending: false }),
   useReplayControl: () => ({ mutate: control, isPending: false }),
 }));
@@ -58,7 +59,8 @@ describe('AnalysisPage', () => {
     control.mockClear();
     perms = true;
     stubStorage();
-    useWsStore.setState({ currentMatches: {} });
+    replayState.value = { playing: false };
+    useWsStore.setState({ currentMatches: {}, replayStatus: {} });
   });
 
   it('follows the live recording and lists moments with upload state', () => {

@@ -57,3 +57,29 @@ def test_ws_replay_state_on_connect_and_command_forwarding():
     finally:
         r.delete(f"tmtools:replay:{eid}:state")
         r.close()
+
+
+@needs_infra
+def test_ws_replay_status_frames_become_replay_status_events():
+    r = redis_sync.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    eid = f"s{int(time.time() * 1000)}"
+    pubsub = r.pubsub()
+    pubsub.subscribe(replay.EVENTS_CHANNEL)
+    pubsub.get_message(timeout=1)
+    seen: list[dict] = []
+    try:
+        with TestClient(app) as client:
+            with client.websocket_connect(f"/ws/replay/{eid}") as ws:
+                ws.send_text("ping")  # keepalive: ignored
+                ws.send_text(json.dumps({"type": "status", "position": 2.5, "duration": 9, "rate": 0.5, "paused": False, "ended": False}))
+                deadline = time.time() + 3
+                while time.time() < deadline and not any(m["payload"].get("position") == 2.5 for m in seen):
+                    msg = pubsub.get_message(ignore_subscribe_messages=True, timeout=0.2)
+                    if msg:
+                        data = json.loads(msg["data"])
+                        if data.get("entity_id") == eid:
+                            seen.append(data)
+        assert any(m["type"] == "replay_status" and m["payload"].get("position") == 2.5 and m["payload"]["player"] is True for m in seen)
+    finally:
+        pubsub.close()
+        r.close()
