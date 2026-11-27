@@ -59,6 +59,11 @@ class Integration:
     # degrades gracefully to a direct Redis write in that case.
     _status_hook: Callable[[str, str], Awaitable[None]] | None = None
 
+    # The last status this instance reported itself. The loader marks an instance CONNECTED once `setup()`
+    # returns, unless the instance already reported a status of its own during `setup()` (e.g. capture reports
+    # DEGRADED while no agent is connected): that report wins, otherwise it would be overwritten as CONNECTED.
+    reported_status: str | None = None
+
     def __init__(self, entity_id: str, config: dict[str, Any], redis: Any, db_pool: Any) -> None:
         self.entity_id = entity_id
         self.config = config
@@ -73,6 +78,7 @@ class Integration:
         instead of writing to the status Redis key directly — see
         `_status_hook`'s docstring above. Never raises.
         """
+        self.reported_status = status
         hook = self._status_hook
         if hook is not None:
             try:

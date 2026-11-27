@@ -209,3 +209,22 @@ async def test_teardown_never_raises(redis_client):
     bad.disconnect.side_effect = RuntimeError("boom")
     integration._atem = bad
     await integration.teardown()  # must not raise
+
+
+async def test_link_drop_and_return_are_reported(redis_client):
+    integ = AtemIntegration("atem.main", {"ip": "1.2.3.4"}, redis_client, None)
+    statuses: list[str] = []
+
+    async def hook(_entity_id: str, status: str) -> None:
+        statuses.append(status)
+
+    integ._status_hook = hook
+    integ._loop = asyncio.get_running_loop()
+    integ._connected_event = asyncio.Event()
+    # PyATEMMax calls these from its own thread.
+    await asyncio.to_thread(integ._on_disconnect, {})
+    await asyncio.sleep(0.05)
+    await asyncio.to_thread(integ._on_connect, {})
+    await asyncio.sleep(0.05)
+    assert statuses == ["DEGRADED", "CONNECTED"]
+

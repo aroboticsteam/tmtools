@@ -234,7 +234,8 @@ class Loader:
         self._instances[entity_id] = instance
         self._entity_domain[entity_id] = row.domain
         self._entity_config_fingerprint[entity_id] = self._fingerprint(row)
-        await self._set_status(entity_id, "CONNECTED")
+        # An instance that reported its own status during setup() (capture: DEGRADED with no agent) keeps it.
+        await self._set_status(entity_id, instance.reported_status or "CONNECTED")
 
     async def _tear_down(self, entity_id: str) -> None:
         instance = self._instances.pop(entity_id, None)
@@ -317,7 +318,7 @@ class Loader:
                 self._instances[entity_id] = instance
                 self._entity_domain[entity_id] = row.domain
                 self._entity_config_fingerprint[entity_id] = self._fingerprint(row)
-                await self._set_status(entity_id, "CONNECTED")
+                await self._set_status(entity_id, instance.reported_status or "CONNECTED")
                 return
         finally:
             self._retry_tasks.pop(entity_id, None)

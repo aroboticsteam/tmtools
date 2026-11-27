@@ -7,6 +7,7 @@ event loop.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 from typing import Any
@@ -19,6 +20,7 @@ from backend.modules.integrations.base import Integration
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 80
+WATCH_INTERVAL_S = 10.0
 REQUEST_TIMEOUT_SECONDS = 5.0
 MAX_FLASHES = 20
 MIN_FLASH_INTERVAL_MS = 50
@@ -65,6 +67,8 @@ class WledIntegration(Integration):
         self._http: httpx.AsyncClient | None = None
         self._flash_lock = asyncio.Lock()
         self._last_state: dict[str, Any] = {}
+        self._watch_task: asyncio.Task | None = None
+        self._reachable = True
 
     async def setup(self) -> None:
         host = self.config.get("host")
@@ -77,6 +81,24 @@ class WledIntegration(Integration):
         except Exception as exc:
             await self._close()
             raise IntegrationError(f"wled[{self.entity_id}]: cannot reach {host}:{port}: {exc}") from exc
+        self._reachable = True
+        self._watch_task = asyncio.create_task(self._watch())
+
+    async def _watch(self) -> None:
+        """Setup proved the strip answered once; this keeps the status true afterwards (it stayed CONNECTED after
+        the strip was unplugged)."""
+        while True:
+            await asyncio.sleep(WATCH_INTERVAL_S)
+            try:
+                await self._request("GET", "/json/info")
+                ok = True
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                ok = False
+            if ok != self._reachable:
+                self._reachable = ok
+                await self.report_status("CONNECTED" if ok else "DEGRADED")
 
     async def _close(self) -> None:
         http, self._http = self._http, None
@@ -87,6 +109,11 @@ class WledIntegration(Integration):
                 logger.exception("Error closing WLED client for %s", self.entity_id)
 
     async def teardown(self) -> None:
+        task, self._watch_task = self._watch_task, None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(BaseException):
+                await task
         await self._close()
 
     async def _request(self, method: str, path: str, json: dict[str, Any] | None = None) -> Any:
