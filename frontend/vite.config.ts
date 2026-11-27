@@ -14,6 +14,8 @@ import { defineConfig } from 'vite'
 const backendTarget = process.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default defineConfig({
+  // The GitHub Pages demo (VITE_DEMO=true) is served from /tmtools/; everything else from the root.
+  base: process.env.VITE_DEMO === 'true' ? '/tmtools/' : '/',
   plugins: [react()],
   test: {
     environment: 'jsdom',

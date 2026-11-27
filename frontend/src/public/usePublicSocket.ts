@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { demoRuntime } from '../lib/demo';
 
 export type SocketStatus = 'connecting' | 'live' | 'reconnecting';
 
@@ -34,7 +35,7 @@ export function usePublicSocket(
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       let ws: WebSocket;
       try {
-        ws = new WebSocket(`${proto}//${window.location.host}${path}`);
+        ws = demoRuntime()?.socket(path!) ?? new WebSocket(`${proto}//${window.location.host}${path}`);
       } catch {
         schedule();
         return;

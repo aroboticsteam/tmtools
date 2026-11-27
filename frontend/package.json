@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:demo": "VITE_DEMO=true tsc -b && VITE_DEMO=true vite build && cp dist/index.html dist/404.html && sh scripts/make-demo-clip.sh dist/demo/clip.mp4",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
