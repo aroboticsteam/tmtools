@@ -10,6 +10,8 @@
  * frontend doesn't manage tokens itself" instruction.
  */
 
+import { DEMO, demoRuntime } from './demo';
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -50,6 +52,10 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (DEMO) {
+    const demo = demoRuntime();
+    if (demo) return demo.fetch<T>(path, options);
+  }
   const url = buildUrl(path, options.query);
   const init: RequestInit = {
     method: options.method ?? 'GET',

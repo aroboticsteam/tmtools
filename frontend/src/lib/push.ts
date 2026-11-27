@@ -16,7 +16,7 @@ function base64UrlToBytes(b64: string): Uint8Array<ArrayBuffer> {
 }
 
 async function registration(): Promise<ServiceWorkerRegistration> {
-  await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   return navigator.serviceWorker.ready;
 }
 

@@ -97,4 +97,4 @@ export const router = createBrowserRouter(STATIC_SITE ? staticSiteRoutes : [
       },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { demoRuntime } from '../lib/demo';
 import { useUiStore } from '../stores/ui';
 import { useWsStore } from '../stores/ws';
 import type { EventBusMessage } from '../types/api';
@@ -38,7 +39,7 @@ export function useWebSocket(path: string | null): void {
 
     function connect() {
       const url = resolveWsUrl(path!);
-      const ws = new WebSocket(url);
+      const ws = demoRuntime()?.socket(path!) ?? new WebSocket(url);
       socketRef.current = ws;
 
       ws.onopen = () => {

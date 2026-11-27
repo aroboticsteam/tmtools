@@ -48,7 +48,7 @@ export function NotifyPage() {
   usePageChrome({
     title: 'Match alerts',
     themeColor: overview.data?.theme?.dark?.primary || '#171717',
-    manifest: '/notify.webmanifest',
+    manifest: `${import.meta.env.BASE_URL}notify.webmanifest`,
     meta: { 'apple-mobile-web-app-capable': 'yes', 'mobile-web-app-capable': 'yes' },
   });
 
@@ -88,7 +88,7 @@ export function NotifyPage() {
       }
       setReady(true);
       try {
-        const r = await navigator.serviceWorker.register('/sw.js');
+        const r = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
         await navigator.serviceWorker.ready;
         if (!live) return;
         setReg(r);
